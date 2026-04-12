@@ -145,7 +145,9 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
 		};
 
 	  return {
-		match, isHome, myTeam, oppTeam,
+		match, isHome,
+		myTeam: G.myTeam,
+		oppTeam: luState.opp,
 		onField: { ...formation },
 		bench,
 		myScore: 0, oppScore: 0,
@@ -178,6 +180,8 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
 		possessor: 'my_3',       // Chi ha la palla (es. squadra_posizione)
 		ballStatus: 'held',      // 'held' (in mano) o 'passing' (in volo)
 		targetReceiver: null,    // ID del giocatore che deve ricevere
+		formation: luState.formation, // Prende la formazione salvata in lineup.js
+		shirtNumbers: luState.shirtNumbers,
 		ms
 	};
 };
@@ -779,8 +783,16 @@ function updateBall(ms) { // Aggiungi ms qui tra le parentesi
    ms.ballStatus = 'passing'; 
 }
 
-function startLiveMatch(data) {
-    // Assicurati di passare 'data' (o come si chiama l'oggetto con le squadre)
-    var ms = createMatchState(data); 
-    // ...
+// [File: js/engine/match.js]
+
+function startLiveMatch(match) {
+    // 1. Creiamo lo stato e lo assegniamo alla variabile 'ms'
+    const ms = createMatchState(match); 
+    
+    // 2. Ora 'ms' esiste in questa funzione e possiamo passarlo al canvas
+    if (typeof poolInitTokens === 'function') {
+        poolInitTokens(ms); // Passiamo ms a pool.js
+    }
+    
+    // ... resto della logica
 }
