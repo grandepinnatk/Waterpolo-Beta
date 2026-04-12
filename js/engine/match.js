@@ -135,43 +135,43 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
   const stamina = {};
   myRoster.forEach((p, i) => { stamina[i] = p.fitness; });
 
-  return {
-    match, isHome, myTeam, oppTeam,
-    onField: { ...formation },
-    bench,
-    myScore: 0, oppScore: 0,
-    period: 1, totalSeconds: 0,
-    running: false, finished: false,
-    myShots: 0, oppShots: 0, mySaves: 0, myFouls: 0,
-    gkSaves: {},   // { rosterIndex: savesCount } — per ogni GK che ha parato
-    tactic: 'balanced',
-    actions: [],
-    myRoster, oppRoster,
-    subs: 0, subOut: null, subIn: null,
-    lastActionTime: 0, nextActionIn: rnd(7, 14),
-    poType: null, poMatch: null,
-	shirtNumbers: shirtNumbers || {},
-    tempExp,
-    expelled: new Set(),
-    stamina,
-    speed: 1,
-    // Gol segnati IN QUESTA PARTITA: { rosterIdx → count }
-    matchGoals:   {},
-    matchAssists: {},
-    matchRatings: {},   // { rosterIdx → voto live 0-10 }
-    matchDuels:   {},   // { rosterIdx → { won, lost } } confronti vinti/persi
-    injuries:     [],   // [ rosterIdx ] giocatori infortunati in questa partita
-    // Parziali per periodo: array di { my, opp } per ciascuno dei 4 tempi
-    periodScores: [ {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0} ],
-    // Punteggio al termine del periodo precedente (per calcolare il parziale corrente)
-    _prevScore: { my:0, opp:0 },
-	// [File: js/engine/match.js]
-    possessor: 'my_3',       // Chi ha la palla (es. squadra_posizione)
-    ballStatus: 'held',      // 'held' (in mano) o 'passing' (in volo)
-    targetReceiver: null    // ID del giocatore che deve ricevere
+	  return {
+		match, isHome, myTeam, oppTeam,
+		onField: { ...formation },
+		bench,
+		myScore: 0, oppScore: 0,
+		period: 1, totalSeconds: 0,
+		running: false, finished: false,
+		myShots: 0, oppShots: 0, mySaves: 0, myFouls: 0,
+		gkSaves: {},   // { rosterIndex: savesCount } — per ogni GK che ha parato
+		tactic: 'balanced',
+		actions: [],
+		myRoster, oppRoster,
+		subs: 0, subOut: null, subIn: null,
+		lastActionTime: 0, nextActionIn: rnd(7, 14),
+		poType: null, poMatch: null,
+		shirtNumbers: shirtNumbers || {},
+		tempExp,
+		expelled: new Set(),
+		stamina,
+		speed: 1,
+		// Gol segnati IN QUESTA PARTITA: { rosterIdx → count }
+		matchGoals:   {},
+		matchAssists: {},
+		matchRatings: {},   // { rosterIdx → voto live 0-10 }
+		matchDuels:   {},   // { rosterIdx → { won, lost } } confronti vinti/persi
+		injuries:     [],   // [ rosterIdx ] giocatori infortunati in questa partita
+		// Parziali per periodo: array di { my, opp } per ciascuno dei 4 tempi
+		periodScores: [ {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0} ],
+		// Punteggio al termine del periodo precedente (per calcolare il parziale corrente)
+		_prevScore: { my:0, opp:0 },
+		// [File: js/engine/match.js]
+		possessor: 'my_3',       // Chi ha la palla (es. squadra_posizione)
+		ballStatus: 'held',      // 'held' (in mano) o 'passing' (in volo)
+		targetReceiver: null    // ID del giocatore che deve ricevere
+	};
 };
-  };
-}
+
 
 // ── Avanza il tempo ───────────────────────────
 function advanceTime(ms, dt) {
