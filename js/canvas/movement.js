@@ -436,7 +436,9 @@ function _getTok(key) {
     }
   }
 
-// Esponi globalmente
-window.MovementController = MovementController;
+
 
 })();
+
+// Esponi globalmente
+window.MovementController = MovementController;
