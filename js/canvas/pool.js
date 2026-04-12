@@ -664,8 +664,9 @@ function updateBallVisuals() {
 function updateBallPosition() {
     if (_ms.isGoal) {
         // Posiziona la palla stabilmente dietro la linea di porta
-        _ball.x = (_ms.lastScorerTeam === 'my') ? PLAY.oppNetX0 + 0.01 : PLAY.myNetX0 - 0.01;
-        _ball.y = PLAY.cy;
+		_ball.x = PLAY.oppNetX0 + 0.02; // Posiziona la palla "dentro" la rete
+		_ball.y = PLAY.cy;
+		ms.ballStatus = 'goal'; // Ferma le altre logiche
     } 
     else if (_ms.isSaved || (_ms.possessor && _ms.possessor.role === 'POR')) {
         // Se il portiere para o ha palla, la palla segue il suo segnalino esattamente
@@ -688,6 +689,68 @@ function poolUpdateBall(ball, ms) {
         if (ms.tokens[gkId]) {
             ball.x = ms.tokens[gkId].x;
             ball.y = ms.tokens[gkId].y;
+        }
+    }
+}
+
+// Sostituisci il calcolo della velocità nei movimenti dei segnalini
+function getRealismSpeed(playerStat) {
+    // 0.80 unità in 10 secondi = 0.08 unità al secondo.
+    // Se il gioco gira a 60 FPS, la velocità per frame è:
+    const baseSpeed = (0.80 / 10) / 60; // circa 0.00133 per frame
+
+    // Applichiamo la statistica del giocatore (spe)
+    return baseSpeed * (playerStat / 100);
+}
+
+// Modifica la funzione di aggiornamento della palla
+function updateBallPhysics(ball, possessorToken, isGoal, isSaves) {
+    if (isGoal) {
+        // La palla finisce nel rettangolo dietro il portiere
+        ball.x = (ball.side === 'my') ? PLAY.oppNetX0 + 0.02 : PLAY.myNetX0 + 0.02;
+        ball.y = PLAY.cy; // Centro porta
+    } else if (isSaves || (possessorToken && possessorToken.role === 'POR')) {
+        // Aggancio al portiere
+        ball.x = possessorToken.x;
+        ball.y = possessorToken.y;
+    } else if (possessorToken) {
+        // Movimento fluido tra i giocatori della squadra in possesso
+        // Implementa un'interpolazione verso il giocatore che riceve
+        ball.targetX = possessorToken.x;
+        ball.targetY = possessorToken.y;
+    }
+}
+
+// [File: js/canvas/pool.js]
+function poolUpdateBallPhysics(ms) {
+    if (ms.ballStatus === 'passing' && ms.targetReceiver) {
+        var targetTok = _tokens[ms.targetReceiver];
+        if (targetTok) {
+            // Velocità del passaggio (0.015 è un buon valore per il realismo)
+            var speed = 0.015;
+            
+            // Muovi la palla verso il giocatore
+            var dx = targetTok.x - _ball.x;
+            var dy = targetTok.y - _ball.y;
+            var dist = Math.sqrt(dx*dx + dy*dy);
+
+            if (dist > speed) {
+                _ball.x += (dx / dist) * speed;
+                _ball.y += (dy / dist) * speed;
+            } else {
+                // Palla arrivata!
+                _ball.x = targetTok.x;
+                _ball.y = targetTok.y;
+                ms.ballStatus = 'held';
+                ms.possessor = ms.targetReceiver;
+            }
+        }
+    } else if (ms.ballStatus === 'held' && ms.possessor) {
+        // La palla segue il giocatore che ce l'ha in mano
+        var holder = _tokens[ms.possessor];
+        if (holder) {
+            _ball.x = holder.x;
+            _ball.y = holder.y;
         }
     }
 }

@@ -108,6 +108,15 @@ const NEUTRAL_EVENTS = [
   'Superiorità numerica gestita', 'Tiro fuori misura', 'Fallo in attacco',
 ];
 
+// Cerca dove viene gestito il passaggio (probabilmente in una funzione tipo processStep)
+// Quando viene scelto un nuovo ricevitore:
+ms.ballStatus = 'passing'; // Nuovo stato per la palla
+ms.targetReceiver = nextPlayerId; // Il segnalino verso cui deve andare la palla
+// Invece di cambiare il possessore istantaneamente:
+_ms.isBallInFlight = true;
+_ms.ballTargetToken = nextPlayerId;
+
+
 // ── Crea lo stato iniziale ────────────────────
 function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster, formation, shirtNumbers }) {
   const onFieldIdxs = new Set(Object.values(formation));
@@ -155,6 +164,12 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
     periodScores: [ {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0} ],
     // Punteggio al termine del periodo precedente (per calcolare il parziale corrente)
     _prevScore: { my:0, opp:0 },
+	
+	// [File: js/engine/match.js]
+    possessor: 'my_3',       // Chi ha la palla (es. squadra_posizione)
+    ballStatus: 'held',      // 'held' (in mano) o 'passing' (in volo)
+    targetReceiver: null    // ID del giocatore che deve ricevere
+};
   };
 }
 
@@ -717,4 +732,35 @@ function updateTacticalPhase() {
             }
         }
     });
+}
+
+// Dentro il loop di match.js
+function updateMatchPhase(ms) {
+    // Se la palla passa di mano, inverti i target di tutti i giocatori
+    let attackingTeam = ms.ballPossession; 
+    
+    ms.players.forEach(p => {
+        if (p.team === attackingTeam) {
+            p.mode = 'ATTACK'; // Nuotano verso la porta avversaria
+        } else {
+            p.mode = 'DEFENSE'; // Nuotano verso la propria porta
+        }
+    });
+}
+
+// Logica per il possesso e il goal
+function updateBallLogic() {
+    if (_ms.phase === 'goal') {
+        // Palla dietro il portiere nel rettangolo di porta
+        var goalX = (_ms.lastScorer === 'home') ? 0.95 : 0.05; 
+        _ball.x = goalX;
+        _ball.y = 0.5; // Centro porta
+    } else if (_ms.status === 'saved') {
+        // Aggancio al portiere
+        var gk = _tokens[_ms.possession + '_GK'];
+        if (gk) {
+            _ball.x = gk.x;
+            _ball.y = gk.y;
+        }
+    }
 }

@@ -18,6 +18,13 @@ G.REALISM = {
 	FPS: 60
 };
 
+// Costanti tattiche per il posizionamento "stile basket"
+// Queste verranno usate dai segnalini per capire dove nuotare in fase di attacco/difesa
+G.PHASES = {
+    ATTACK: 'attack',
+    DEFENSE: 'defense'
+};
+
 // ═══════════════════════════════════════════════════════
 // SIMULAZIONE SU CAMPO - MOVIMENTI REALISTICI
 // ═══════════════════════════════════════════════════════

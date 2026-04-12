@@ -55,10 +55,15 @@ var MovementController = (function() {
   }
 
   // Chiamata quando c'è un cambio di possesso esplicito
-  function onPossessChange(team) {
+function onPossessChange(team) {
     _lastPossess = team;
-    _applyTacticalPosition();
-  }
+    // Quando cambia il possesso, inviamo tutti i giocatori ai nuovi target
+    ['1','2','3','4','5','6','GK'].forEach(function(pk) {
+        _updatePlayerTarget('my_' + pk);
+        _updatePlayerTarget('opp_' + pk);
+    });
+}
+
 
   // Chiamata a inizio periodo
   function onPeriodStart() {
@@ -266,6 +271,27 @@ function getRealismSpeed(player) {
     return finalSpeed;
 }
 
+function _getRealismSpeed(tokenKey) {
+    // Distanza campo in unità relative (PLAY_X1 - PLAY_X0 = 0.80)
+    var FIELD_DIST = 0.80; 
+    var unitsPerSecond = FIELD_DIST / G.REALISM.SECONDS_TO_CROSS;
+    var unitsPerFrame = unitsPerSecond / G.REALISM.FPS;
+
+    // Recupera il giocatore per leggere la sua statistica 'spe' (velocità)
+    var tok = _getToken(tokenKey);
+    if (!tok) return unitsPerFrame;
+
+    // Supponendo che tok.player.stats.spe contenga la velocità (0-100)
+    var spe = (tok.player && tok.player.stats) ? tok.player.stats.spe : 50;
+    var finalSpeed = unitsPerFrame * (spe / G.REALISM.REF_SPEED_STAT);
+
+    // Tattica Contropiede: boost per posizioni 1, 5, 6
+    if (_ms.tactic === 'counter' && (tok.pos === '1' || tok.pos === '5' || tok.pos === '6')) {
+        finalSpeed *= 1.3;
+    }
+    return finalSpeed;
+}
+
 // Funzione per calcolare la velocità proporzionale (10s per il campo)
 function _getPlayerSpeed(player) {
     // Il campo utile è PLAY.x1 - PLAY.x0 (circa 0.80 unità)
@@ -314,6 +340,27 @@ function _updateTacticalTargets() {
             }
         }
     });
+}
+
+// Dentro la funzione che aggiorna la palla (es. updateBall o simile)
+function _animateBallPass() {
+    if (_ms.ballStatus === 'passing') {
+        let targetTok = _ms.tokens[_ms.targetReceiver];
+        if (targetTok) {
+            // Calcoliamo la velocità del passaggio (deve essere più veloce dei giocatori)
+            const passSpeed = 0.02; // Regola questo valore per il realismo
+            
+            // Usiamo la tua funzione moveToTarget esistente
+            moveToTarget(_ball, targetTok.x, targetTok.y, passSpeed);
+
+            // Se la palla è abbastanza vicina al ricevitore, il passaggio è completato
+            let dist = Math.hypot(_ball.x - targetTok.x, _ball.y - targetTok.y);
+            if (dist < 0.01) {
+                _ms.ballStatus = 'held'; // La palla è ora in mano al giocatore
+                _ms.currentPossessor = _ms.targetReceiver;
+            }
+        }
+    }
 }
 
 // Esponi globalmente
