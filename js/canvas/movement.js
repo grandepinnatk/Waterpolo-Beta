@@ -20,6 +20,10 @@ var MovementController = (function() {
   var MICRO_INTERVAL    = 1.8;   // micro-movimenti
 
   // ── API pubblica ───────────────────────────
+	function activate(matchState) {
+		_ms = matchState; // <-- Qui viene "riempita" la variabile
+		_active = true;
+	}
 
   function init(ms) {
     _ms     = ms;
@@ -405,6 +409,8 @@ function onPossessChange(team) {
 }
 
 function _getTok(key) {
+    // Se la variabile globale dello stato si chiama 'ms' invece di '_ms', correggi qui
+    if (!_ms || !_ms.tokens) return null; 
     return _ms.tokens[key];
 }
 
