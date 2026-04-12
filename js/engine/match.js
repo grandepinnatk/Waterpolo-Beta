@@ -137,8 +137,8 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
   myRoster.forEach((p, i) => { stamina[i] = p.fitness; });
 
 	var ms = { // Qui ms viene DEFINITA
-			home: matchObj.home,
-			away: matchObj.away,
+			//home: matchObj.home,
+			//away: matchObj.away,
 			// ...
 			ballStatus: 'held', // Non serve scrivere ms.ballStatus, sei già nell'oggetto
 			possessor: 'my_3'
@@ -777,4 +777,10 @@ function updateBallLogic() {
 
 function updateBall(ms) { // Aggiungi ms qui tra le parentesi
    ms.ballStatus = 'passing'; 
+}
+
+function startLiveMatch(data) {
+    // Assicurati di passare 'data' (o come si chiama l'oggetto con le squadre)
+    var ms = createMatchState(data); 
+    // ...
 }
