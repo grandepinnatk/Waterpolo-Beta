@@ -168,7 +168,7 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
 	// [File: js/engine/match.js]
     possessor: 'my_3',       // Chi ha la palla (es. squadra_posizione)
     ballStatus: 'held',      // 'held' (in mano) o 'passing' (in volo)
-    targetReceiver: null,    // ID del giocatore che deve ricevere
+    targetReceiver: null    // ID del giocatore che deve ricevere
 };
   };
 }
