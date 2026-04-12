@@ -676,3 +676,18 @@ function updateBallPosition() {
         }
     }
 }
+
+function poolUpdateBall(ball, ms) {
+    if (ms.isGoal) {
+        // Palla nel rettangolo di porta dietro il portiere
+        ball.x = ms.lastScorerTeam === 'my' ? PLAY.oppNetX1 - 0.02 : PLAY.myNetX0 + 0.02;
+        ball.y = PLAY.cy;
+    } else if (ms.isSaved || (ms.possessor && ms.possessor.role === 'POR')) {
+        // Palla agganciata al segnalino del portiere
+        let gkId = ms.possession === 'my' ? 'my_GK' : 'opp_GK';
+        if (ms.tokens[gkId]) {
+            ball.x = ms.tokens[gkId].x;
+            ball.y = ms.tokens[gkId].y;
+        }
+    }
+}

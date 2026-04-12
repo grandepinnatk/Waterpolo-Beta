@@ -678,6 +678,12 @@ function handlePossessionLogic(ms) {
         ms.nextAction = 'LONG_PASS';
         ms.actionTarget = targets[Math.floor(Math.random() * targets.length)];
     }
+	
+		// Nella logica di passaggio (processStep)
+	if (ms.tactic === 'counter' && ['2', '3', '4'].includes(ms.currentPossessor.pos)) {
+		// I difensori (2,3,4) cercano subito le ali o il centro (1,5,6) in avanti
+		ms.preferredReceiverPos = ['1', '5', '6'];
+	}
     
     if (ms.instruction === 'SHOOT') {
         // Logica tiro chiamata da UI o Engine

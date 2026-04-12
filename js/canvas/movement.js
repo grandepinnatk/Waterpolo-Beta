@@ -244,5 +244,77 @@ function getCalculatedSpeed(playerStat) {
     return finalSpeed;
 }
 
+// Funzione per calcolare la velocità normalizzata
+function getRealismSpeed(player) {
+    const DISTANCE = PLAY.x1 - PLAY.x0; // 0.80
+    const SECONDS = 10;
+    const FPS = 60; // Assumendo che il gioco giri a 60fps
+    
+    // Velocità base per frame per un giocatore con 100 di velocità
+    const baseSpeedPerFrame = (DISTANCE / SECONDS) / FPS; 
+    
+    // Proporzionale alla statistica 'spe' del giocatore
+    let statFactor = (player.stats && player.stats.spe) ? player.stats.spe / 100 : 0.5;
+    
+    let finalSpeed = baseSpeedPerFrame * statFactor;
+
+    // LOGICA CONTROPIEDE: 1, 5, 6 più veloci
+    if (_ms.tactic === 'counter' && ['1', '5', '6'].includes(player.pos)) {
+        finalSpeed *= 1.3; // +30% velocità
+    }
+    
+    return finalSpeed;
+}
+
+// Funzione per calcolare la velocità proporzionale (10s per il campo)
+function _getPlayerSpeed(player) {
+    // Il campo utile è PLAY.x1 - PLAY.x0 (circa 0.80 unità)
+    const FIELD_DISTANCE = 0.80; 
+    const unitsPerSecond = FIELD_DISTANCE / G.REALISM.SECONDS_TO_CROSS;
+    const unitsPerFrame = unitsPerSecond / G.REALISM.FPS;
+
+    // Velocità basata sulla stat 'spe' del giocatore
+    let statFactor = (player.spe || 50) / G.REALISM.BASE_SPEED_STAT;
+    let finalSpeed = unitsPerFrame * statFactor;
+
+    // Tattica Contropiede: posizioni 1, 5, 6 più veloci
+    if (_ms.tactic === 'counter' && ['1', '5', '6'].includes(player.pos)) {
+        finalSpeed *= 1.25; 
+    }
+    return finalSpeed;
+}
+
+// Logica di movimento "Basket" (Attacco/Difesa di massa)
+function _updateTacticalTargets() {
+    const isAttacking = _ms.possession === 'my';
+    
+    Object.keys(_ms.tokens).forEach(id => {
+        let tok = _ms.tokens[id];
+        let isHome = id.startsWith('my_');
+        let p = isHome ? _ms.myRoster[id.split('_')[1]] : _ms.oppRoster[id.split('_')[1]];
+        
+        if ((isAttacking && isHome) || (!isAttacking && !isHome)) {
+            // FASE ATTACCO: Verso semicerchio offensivo
+            let targetSet = isHome ? MY_SEMICIRCLE_ATK : OPP_SEMICIRCLE_ATK;
+            tok.targetX = targetSet[p.pos].x;
+            tok.targetY = targetSet[p.pos].y;
+        } else {
+            // FASE DIFESA: Verso zona difensiva
+            let targetSet = isHome ? MY_DEFENSE : OPP_DEFENSE;
+            tok.targetX = targetSet[p.pos].x;
+            tok.targetY = targetSet[p.pos].y;
+
+            // Tattica PRESSIONE FORTE: marca l'avversario da vicino
+            if (_ms.tactic === 'press' && p.pos !== 'GK') {
+                let oppId = isHome ? id.replace('my_', 'opp_') : id.replace('opp_', 'my_');
+                if (_ms.tokens[oppId]) {
+                    tok.targetX = _ms.tokens[oppId].x + (isHome ? 0.03 : -0.03);
+                    tok.targetY = _ms.tokens[oppId].y;
+                }
+            }
+        }
+    });
+}
+
 // Esponi globalmente
 window.MovementController = MovementController;
