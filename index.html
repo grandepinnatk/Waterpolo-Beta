@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waterpolo</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     PANNELLO LOGIN FIREBASE
+     ══════════════════════════════════════════ -->
+<div id="wp-auth-panel" style="
+  position:fixed;inset:0;background:rgba(0,10,20,.88);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:1000;backdrop-filter:blur(8px);overflow-y:auto;padding:20px 0">
+  <div class="wp-auth-card" style="
+    background:var(--panel);border:1px solid var(--border);border-radius:16px;
+    padding:28px 24px;width:100%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.6)">
+
+    <!-- Banner (desktop/tablet) + icona fallback (mobile) -->
+    <div style="text-align:center;margin-bottom:20px">
+      <!-- Banner visibile solo su schermi larghi -->
+      <img src="waterpolo-banner.jpg" alt="Waterpolo Manager"
+           class="wp-banner-login"
+           style="width:100%;max-width:700px;border-radius:12px;margin-bottom:14px;display:none">
+      <!-- Icona + titolo: sempre visibili, nascosti su desktop quando c'è il banner -->
+      <div class="wp-logo-fallback">
+        <div style="font-size:36px;margin-bottom:6px">🤽</div>
+        <div style="font-size:20px;font-weight:700;color:var(--blue)">Waterpolo</div>
+      </div>
+      <div id="wp-auth-title" style="font-size:13px;color:var(--muted);margin-top:4px">Accedi</div>
+    </div>
+
+    <!-- Spinner sync -->
+    <div id="wp-sync-indicator" style="display:none;text-align:center;padding:16px;color:var(--muted);font-size:13px">
+      ☁️ Sincronizzazione salvataggi in corso…
+    </div>
+
+    <!-- Form LOGIN -->
+    <div id="wp-auth-login-form">
+      <input id="wp-email" type="email" placeholder="Email"
+        style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);
+               background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:10px;box-sizing:border-box">
+      <input id="wp-password" type="password" placeholder="Password"
+        style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);
+               background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:14px;box-sizing:border-box">
+      <button id="wp-btn-login" class="btn primary" onclick="wpLogin()"
+        style="width:100%;padding:11px;font-size:14px">Accedi</button>
+      <div style="display:flex;align-items:center;gap:8px;margin:12px 0">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:11px;color:var(--muted)">oppure</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+      <button onclick="wpLoginGoogle()"
+        style="width:100%;padding:10px;font-size:13px;border-radius:8px;border:1px solid var(--border);
+               background:var(--panel2);color:var(--text);cursor:pointer;display:flex;align-items:center;
+               justify-content:center;gap:10px;font-weight:600">
+        <svg width="18" height="18" viewBox="0 0 48 48">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        Continua con Google
+      </button>
+      <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:12px">
+        <span style="color:var(--muted);cursor:pointer;text-decoration:underline"
+              onclick="wpSwitchToRegister()">Crea account</span>
+        <span style="color:var(--muted);cursor:pointer;text-decoration:underline"
+              onclick="wpSwitchToReset()">Password dimenticata?</span>
+      </div>
+    </div>
+
+    <!-- Form REGISTRAZIONE -->
+    <div id="wp-auth-reg-form" style="display:none">
+      <input id="wp-reg-name" type="text" placeholder="Nome allenatore"
+        style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);
+               background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:10px;box-sizing:border-box">
+      <input id="wp-reg-email" type="email" placeholder="Email"
+        style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);
+               background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:10px;box-sizing:border-box">
+      <input id="wp-reg-password" type="password" placeholder="Password (min. 6 caratteri)"
+        style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);
+               background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:10px;box-sizing:border-box">
+      <input id="wp-reg-password2" type="password" placeholder="Ripeti password"
+        style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);
+               background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:14px;box-sizing:border-box">
+      <button id="wp-btn-register" class="btn primary" onclick="wpRegister()"
+        style="width:100%;padding:11px;font-size:14px">Crea account</button>
+      <div style="display:flex;align-items:center;gap:8px;margin:12px 0">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:11px;color:var(--muted)">oppure</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+      <button onclick="wpLoginGoogle()"
+        style="width:100%;padding:10px;font-size:13px;border-radius:8px;border:1px solid var(--border);
+               background:var(--panel2);color:var(--text);cursor:pointer;display:flex;align-items:center;
+               justify-content:center;gap:10px;font-weight:600">
+        <svg width="18" height="18" viewBox="0 0 48 48">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        Continua con Google
+      </button>
+      <div style="text-align:center;margin-top:12px;font-size:12px">
+        <span style="color:var(--muted);cursor:pointer;text-decoration:underline"
+              onclick="wpSwitchToLogin()">← Torna al login</span>
+      </div>
+    </div>
+
+    <!-- Form RESET PASSWORD -->
+    <div id="wp-auth-reset-form" style="display:none">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+        Inserisci la tua email e ti invieremo un link per reimpostare la password.
+      </p>
+      <input id="wp-reset-email" type="email" placeholder="Email"
+        style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);
+               background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:14px;box-sizing:border-box">
+      <button id="wp-btn-reset" class="btn primary" onclick="wpResetPassword()"
+        style="width:100%;padding:11px;font-size:14px">Invia link reset</button>
+      <div id="wp-reset-ok" style="display:none;text-align:center;color:var(--green);font-size:13px;margin-top:10px">
+        ✓ Email inviata! Controlla la casella di posta.
+      </div>
+      <div style="text-align:center;margin-top:12px;font-size:12px">
+        <span style="color:var(--muted);cursor:pointer;text-decoration:underline"
+              onclick="wpSwitchToLogin()">← Torna al login</span>
+      </div>
+    </div>
+
+    <!-- Errore -->
+    <div id="wp-auth-err" style="
+      display:none;margin-top:12px;padding:8px 12px;border-radius:8px;
+      background:rgba(231,76,60,.15);border:1px solid rgba(231,76,60,.3);
+      color:var(--red);font-size:13px;text-align:center"></div>
+
+    <!-- Spinner bottoni -->
+    <div id="wp-auth-spinner" style="display:none;text-align:center;margin-top:10px;color:var(--muted);font-size:12px">
+      ⏳ Attendere…
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SCHERMATA WELCOME
+     ══════════════════════════════════════════ -->
+<div id="sc-welcome" style="display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:20px">
+  <div style="width:100%;max-width:860px">
+
+    <!-- Banner welcome (desktop/tablet) + fallback mobile -->
+    <div style="text-align:center;margin-bottom:24px">
+      <img src="waterpolo-banner.jpg" alt="Waterpolo Manager"
+           class="wp-banner-welcome"
+           style="width:100%;max-width:860px;border-radius:14px;margin-bottom:8px;display:none">
+      <div class="wp-logo-fallback-welcome">
+        <div style="font-size:44px;margin-bottom:8px">🤽</div>
+        <div style="font-size:26px;font-weight:700;color:var(--blue)">Waterpolo</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">Serie A1 Maschile · Stagione 2025/26</div>
+      </div>
+    </div>
+
+    <div class="welcome-layout">
+
+      <!-- COLONNA SINISTRA: scelta squadra -->
+      <div class="welcome-col">
+        <div class="welcome-section-title">Scegli la tua squadra</div>
+        <div id="team-list" class="team-list-box"></div>
+        <button class="btn primary" onclick="startNewGame()" style="width:100%;padding:11px;font-size:14px;margin-top:10px">
+          Nuova Carriera →
+        </button>
+      </div>
+
+      <!-- COLONNA DESTRA: slot di salvataggio -->
+      <div class="welcome-col">
+        <div class="welcome-section-title">Partite salvate</div>
+        <div id="slots-panel"></div>
+      </div>
+
+    </div>
+
+    <!-- Logout nella welcome -->
+    <div id="wp-welcome-logout" style="display:none;margin-top:16px;flex-direction:column;align-items:center;gap:8px">
+      <div style="font-size:12px;color:var(--muted)" id="wp-welcome-user"></div>
+      <button onclick="wpLogout()" style="
+        display:flex;align-items:center;gap:8px;
+        background:linear-gradient(135deg,#5a1a1a,#3a0e0e);
+        border:2px solid #8a2222;border-radius:10px;
+        padding:8px 20px;cursor:pointer;
+        clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);
+        box-shadow:0 3px 0 #200808,0 4px 12px rgba(0,0,0,.4);
+        transition:all .15s;
+      "
+      onmouseover="this.style.background='linear-gradient(135deg,#7a2222,#5a1212)';this.style.borderColor='#e74c3c'"
+      onmouseout="this.style.background='linear-gradient(135deg,#5a1a1a,#3a0e0e)';this.style.borderColor='#8a2222'">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span style="font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#ff8080">LOGOUT</span>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     GIOCO PRINCIPALE
+     ══════════════════════════════════════════ -->
+<div id="sc-game" style="display:none">
+
+  <!-- ══ TOP BAR stile Brawl Stars ══ -->
+  <div class="bs-topbar">
+
+    <!-- Sinistra: info squadra -->
+    <div class="bs-top-left">
+      <div class="bs-player-box">
+        <div class="bs-player-avatar">🤽</div>
+        <div class="bs-player-info">
+          <div id="hdr-team" class="bs-player-name">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Destra: box azioni stile Brawl Stars -->
+    <div class="bs-top-right">
+      <!-- Box utente loggato -->
+      <div class="bs-top-box bs-box-user" id="bs-user-box" style="display:none">
+        <div class="bs-box-icon">👤</div>
+        <div class="bs-box-val" id="bs-username-lbl">—</div>
+      </div>
+      <!-- Box stelle manager -->
+      <div class="bs-top-box bs-box-stars" title="Stelle disponibili per allenamento">
+        <div class="bs-box-icon">⭐</div>
+        <div class="bs-box-val" id="bs-stars-val">5</div>
+      </div>
+      <!-- Box salva -->
+      <div class="bs-top-box bs-box-save" onclick="openSaveMenu()" title="Salva partita">
+        <div class="bs-box-icon">💾</div>
+        <div class="bs-box-val">Salva</div>
+      </div>
+      <!-- Selettore tema -->
+      <div class="bs-top-box" onclick="cycleTheme()" title="Cambia tema grafico" id="btn-theme" style="min-width:52px">
+        <div class="bs-box-icon" id="theme-icon">🎨</div>
+        <div class="bs-box-val" id="theme-label">Classic</div>
+      </div>
+      <!-- Box menu (hamburger) -->
+      <div class="bs-top-box bs-box-menu" onclick="goToWelcome()" title="Menu principale">
+        <div class="bs-box-icon" style="font-size:18px;line-height:1">☰</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ LAYOUT: sidebar + contenuto ══ -->
+  <div class="bs-layout">
+
+    <!-- Sidebar sinistra -->
+    <aside class="bs-sidebar">
+      <button class="bs-nav-btn active" onclick="showTab('dash')">
+        <span class="bs-nav-icon">📊</span>
+        <span class="bs-nav-lbl">DASHBOARD</span>
+      </button>
+      <button class="bs-nav-btn" onclick="showTab('rosa')">
+        <span class="bs-nav-icon">👥</span>
+        <span class="bs-nav-lbl">ROSA</span>
+      </button>
+      <button class="bs-nav-btn" onclick="showTab('train')">
+        <span class="bs-nav-icon">🏋️</span>
+        <span class="bs-nav-lbl">ALLENAMENTO</span>
+      </button>
+      <button class="bs-nav-btn" onclick="showTab('goals')">
+        <span class="bs-nav-icon">🎯</span>
+        <span class="bs-nav-lbl">OBIETTIVI</span>
+      </button>
+      <button class="bs-nav-btn" onclick="showTab('stand')">
+        <span class="bs-nav-icon">🏆</span>
+        <span class="bs-nav-lbl">CLASSIFICA</span>
+      </button>
+      <button class="bs-nav-btn" onclick="showTab('cal')">
+        <span class="bs-nav-icon">📅</span>
+        <span class="bs-nav-lbl">CALENDARIO</span>
+      </button>
+      <button class="bs-nav-btn" onclick="showTab('playoff')">
+        <span class="bs-nav-icon">⚡</span>
+        <span class="bs-nav-lbl">PLAYOFF</span>
+      </button>
+      <button class="bs-nav-btn" onclick="showTab('market')">
+        <span class="bs-nav-icon">💰</span>
+        <span class="bs-nav-lbl">MERCATO</span>
+      </button>
+      <button class="bs-nav-btn" onclick="showTab('finance')">
+        <span class="bs-nav-icon">📈</span>
+        <span class="bs-nav-lbl">FINANZA</span>
+      </button>
+      <button class="bs-nav-btn" onclick="showTab('history')">
+        <span class="bs-nav-icon">📜</span>
+        <span class="bs-nav-lbl">STORICO</span>
+      </button>
+      <button class="bs-nav-btn" onclick="showTab('stadium')">
+        <span class="bs-nav-icon">🏟️</span>
+        <span class="bs-nav-lbl">STADIO</span>
+      </button>
+      <button class="bs-nav-btn" onclick="showTab('credits')">
+        <span class="bs-nav-icon">ℹ️</span>
+        <span class="bs-nav-lbl">CREDITS</span>
+      </button>
+      <button class="bs-nav-btn bs-nav-logout" id="wp-btn-logout" onclick="wpLogout()" style="display:none">
+        <span class="bs-nav-icon" style="display:flex;align-items:center"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
+        <span class="bs-nav-lbl">LOGOUT</span>
+      </button>
+    </aside>
+
+    <!-- Contenuto principale -->
+    <main class="bs-content">
+      <div id="tab-dash"></div>
+      <div id="tab-rosa"    style="display:none"></div>
+      <div id="tab-train"   style="display:none"></div>
+      <div id="tab-goals"   style="display:none"></div>
+      <div id="tab-stand"   style="display:none"></div>
+      <div id="tab-cal"     style="display:none"></div>
+      <div id="tab-playoff" style="display:none"></div>
+      <div id="tab-market"  style="display:none"></div>
+      <div id="tab-finance" style="display:none"></div>
+      <div id="tab-history" style="display:none"></div>
+      <div id="tab-stadium" style="display:none"></div>
+      <div id="tab-credits" style="display:none"></div>
+    </main>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     CONVOCAZIONI
+     ══════════════════════════════════════════ -->
+<div id="sc-lineup" style="display:none;padding:14px;max-width:900px;margin:0 auto">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div>
+      <div style="font-size:11px;color:var(--muted)" id="lu-lbl">—</div>
+      <div style="font-size:18px;font-weight:700;color:var(--blue)" id="lu-title">Convocazioni</div>
+    </div>
+    <button class="btn" onclick="cancelLineup()">← Indietro</button>
+  </div>
+  <div class="g2" style="gap:16px">
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px">
+        Formazione — clicca posizione poi giocatore (o viceversa)
+      </div>
+      <div id="lineup-pool" style="position:relative;background:#00a0c0;border-radius:10px;overflow:hidden;aspect-ratio:1.6"></div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn primary" onclick="confirmLineup()" id="btn-confirm-lu" disabled>Inizia Partita →</button>
+        <button class="btn warn" onclick="autoFillLineup()">Auto-Formazione</button>
+        <button class="btn" onclick="clearLineup()">Reset</button>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px">
+        Rosa disponibile
+      </div>
+      <div id="player-sel-list" style="max-height:420px;overflow-y:auto"></div>
+    </div>
+  </div>
+  <div id="lu-status" class="alert info" style="margin-top:10px"></div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     PARTITA LIVE
+     ══════════════════════════════════════════ -->
+<div id="sc-match" style="display:none;padding:10px;max-width:1100px;margin:0 auto">
+
+  <!-- ── RIGA 1: header partita ── -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <div>
+      <div style="font-size:11px;color:var(--muted)" id="m-lbl">—</div>
+      <div style="font-size:15px;font-weight:700" id="m-title">—</div>
+    </div>
+    <!-- TABELLONE centrale -->
+    <div style="text-align:center">
+      <div style="font-size:32px;font-weight:700;color:var(--blue);letter-spacing:4px" id="m-score">0 - 0</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:2px">
+        <span id="m-period">1° Tempo</span>
+        <span style="margin:0 6px">·</span>
+        <span id="m-clock" style="font-family:monospace;font-size:16px;font-weight:700;color:var(--text)">08:00</span>
+      </div>
+    </div>
+    <!-- Tattica -->
+    <div style="text-align:right">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:3px">Tattica</div>
+      <select id="tactic-sel" onchange="if(G.ms) G.ms.tactic=this.value"
+              style="background:var(--panel2);border:1px solid var(--border);border-radius:7px;padding:4px 10px;font-size:12px;color:var(--text)">
+        <option value="balanced">Bilanciata</option>
+        <option value="attack">Attacco</option>
+        <option value="defense">Difesa</option>
+        <option value="counter">Contropiede</option>
+        <option value="press">Pressione Alta</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- ── RIGA 2: vasca + colonna destra stats ── -->
+  <div style="display:flex;gap:10px;margin-bottom:8px">
+
+    <!-- Vasca (sinistra) -->
+    <div style="flex:1;min-width:0">
+      <div style="position:relative;width:100%">
+        <canvas id="pool-canvas" width="760" height="430" style="width:100%;height:auto;display:block;border-radius:10px"></canvas>
+        <!-- Overlay animazione goal -->
+        <div id="goal-overlay">
+          <div id="goal-logo-wrap"></div>
+          <div id="goal-text-el" class="goal-text"></div>
+          <div id="goal-scorer-el" class="goal-scorer-name"></div>
+          <div id="goal-splash" class="water-splash"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Colonna destra: stats + log -->
+    <div style="width:280px;flex-shrink:0;display:flex;flex-direction:column;gap:8px">
+
+      <!-- Stats partita — compatto -->
+      <div class="card" style="padding:6px 10px">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Stats</div>
+
+        <!-- Attacco: pct + barra inline -->
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
+          <span id="m-att-home-pct" style="font-size:10px;color:var(--blue);font-weight:700;min-width:28px;text-align:right">0%</span>
+          <div style="flex:1;height:4px;border-radius:2px;overflow:hidden;background:rgba(255,255,255,.08)">
+            <div id="m-att-bar-home" style="float:left;height:100%;background:var(--blue);transition:width .5s;width:50%"></div>
+            <div id="m-att-bar-away" style="float:left;height:100%;background:#e74c3c;transition:width .5s;width:50%"></div>
+          </div>
+          <span id="m-att-away-pct" style="font-size:10px;color:#e74c3c;font-weight:700;min-width:28px">0%</span>
+          <span style="font-size:9px;color:var(--muted);min-width:28px">ATT</span>
+        </div>
+
+        <!-- Difesa: pct + barra inline -->
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:5px">
+          <span id="m-def-home-pct" style="font-size:10px;color:var(--blue);font-weight:700;min-width:28px;text-align:right">0%</span>
+          <div style="flex:1;height:4px;border-radius:2px;overflow:hidden;background:rgba(255,255,255,.08)">
+            <div id="m-def-bar-home" style="float:left;height:100%;background:var(--blue);transition:width .5s;width:50%"></div>
+            <div id="m-def-bar-away" style="float:left;height:100%;background:#e74c3c;transition:width .5s;width:50%"></div>
+          </div>
+          <span id="m-def-away-pct" style="font-size:10px;color:#e74c3c;font-weight:700;min-width:28px">0%</span>
+          <span style="font-size:9px;color:var(--muted);min-width:28px">DIF</span>
+        </div>
+
+        <!-- Contatori numerici inline -->
+        <div id="m-stats" style="font-size:11px"></div>
+      </div>
+
+      <!-- Parziali per tempo -->
+      <div class="card" style="padding:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Parziali</div>
+        <div id="m-partials"></div>
+      </div>
+
+      <!-- Log azioni -->
+      <div style="flex:1">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Azioni di Gioco</div>
+        <div class="action-log" id="action-log" style="height:180px"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── RIGA 3: controlli partita ── -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;padding:8px;background:var(--panel2);border-radius:10px;border:1px solid var(--border)">
+    <button class="btn primary" id="btn-play" onclick="togglePlay()">▶ Avvia</button>
+    <button class="btn" onclick="skipPeriod()">⏭ Fine Periodo</button>
+    <button class="btn danger" id="btn-end" onclick="endMatch()" style="display:none">Fine Partita</button>
+    <div style="display:flex;gap:4px;align-items:center;margin-left:8px">
+      <span style="font-size:11px;color:var(--muted)">Velocità:</span>
+      <button class="btn sm btn-speed" data-speed="1"  onclick="setSpeed(1)">1x</button>
+      <button class="btn sm btn-speed" data-speed="2"  onclick="setSpeed(2)">2x</button>
+      <button class="btn sm btn-speed" data-speed="10" onclick="setSpeed(10)">10x</button>
+      <button class="btn sm btn-speed" data-speed="15" onclick="setSpeed(15)">15x</button>
+      <button class="btn sm btn-speed" data-speed="20" onclick="setSpeed(20)">20x</button>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-left:auto">
+      Cambi: <span id="sub-count">0</span> <span style="font-size:10px;color:var(--muted)">(illimitati)</span>
+    </div>
+  </div>
+
+  <!-- ── RIGA 4: in campo + panchina con cambio inline ── -->
+  <div style="position:relative;display:grid;grid-template-columns:1fr 44px 1fr;gap:0;margin-bottom:8px;align-items:start">
+    <!-- IN CAMPO -->
+    <div class="card" style="padding:10px;border-radius:10px 0 0 10px;border-right:none">
+      <div class="slbl" style="margin-top:0;color:var(--blue)">In campo — <span id="my-team-lbl">—</span></div>
+      <div id="field-players" style="font-size:12px"></div>
+    </div>
+    <!-- BOTTONE CAMBIO CENTRALE -->
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:36px;gap:6px">
+      <button id="btn-swap-sub" onclick="confirmSwap()" disabled
+        style="width:40px;height:40px;border-radius:50%;border:2px solid rgba(255,255,255,.2);
+               background:rgba(255,255,255,.06);color:rgba(255,255,255,.3);
+               font-size:18px;cursor:not-allowed;transition:all .2s;display:flex;align-items:center;justify-content:center"
+        title="Seleziona un giocatore da ogni lista per abilitare il cambio">⇄</button>
+      <div id="sub-status" style="font-size:9px;color:var(--muted);text-align:center;max-width:40px;line-height:1.2"></div>
+    </div>
+    <!-- PANCHINA -->
+    <div class="card" style="padding:10px;border-radius:0 10px 10px 0;border-left:none">
+      <div class="slbl" style="margin-top:0;color:var(--muted)">Panchina</div>
+      <div id="bench-players" style="font-size:12px"></div>
+    </div>
+  </div>
+
+</div><!-- /sc-match -->
+
+<!-- ══════════════════════════════════════════
+     SCRIPT — ordine obbligatorio
+     ══════════════════════════════════════════ -->
+
+<!-- 1. Dati statici -->
+<script src="js/data/teams.js"></script>
+<script src="js/data/positions.js"></script>
+<script src="js/data/training.js"></script>
+<script src="js/data/objectives.js"></script>
+
+<!-- 2. Motore di gioco (priorità massima) -->
+<script src="js/data/names.js"></script>
+<script src="js/engine/generator.js"></script>
+<script src="js/engine/standings.js"></script>
+<script src="js/engine/match.js"></script>
+<script src="js/engine/save.js"></script>
+
+<!-- 3. Rendering canvas -->
+<script src="js/canvas/pool.js"></script>
+  <script src="js/canvas/movement.js"></script>
+
+<!-- 4. Componenti UI -->
+<script src="js/ui/tabs.js"></script>
+<script src="js/ui/welcome.js"></script>
+<script src="js/ui/lineup.js"></script>
+<script src="js/ui/match.js"></script>
+<script src="js/ui/tabs_renderers.js"></script>
+
+<!-- 5. Entry point -->
+<script src="js/main.js"></script>
+
+  <!-- Footer versione -->
+  <div class="wp-version-footer" style="text-align:center;padding:10px 0 16px;font-size:11px;color:rgba(255,255,255,.2);user-select:none">
+    v0.6.21 beta
+  </div>
+
+  <!-- Firebase modules (type="module") — caricati dopo tutti gli script vanilla -->
+  <script type="module" src="js/firebase/firebase.js"></script>
+  <script type="module" src="js/firebase/cloud-save.js"></script>
+  <script type="module" src="js/firebase/auth.js"></script>
+</body>
+</html>

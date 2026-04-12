@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120" viewBox="0 0 200 120">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c8860a"/>
+      <stop offset="100%" stop-color="#7a4e00"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#e8a020"/>
+      <stop offset="100%" stop-color="#b06800"/>
+    </linearGradient>
+  </defs>
+  <!-- Base tribuna isometrica -->
+  <polygon points="10,80 100,40 190,80 190,110 10,110" fill="url(#g1)"/>
+  <polygon points="10,80 100,40 190,80 100,60" fill="url(#g2)" opacity="0.7"/>
+  <!-- Posti a sedere (file) -->
+  <line x1="20" y1="108" x2="180" y2="108" stroke="rgba(0,0,0,.3)" stroke-width="1"/>
+  <line x1="25" y1="103" x2="175" y2="103" stroke="rgba(0,0,0,.3)" stroke-width="1"/>
+  <line x1="35" y1="95" x2="165" y2="95" stroke="rgba(0,0,0,.3)" stroke-width="1"/>
+  <line x1="50" y1="86" x2="150" y2="86" stroke="rgba(0,0,0,.3)" stroke-width="1"/>
+  <!-- Puntini posti -->
+  <g fill="rgba(255,255,255,.4)" >
+    <rect x="25" y="104" width="5" height="3" rx="1"/>
+    <rect x="33" y="104" width="5" height="3" rx="1"/>
+    <rect x="41" y="104" width="5" height="3" rx="1"/>
+    <rect x="49" y="104" width="5" height="3" rx="1"/>
+    <rect x="57" y="104" width="5" height="3" rx="1"/>
+    <rect x="65" y="104" width="5" height="3" rx="1"/>
+    <rect x="73" y="104" width="5" height="3" rx="1"/>
+    <rect x="81" y="104" width="5" height="3" rx="1"/>
+    <rect x="89" y="104" width="5" height="3" rx="1"/>
+    <rect x="97" y="104" width="5" height="3" rx="1"/>
+    <rect x="105" y="104" width="5" height="3" rx="1"/>
+    <rect x="113" y="104" width="5" height="3" rx="1"/>
+    <rect x="121" y="104" width="5" height="3" rx="1"/>
+    <rect x="129" y="104" width="5" height="3" rx="1"/>
+    <rect x="137" y="104" width="5" height="3" rx="1"/>
+    <rect x="145" y="104" width="5" height="3" rx="1"/>
+    <rect x="153" y="104" width="5" height="3" rx="1"/>
+    <rect x="161" y="104" width="5" height="3" rx="1"/>
+    <rect x="30" y="96" width="5" height="3" rx="1"/>
+    <rect x="40" y="96" width="5" height="3" rx="1"/>
+    <rect x="50" y="96" width="5" height="3" rx="1"/>
+    <rect x="60" y="96" width="5" height="3" rx="1"/>
+    <rect x="70" y="96" width="5" height="3" rx="1"/>
+    <rect x="80" y="96" width="5" height="3" rx="1"/>
+    <rect x="90" y="96" width="5" height="3" rx="1"/>
+    <rect x="100" y="96" width="5" height="3" rx="1"/>
+    <rect x="110" y="96" width="5" height="3" rx="1"/>
+    <rect x="120" y="96" width="5" height="3" rx="1"/>
+    <rect x="130" y="96" width="5" height="3" rx="1"/>
+    <rect x="140" y="96" width="5" height="3" rx="1"/>
+    <rect x="150" y="96" width="5" height="3" rx="1"/>
+    <rect x="160" y="96" width="5" height="3" rx="1"/>
+  </g>
+</svg>
