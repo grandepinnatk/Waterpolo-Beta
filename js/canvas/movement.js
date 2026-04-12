@@ -129,5 +129,94 @@ var MovementController = (function() {
 
 })();
 
+
+/**
+ * Calcola lo spostamento dei segnalini
+ */
+function updateMovement(tokens, ball, matchState) {
+    const poolWidth = canvas.width; // Assumendo che il campo occupi il canvas
+    const baseUnitSpeed = poolWidth / (REALISM_CONFIG.SECONDS_TO_CROSS * REALISM_CONFIG.FPS);
+
+    tokens.forEach(token => {
+        // 1. Calcolo Velocità Proporzionale
+        let playerStatSpeed = token.playerData.speed || 50;
+        let currentSpeed = (playerStatSpeed / REALISM_CONFIG.MAX_SPEED_STAT) * baseUnitSpeed;
+
+        // 2. Logica Contropiede (Posizioni 1, 5, 6 più veloci)
+        if (matchState.tactic === 'CONTROPIEDE' && ['1', '5', '6'].includes(token.position)) {
+            currentSpeed *= 1.3; // Boost del 30%
+        }
+
+        // 3. Logica Attacco/Difesa (tipo Basket)
+        let targetX, targetY;
+        if (matchState.possession === token.team) {
+            // Fase OFFENSIVA: nuota verso la porta avversaria
+            targetX = token.team === 'home' ? poolWidth - 50 : 50;
+            targetY = token.strategicPos.y;
+        } else {
+            // Fase DIFENSIVA: nuota verso la propria porta
+            targetX = token.team === 'home' ? 50 : poolWidth - 50;
+            targetY = token.strategicPos.y;
+
+            // Logica PRESSIONE FORTE
+            if (matchState.tactic === 'PRESSIONE_FORTE') {
+                let opponent = findAssignedOpponent(token, tokens);
+                targetX = opponent.x;
+                targetY = opponent.y;
+            }
+        }
+
+        // Muovi effettivamente il segnalino verso il target
+        moveTowards(token, targetX, targetY, currentSpeed);
+    });
+}
+
+
+// Cerca la funzione che calcola la velocità (interna a MovementController)
+function getPlayerSpeed(player) {
+    // POOL_W è 760px. Velocità per 100 stat = 76px/s
+    // Calcoliamo la velocità per frame: (760 / 10) / 60 = 1.26 px/frame
+    const baseSpeed = POOL_W / G.REALISM.SECONDS_TO_CROSS / G.REALISM.FPS;
+    let statFactor = (player.stats.spe || 50) / G.REALISM.SPEED_REF_STAT;
+    
+    let speed = baseSpeed * statFactor;
+
+    // Logica CONTROPIEDE: Posizioni 1, 5, 6 corrono il 20% più veloci
+    if (_ms.tactic === 'counter' && ['1', '5', '6'].includes(player.pos)) {
+        speed *= 1.2;
+    }
+    return speed;
+}
+
+// Nella logica di aggiornamento target (TACTICAL_INTERVAL)
+function updateTacticalTargets() {
+    const isAttacking = _ms.possession === 'my';
+    
+    Object.keys(_ms.myRoster).forEach(pk => {
+        let p = _ms.myRoster[pk];
+        let tok = _ms.tokens['my_' + pk];
+        if (!tok) return;
+
+        if (isAttacking) {
+            // Comportamento Basket: tutti verso la porta avversaria (MY_SEMICIRCLE_ATK)
+            tok.targetX = MY_SEMICIRCLE_ATK[p.pos].x;
+            tok.targetY = MY_SEMICIRCLE_ATK[p.pos].y;
+        } else {
+            // Fase Difesa: tutti verso la propria porta (MY_DEFENSE)
+            tok.targetX = MY_DEFENSE[p.pos].x;
+            tok.targetY = MY_DEFENSE[p.pos].y;
+
+            // Logica PRESSIONE FORTE
+            if (_ms.tactic === 'press' && p.pos !== 'GK') {
+                let opp = _ms.tokens['opp_' + p.pos]; // Marcatura a uomo sulla stessa posizione
+                if (opp) {
+                    tok.targetX = opp.x + 0.05; // Molto vicino all'avversario
+                    tok.targetY = opp.y;
+                }
+            }
+        }
+    });
+}
+
 // Esponi globalmente
 window.MovementController = MovementController;

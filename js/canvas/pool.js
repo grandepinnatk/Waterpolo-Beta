@@ -612,3 +612,50 @@ function _pill(ctx,x,y,w,h,r) {
   ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
   ctx.closePath();
 }
+
+
+
+/**
+ * Gestione della palla e aggancio ai giocatori
+ */
+function renderBall(ctx, ball, players, matchStatus) {
+    if (matchStatus.isGoal) {
+        // Palla nel rettangolo di porta dietro il portiere
+        ball.x = ball.targetGoalSide === 'left' ? 10 : canvas.width - 10;
+        ball.y = canvas.height / 2;
+    } 
+    else if (matchStatus.isSaved || matchStatus.possessor.role === 'GK') {
+        // Palla agganciata al portiere
+        let goalkeeper = players.find(p => p.role === 'GK' && p.team === matchStatus.possession);
+        ball.x = goalkeeper.x;
+        ball.y = goalkeeper.y;
+    } 
+    else if (matchStatus.isPassing) {
+        // La palla scorre tra i segnalini
+        moveToTarget(ball, matchStatus.receiver.x, matchStatus.receiver.y, ball.speed);
+    }
+    
+    // Disegno della palla
+    ctx.drawImage(imgPalla, ball.x, ball.y, 15, 15);
+}
+
+// Modifica la funzione che aggiorna la posizione della palla (_ball)
+function updateBallVisuals() {
+    if (_ms.isGoal) {
+        // Goal: palla nel rettangolo di rete dietro il portiere
+        if (_ms.lastScorerTeam === 'my') {
+            _ball.x = PLAY.oppNetX0 + 0.02; // Rete destra
+        } else {
+            _ball.x = PLAY.myNetX0 + 0.02;  // Rete sinistra
+        }
+        _ball.y = PLAY.cy;
+    } 
+    else if (_ms.isSaved || (_ms.possessor && _ms.possessor.role === 'POR')) {
+        // Parata o possesso portiere: aggancia al segnalino GK
+        let gkToken = _ms.tokens[_ms.possession === 'my' ? 'my_GK' : 'opp_GK'];
+        if (gkToken) {
+            _ball.x = gkToken.x;
+            _ball.y = gkToken.y;
+        }
+    }
+}

@@ -649,3 +649,38 @@ function getMatchReward(myScore, oppScore) {
   if (myScore === oppScore) return 25000;
   return 0;
 }
+
+
+/**
+ * Logica del Motore di Gara
+ */
+function processMatchStep(match) {
+    // Gestione Contropiede: 2, 3, 4 lanciano per 1, 5, 6
+    if (match.tactic === 'CONTROPIEDE' && ['2', '3', '4'].includes(match.currentPossessor.pos)) {
+        let potentialReceivers = match.team.filter(p => ['1', '5', '6'].includes(p.pos));
+        if (potentialReceivers.length > 0) {
+            match.instruction = 'LONG_PASS';
+            match.targetPlayer = potentialReceivers[Math.floor(Math.random() * potentialReceivers.length)];
+        }
+    }
+
+    // Tiro: se indicato dall'engine, attiva l'animazione verso la porta
+    if (match.shouldShoot) {
+        executeShot(match.ball, match.targetGoal);
+    }
+}
+
+// All'interno della logica di gestione possesso (processStep)
+function handlePossessionLogic(ms) {
+    if (ms.tactic === 'counter' && ['2', '3', '4'].includes(ms.currentPossessor.pos)) {
+        // Se chi ha palla è in posizione 2,3,4, cerca un compagno in 1,5,6 per lancio lungo
+        let targets = ['1', '5', '6'];
+        ms.nextAction = 'LONG_PASS';
+        ms.actionTarget = targets[Math.floor(Math.random() * targets.length)];
+    }
+    
+    if (ms.instruction === 'SHOOT') {
+        // Logica tiro chiamata da UI o Engine
+        executeShot(ms);
+    }
+}

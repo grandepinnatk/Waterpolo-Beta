@@ -10,6 +10,20 @@
 // e poi aggiornato da engine/* e ui/*.
 let G = {};
 
+
+
+// ═══════════════════════════════════════════════════════
+// SIMULAZIONE SU CAMPO - MOVIMENTI REALISTICI
+// ═══════════════════════════════════════════════════════
+const REALISM_CONFIG = {
+    MAX_SPEED_STAT: 100,
+    SECONDS_TO_CROSS: 10, // Un giocatore con 100 percorre il campo in 10s
+    FPS: 60
+};
+
+
+
+
 // ── Utility globali ───────────────────────────
 // Disponibili a tutti i moduli senza import (vanilla JS).
 function rnd(a, b)  { return Math.floor(Math.random() * (b - a + 1)) + a; }
@@ -2586,3 +2600,4 @@ function _closeOfferPopup(offers, nextIdx) {
     setTimeout(() => _showOfferPopupQueue(offers, nextIdx), 120);
   }
 }
+
