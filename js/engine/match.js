@@ -684,3 +684,31 @@ function handlePossessionLogic(ms) {
         executeShot(ms);
     }
 }
+
+// Da inserire nel ciclo principale del motore
+function updateTacticalPhase() {
+    const isMyTeamAttacking = (_ms.possession === 'my');
+
+    // Applica a tutti i segnalini
+    Object.keys(_ms.tokens).forEach(id => {
+        let token = _ms.tokens[id];
+        let isHome = id.startsWith('my_');
+
+        if ((isMyTeamAttacking && isHome) || (!isMyTeamAttacking && !isHome)) {
+            // SQUADRA IN ATTACCO: Target verso la porta avversaria
+            token.targetX = isHome ? PLAY.oppNetX0 - 0.1 : PLAY.myNetX0 + 0.1;
+        } else {
+            // SQUADRA IN DIFESA: Rientro rapido verso la propria porta
+            token.targetX = isHome ? PLAY.myNetX0 + 0.1 : PLAY.oppNetX0 - 0.1;
+            
+            // PRESSIONE FORTE: se attiva, il target diventa l'avversario
+            if (_ms.tactic === 'press') {
+                let oppId = isHome ? id.replace('my_', 'opp_') : id.replace('opp_', 'my_');
+                if (_ms.tokens[oppId]) {
+                    token.targetX = _ms.tokens[oppId].x + (isHome ? -0.02 : 0.02);
+                    token.targetY = _ms.tokens[oppId].y;
+                }
+            }
+        }
+    });
+}

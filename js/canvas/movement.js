@@ -218,5 +218,31 @@ function updateTacticalTargets() {
     });
 }
 
+
+/**
+ * Calcola la velocità reale basata sulla scala del campo
+ */
+function getCalculatedSpeed(playerStat) {
+    // Calcoliamo la larghezza utile del campo (da porta a porta)
+    // Usando le costanti del tuo file pool.js: PLAY.x1 - PLAY.x0
+    const fieldWidthInPixels = (PLAY.x1 - PLAY.x0) * canvas.width; 
+    
+    // Velocità necessaria per fare il campo in 10 secondi (stat 100)
+    const pixelsPerSecondAt100 = fieldWidthInPixels / G.REALISM.SECONDS_TO_CROSS;
+    
+    // Velocità per singolo frame (assumendo 60fps)
+    const baseFrameSpeed = pixelsPerSecondAt100 / G.REALISM.FPS;
+
+    // Proporzione in base alla statistica del giocatore (spe)
+    let finalSpeed = baseFrameSpeed * (playerStat / G.REALISM.SPEED_REF_STAT);
+
+    // TATTICA CONTROPIEDE: Boost per posizioni 1, 5, 6
+    if (_ms.tactic === 'counter' && ['1', '5', '6'].includes(player.pos)) {
+        finalSpeed *= 1.25; // 25% più veloci
+    }
+
+    return finalSpeed;
+}
+
 // Esponi globalmente
 window.MovementController = MovementController;

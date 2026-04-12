@@ -659,3 +659,20 @@ function updateBallVisuals() {
         }
     }
 }
+
+
+function updateBallPosition() {
+    if (_ms.isGoal) {
+        // Posiziona la palla stabilmente dietro la linea di porta
+        _ball.x = (_ms.lastScorerTeam === 'my') ? PLAY.oppNetX0 + 0.01 : PLAY.myNetX0 - 0.01;
+        _ball.y = PLAY.cy;
+    } 
+    else if (_ms.isSaved || (_ms.possessor && _ms.possessor.role === 'POR')) {
+        // Se il portiere para o ha palla, la palla segue il suo segnalino esattamente
+        let gk = _ms.tokens[_ms.possession === 'my' ? 'my_GK' : 'opp_GK'];
+        if (gk) {
+            _ball.x = gk.x;
+            _ball.y = gk.y;
+        }
+    }
+}

@@ -10,7 +10,12 @@
 // e poi aggiornato da engine/* e ui/*.
 let G = {};
 
-
+// Inserisci dopo let G = {};
+G.REALISM = {
+    SPEED_REF_STAT: 100,
+    SECONDS_TO_CROSS: 10, // Tempo per coprire la distanza da porta a porta
+    FPS: 60
+};
 
 // ═══════════════════════════════════════════════════════
 // SIMULAZIONE SU CAMPO - MOVIMENTI REALISTICI
@@ -20,6 +25,7 @@ const REALISM_CONFIG = {
     SECONDS_TO_CROSS: 10, // Un giocatore con 100 percorre il campo in 10s
     FPS: 60
 };
+
 
 
 
