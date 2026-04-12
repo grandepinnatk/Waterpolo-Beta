@@ -363,5 +363,37 @@ function _animateBallPass() {
     }
 }
 
+// Aggiungi questa funzione dentro MovementController
+function _updatePlayerTarget(tokenKey) {
+    var tok = _getToken(tokenKey);
+    if (!tok) return;
+
+    var isHome = tokenKey.startsWith('my_');
+    var isAttacking = (_ms.possession === (isHome ? 'my' : 'opp'));
+
+    if (isAttacking) {
+        // COORDINATE ATTACCO (Verso la porta avversaria)
+        // Usiamo i set definiti in pool.js o positions.js
+        var targetSet = isHome ? MY_SEMICIRCLE_ATK : OPP_SEMICIRCLE_ATK;
+        tok.targetX = targetSet[tok.pos].x;
+        tok.targetY = targetSet[tok.pos].y;
+    } else {
+        // COORDINATE DIFESA (Rientro nella propria metà campo)
+        var targetSet = isHome ? MY_DEFENSE : OPP_DEFENSE;
+        tok.targetX = targetSet[tok.pos].x;
+        tok.targetY = targetSet[tok.pos].y;
+    }
+}
+
+// Assicurati che onPossessChange sia così:
+function onPossessChange(team) {
+    _lastPossess = team;
+    // Cicla tutti i giocatori (1-6 + Portiere) per aggiornare i loro bersagli
+    ['1','2','3','4','5','6','GK'].forEach(function(pk) {
+        _updatePlayerTarget('my_' + pk);
+        _updatePlayerTarget('opp_' + pk);
+    });
+}
+
 // Esponi globalmente
 window.MovementController = MovementController;
