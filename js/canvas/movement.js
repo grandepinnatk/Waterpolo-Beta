@@ -364,24 +364,33 @@ function _animateBallPass() {
 }
 
 // Aggiungi questa funzione dentro MovementController
+// [File: js/canvas/movement.js]
+
 function _updatePlayerTarget(tokenKey) {
-    var tok = _getToken(tokenKey);
+    // CORREZIONE: Usa _getTok invece di _getToken
+    var tok = _getTok(tokenKey); 
+    
     if (!tok) return;
 
     var isHome = tokenKey.startsWith('my_');
+    // Determina se la squadra del token ha il possesso
     var isAttacking = (_ms.possession === (isHome ? 'my' : 'opp'));
 
     if (isAttacking) {
-        // COORDINATE ATTACCO (Verso la porta avversaria)
-        // Usiamo i set definiti in pool.js o positions.js
+        // Fase ATTACCO: punta al semicerchio offensivo
+        // Assicurati che MY_SEMICIRCLE_ATK e OPP_SEMICIRCLE_ATK siano definiti in pool.js
         var targetSet = isHome ? MY_SEMICIRCLE_ATK : OPP_SEMICIRCLE_ATK;
-        tok.targetX = targetSet[tok.pos].x;
-        tok.targetY = targetSet[tok.pos].y;
+        if (targetSet && targetSet[tok.pos]) {
+            tok.targetX = targetSet[tok.pos].x;
+            tok.targetY = targetSet[tok.pos].y;
+        }
     } else {
-        // COORDINATE DIFESA (Rientro nella propria metà campo)
+        // Fase DIFESA: torna in posizione difensiva
         var targetSet = isHome ? MY_DEFENSE : OPP_DEFENSE;
-        tok.targetX = targetSet[tok.pos].x;
-        tok.targetY = targetSet[tok.pos].y;
+        if (targetSet && targetSet[tok.pos]) {
+            tok.targetX = targetSet[tok.pos].x;
+            tok.targetY = targetSet[tok.pos].y;
+        }
     }
 }
 
@@ -393,6 +402,10 @@ function onPossessChange(team) {
         _updatePlayerTarget('my_' + pk);
         _updatePlayerTarget('opp_' + pk);
     });
+}
+
+function _getTok(key) {
+    return _ms.tokens[key];
 }
 
 // Esponi globalmente
