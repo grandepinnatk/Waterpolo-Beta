@@ -136,7 +136,6 @@ function onPossessChange(team) {
     onPeriodStart:    onPeriodStart,
   };
 
-})();
 
 
 /**
@@ -409,10 +408,35 @@ function onPossessChange(team) {
 }
 
 function _getTok(key) {
-    // Se la variabile globale dello stato si chiama 'ms' invece di '_ms', correggi qui
-    if (!_ms || !_ms.tokens) return null; 
+    // Ora _ms è accessibile perché siamo dentro lo scope del modulo
+    if (!_ms || !_ms.tokens) return null;
     return _ms.tokens[key];
-}
+  }
+
+  function _updatePlayerTarget(tokenKey) {
+    var tok = _getTok(tokenKey);
+    if (!tok) return;
+
+    var isHome = tokenKey.startsWith('my_');
+    var isAttacking = (_ms.possession === (isHome ? 'my' : 'opp'));
+
+    // Applica le coordinate (Assicurati che siano definite in pool.js)
+    if (isAttacking) {
+      var targetSet = isHome ? MY_SEMICIRCLE_ATK : OPP_SEMICIRCLE_ATK;
+      if (targetSet && targetSet[tok.pos]) {
+        tok.tx = targetSet[tok.pos].x;
+        tok.ty = targetSet[tok.pos].y;
+      }
+    } else {
+      var targetSet = isHome ? MY_DEFENSE : OPP_DEFENSE;
+      if (targetSet && targetSet[tok.pos]) {
+        tok.tx = targetSet[tok.pos].x;
+        tok.ty = targetSet[tok.pos].y;
+      }
+    }
+  }
 
 // Esponi globalmente
 window.MovementController = MovementController;
+
+})();
