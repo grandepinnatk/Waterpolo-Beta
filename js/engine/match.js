@@ -117,6 +117,7 @@ _ms.isBallInFlight = true;
 _ms.ballTargetToken = nextPlayerId;
 
 
+
 // ── Crea lo stato iniziale ────────────────────
 function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster, formation, shirtNumbers }) {
   const onFieldIdxs = new Set(Object.values(formation));
@@ -149,7 +150,7 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
     subs: 0, subOut: null, subIn: null,
     lastActionTime: 0, nextActionIn: rnd(7, 14),
     poType: null, poMatch: null,
-    shirtNumbers: shirtNumbers || {},
+	shirtNumbers: shirtNumbers || {},
     tempExp,
     expelled: new Set(),
     stamina,
@@ -163,12 +164,11 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
     // Parziali per periodo: array di { my, opp } per ciascuno dei 4 tempi
     periodScores: [ {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0} ],
     // Punteggio al termine del periodo precedente (per calcolare il parziale corrente)
-    _prevScore: { my:0, opp:0 },
-	
+    _prevScore: { my:0, opp:0 }
 	// [File: js/engine/match.js]
     possessor: 'my_3',       // Chi ha la palla (es. squadra_posizione)
     ballStatus: 'held',      // 'held' (in mano) o 'passing' (in volo)
-    targetReceiver: null    // ID del giocatore che deve ricevere
+    targetReceiver: null,    // ID del giocatore che deve ricevere
 };
   };
 }
