@@ -108,6 +108,7 @@ const NEUTRAL_EVENTS = [
   'Superiorità numerica gestita', 'Tiro fuori misura', 'Fallo in attacco',
 ];
 
+/*
 // Cerca dove viene gestito il passaggio (probabilmente in una funzione tipo processStep)
 // Quando viene scelto un nuovo ricevitore:
 ms.ballStatus = 'passing'; // Nuovo stato per la palla
@@ -115,7 +116,7 @@ ms.targetReceiver = nextPlayerId; // Il segnalino verso cui deve andare la palla
 // Invece di cambiare il possessore istantaneamente:
 _ms.isBallInFlight = true;
 _ms.ballTargetToken = nextPlayerId;
-
+*/
 
 
 // ── Crea lo stato iniziale ────────────────────
@@ -134,6 +135,15 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
   // stamina: { rosterIdx → 0-100 } inizializzata dal fitness del giocatore
   const stamina = {};
   myRoster.forEach((p, i) => { stamina[i] = p.fitness; });
+
+	var ms = { // Qui ms viene DEFINITA
+			home: matchObj.home,
+			away: matchObj.away,
+			// ...
+			ballStatus: 'held', // Non serve scrivere ms.ballStatus, sei già nell'oggetto
+			possessor: 'my_3'
+		};
+    return ms;
 
 	  return {
 		match, isHome, myTeam, oppTeam,
@@ -763,4 +773,8 @@ function updateBallLogic() {
             _ball.y = gk.y;
         }
     }
+}
+
+function updateBall(ms) { // Aggiungi ms qui tra le parentesi
+   ms.ballStatus = 'passing'; 
 }
