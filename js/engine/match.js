@@ -182,7 +182,15 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
 		targetReceiver: null,    // ID del giocatore che deve ricevere
 		formation: luState.formation, // Prende la formazione salvata in lineup.js
 		shirtNumbers: luState.shirtNumbers,
-		ms
+		ms,
+	    // --- NUOVI CAMPI PER DINAMICHE REALI ---
+		phase: 'sprint',         // Fase attuale: 'sprint', 'action', 'celebration', 'kickoff'
+		ballStatus: 'center',    // La palla parte al centro (sostituisce 'held' all'inizio)
+		possessor: null,         // Nessuno ha la palla durante lo sprint
+		lastScorerId: null,      // ID del giocatore che ha appena segnato (per esultanza)
+		phaseTimer: 0,           // Timer interno per gestire la durata delle animazioni/esultanze
+		ballTargetX: 0.5,        // Coordinata X della palla (centro campo)
+		ballTargetY: 0.5         // Coordinata Y della palla (centro campo)
 	};
 };
 
