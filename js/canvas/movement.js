@@ -371,11 +371,12 @@ function _animateBallPass() {
 
 function _updatePlayerTarget(tokenKey) {
     // CORREZIONE: Usa _getTok invece di _getToken
-    var tok = _getTok(tokenKey); 
-    
+	
+	var tok = _getTok(tokenKey);
     if (!tok) return;
 
     var isHome = tokenKey.startsWith('my_');
+	
     // Determina se la squadra del token ha il possesso
     var isAttacking = (_ms.possession === (isHome ? 'my' : 'opp'));
 
@@ -393,6 +394,44 @@ function _updatePlayerTarget(tokenKey) {
         if (targetSet && targetSet[tok.pos]) {
             tok.targetX = targetSet[tok.pos].x;
             tok.targetY = targetSet[tok.pos].y;
+        }
+    }
+
+	// A. SPRINT INIZIALE
+    if (_ms.phase === 'sprint') {
+        if (tok.pos === '6') {
+            // I numeri 6 nuotano verso la palla al centro
+            tok.tx = 0.5; tok.ty = 0.5;
+        } else {
+            // Gli altri si dispongono sulla linea d'attacco (es. i 2 metri)
+            tok.tx = isHome ? 0.65 : 0.35; 
+            tok.ty = tok.sy; // Mantengono la loro corsia laterale (start Y)
+        }
+    } 
+    
+    // B. ESULTANZA DOPO GOAL
+    else if (_ms.phase === 'celebration') {
+        var scorer = _getTok(_ms.lastScorerId);
+        if (scorer && tok.team === _ms.lastScorerTeam) {
+            // I compagni vanno verso chi ha segnato
+            tok.tx = scorer.x; tok.ty = scorer.y;
+        } else {
+            // Chi ha subito il goal torna mestamente verso la propria porta
+            tok.tx = isHome ? 0.2 : 0.8;
+            tok.ty = 0.5;
+        }
+    }
+
+    // C. KICKOFF (Rimessa dal centro)
+    else if (_ms.phase === 'kickoff') {
+        if (tok.pos === '6') {
+            tok.tx = 0.5; tok.ty = 0.5; // Il 6 batte al centro
+        } else if (tok.pos === '3') {
+            tok.tx = isHome ? 0.45 : 0.55; // Il 3 si avvicina per ricevere
+            tok.ty = 0.5;
+        } else {
+            // Gli altri tornano in posizione standard
+            _applyStandardTacticalPosition(tok); 
         }
     }
 }
