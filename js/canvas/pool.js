@@ -679,7 +679,24 @@ function updateBallPosition() {
 }
 
 function poolUpdateBall(ball, ms) {
-    if (ms.isGoal) {
+	
+	if (ms.phase === 'sprint') {
+        // La palla è ferma al centro
+        ball.x = 0.5; ball.y = 0.5;
+
+        // Controlla se un numero 6 ha toccato la palla
+        ['my_6', 'opp_6'].forEach(id => {
+            let tok = _tokens[id];
+            if (tok && dist(tok.x, tok.y, 0.5, 0.5) < 0.02) {
+                ms.phase = 'action';   // Inizia la partita vera
+                ms.possessor = id;     // Il primo che arriva prende palla
+                ms.ballStatus = 'held';
+            }
+        });
+    }
+	
+	
+	if (ms.isGoal) {
         // Palla nel rettangolo di porta dietro il portiere
         ball.x = ms.lastScorerTeam === 'my' ? PLAY.oppNetX1 - 0.02 : PLAY.myNetX0 + 0.02;
         ball.y = PLAY.cy;
@@ -691,6 +708,7 @@ function poolUpdateBall(ball, ms) {
             ball.y = ms.tokens[gkId].y;
         }
     }
+   
 }
 
 // Sostituisci il calcolo della velocità nei movimenti dei segnalini
