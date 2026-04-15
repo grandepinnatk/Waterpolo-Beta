@@ -825,16 +825,3 @@ function poolUpdateBallPhysics(dt, ms) {
         }
     }
 }
-
-
-  // RITORNO DELLE FUNZIONI PUBBLICHE
-  return {
-    init: poolInit,
-    initTokens: poolInitTokens,
-    update: poolUpdate,
-    render: poolRender,
-    showGoal: poolShowGoal,
-    beginSprint: poolBeginSprint
-  };
-
-})(); // <-- QUESTA CHIUSURA È FONDAMENTALE (riga 828 circa)	
