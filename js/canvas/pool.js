@@ -1,3 +1,5 @@
+console.log("[POOL] File pool.js caricato correttamente");
+
 // ─────────────────────────────────────────────
 // canvas/pool.js — Pallanuoto realistica v2
 // ─────────────────────────────────────────────
@@ -182,6 +184,7 @@ function _dist(tok) {
 
 // ── API pubblica ──────────────────────────────
 function poolInitTokens(ms) {
+	console.log("[POOL] Inizializzazione token con stato:", ms);
   _tokens     = {};
   _ball       = { x: PLAY.cx, y: PLAY.cy, tx: PLAY.cx, ty: PLAY.cy };
   _phase      = 'idle';
