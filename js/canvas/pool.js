@@ -328,6 +328,7 @@ function poolBeginSprint(prevSpeed) {
   if (opp6) { 
     opp6.tx = PLAY.cx; opp6.ty = PLAY.cy; 
     console.log("[POOL] Opp_6 punta al centro:", PLAY.cx, PLAY.cy); // LOG DEBUG
+	}
 }
 
 function poolGetPhase()  { return _phase; }
