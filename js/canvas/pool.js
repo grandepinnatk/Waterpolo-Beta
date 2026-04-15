@@ -826,3 +826,22 @@ function poolUpdateBallPhysics(dt, ms) {
         }
     }
 }
+
+// Inserisci questa logica nel loop di update (es. dentro poolUpdate)
+// per gestire la presa della palla
+function _checkBallPickup(ms) {
+    if (_phase !== 'sprint') return;
+
+    ['my_6', 'opp_6'].forEach(id => {
+        let t = _tokens[id];
+        if (t) {
+            let d = Math.hypot(t.x - PLAY.cx, t.y - PLAY.cy);
+            if (d < 0.02) {
+                console.log(`%c[POOL] Palla presa da ${id}!`, "color: green; font-weight: bold;");
+                _phase = 'action';
+                ms.phase = 'action';
+                ms.possessor = id;
+                ms.ballStatus = 'held';
+            }
+        }
+    });
