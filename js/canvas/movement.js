@@ -374,7 +374,10 @@ function _updatePlayerTarget(tokenKey) {
 	
 	var tok = _getTok(tokenKey);
     if (!tok) return;
-
+	
+    // Debug: vediamo se la funzione viene chiamata per ogni giocatore
+	console.log(`[MOVEMENT] Aggiorno Target per ${tokenKey}. Fase: ${_ms.phase}`);
+	
     var isHome = tokenKey.startsWith('my_');
 	
     // Determina se la squadra del token ha il possesso
@@ -434,6 +437,8 @@ function _updatePlayerTarget(tokenKey) {
             _applyStandardTacticalPosition(tok); 
         }
     }
+
+	console.log(`[MOVEMENT] Target impostato per ${tokenKey}: tx=${tok.tx}, ty=${tok.ty}`);
 }
 
 // Assicurati che onPossessChange sia così:
@@ -474,7 +479,33 @@ function _getTok(key) {
       }
     }
   }
+	
+/**
+ * Calcola la velocità basata sul realismo (10s per il campo)
+ * @param {Object} p - Dati del giocatore (deve contenere le stats)
+ */
+function _getRealismSpeed(p) {
+    if (!G.REALISM) {
+        console.error("[SPEED ERROR] G.REALISM non definito in main.js!");
+        return 0.002; // Velocità di emergenza
+    }
 
+    // Distanza del campo in unità relative (es. 0.80)
+    var dist = PLAY.x1 - PLAY.x0; 
+    
+    // Velocità base per frame (distanza / tempo / FPS)
+    var baseSpeed = (dist / G.REALISM.SECONDS_TO_CROSS) / G.REALISM.FPS;
+    
+    // Proporzione basata sulla statistica 'spe' (velocità) del giocatore
+    var statFactor = (p.stats && p.stats.spe) ? p.stats.spe / G.REALISM.REF_SPEED_STAT : 0.5;
+    
+    var finalSpeed = baseSpeed * statFactor;
+
+    // Log di debug (apparirà ogni volta che viene ricalcolata la velocità)
+    console.log(`[SPEED] Giocatore ${p.pos} (${p.name}): stat spe=${p.stats.spe} -> velocità frame=${finalSpeed.toFixed(6)}`);
+
+    return finalSpeed;
+}
 
 
 })();
