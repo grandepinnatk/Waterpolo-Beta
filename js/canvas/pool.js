@@ -308,17 +308,26 @@ function poolStartPeriod() {
 // ── Chiamata da togglePlay quando si preme Avvia dopo kickoff ────
 function poolBeginSprint(prevSpeed) {
   if (_phase !== 'idle') return;
+	console.log("[POOL] Inizio Sprint! Fase precedente:", _phase); // LOG DEBUG
   _prevSpeed  = prevSpeed || 10;
   _phase      = 'sprint';
   _sprintT    = 0;
   _sprintDone = false;
+	
   // Forza velocità 1x durante lo sprint (tramite main.js setSpeed)
-  if (typeof setSpeed === 'function') setSpeed(1);
-  // I pos 3 di entrambe le squadre scattano verso il centro
-  var my3  = _tokens['my_3'];
-  var opp3 = _tokens['opp_3'];
-  if (my3)  { my3.tx  = PLAY.cx - 0.02; my3.ty  = PLAY.cy; }
-  if (opp3) { opp3.tx = PLAY.cx + 0.02; opp3.ty = PLAY.cy; }
+  //if (typeof setSpeed === 'function') setSpeed(1);
+
+ // I numeri 6 (e non i 3 come nel vecchio codice) puntano alla palla
+  var my6  = _tokens['my_6'];
+  var opp6 = _tokens['opp_6'];
+  
+  if (my6)  { 
+    my6.tx  = PLAY.cx; my6.ty  = PLAY.cy; 
+    console.log("[POOL] My_6 punta al centro:", PLAY.cx, PLAY.cy); // LOG DEBUG
+  }
+  if (opp6) { 
+    opp6.tx = PLAY.cx; opp6.ty = PLAY.cy; 
+    console.log("[POOL] Opp_6 punta al centro:", PLAY.cx, PLAY.cy); // LOG DEBUG
 }
 
 function poolGetPhase()  { return _phase; }
@@ -333,11 +342,16 @@ function poolShootAndScore(targetX, targetY, scorer, team, teamName) {
 
 // ── Goal: dichiarato quando la palla è entrata in rete ────────────
 function poolShowGoal(scorer, team) {
+	console.log(`%c[GOAL] Rilevato! Segnato da: ${scorer} (Team: ${team})`, "background: #222; color: #bada55; font-size: 1.2em;");
+	
   _pendingGoal = null;
   _goalAnim = { timer: 0, total: 2.5, scorer: scorer || '', team: team || 'my', teamName: teamName || '' };
   _phase = 'goal';
   var mySubito = (team === 'opp');
 
+	// Log delle posizioni di esultanza
+  console.log("[POOL] I segnalini iniziano l'esultanza verso lo schieramento...");
+	
   Object.values(_tokens).forEach(function(tok) {
     if (tok.expelled) return;
     var pos;
@@ -765,6 +779,45 @@ function poolUpdateBallPhysics(ms) {
         }
     } else if (ms.ballStatus === 'held' && ms.possessor) {
         // La palla segue il giocatore che ce l'ha in mano
+        var holder = _tokens[ms.possessor];
+        if (holder) {
+            _ball.x = holder.x;
+            _ball.y = holder.y;
+        }
+    }
+}
+
+/**
+ * Funzione da chiamare nel loop di rendering principale (es. requestAnimationFrame)
+ * Gestisce il movimento fluido della palla e i log di stato
+ */
+function poolUpdateBallPhysics(dt, ms) {
+    if (!ms) return;
+
+    // Se la palla è in volo (passaggio)
+    if (ms.ballStatus === 'passing' && ms.targetReceiver) {
+        var targetTok = _tokens[ms.targetReceiver];
+        if (targetTok) {
+            var dx = targetTok.x - _ball.x;
+            var dy = targetTok.y - _ball.y;
+            var dist = Math.sqrt(dx*dx + dy*dy);
+
+            if (dist > 0.01) {
+                // Muovi la palla verso il target
+                _ball.x += (dx / dist) * 0.015; 
+                _ball.y += (dy / dist) * 0.015;
+            } else {
+                // Palla arrivata al ricevitore
+                console.log("%c[BALL] Palla ricevuta da: " + ms.targetReceiver, "color: green; font-weight: bold;");
+                _ball.x = targetTok.x;
+                _ball.y = targetTok.y;
+                ms.ballStatus = 'held';
+                ms.possessor = ms.targetReceiver;
+            }
+        }
+    } 
+    // Se la palla è "in mano" a un giocatore
+    else if (ms.ballStatus === 'held' && ms.possessor) {
         var holder = _tokens[ms.possessor];
         if (holder) {
             _ball.x = holder.x;
