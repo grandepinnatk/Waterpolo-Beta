@@ -845,3 +845,4 @@ function _checkBallPickup(ms) {
             }
         }
     });
+}
