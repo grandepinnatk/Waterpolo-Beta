@@ -799,13 +799,17 @@ function updateBall(ms) { // Aggiungi ms qui tra le parentesi
 // [File: js/engine/match.js]
 
 function startLiveMatch(match) {
-    // 1. Creiamo lo stato e lo assegniamo alla variabile 'ms'
+    console.log("%c[MATCH] Avvio partita in corso...", "color: white; background: green; padding: 5px;");
+	// 1. Creiamo lo stato e lo assegniamo alla variabile 'ms'
     const ms = createMatchState(match); 
     
     // 2. Ora 'ms' esiste in questa funzione e possiamo passarlo al canvas
     if (typeof poolInitTokens === 'function') {
+		console.log("[MATCH] Chiamata a poolInitTokens riuscita");
         poolInitTokens(ms); // Passiamo ms a pool.js
-    }
+    } else { 
+		console.error("[MATCH ERROR] poolInitTokens NON è definita!");
+	}
     
-    // ... resto della logica
+
 }
