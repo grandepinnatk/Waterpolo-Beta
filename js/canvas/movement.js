@@ -42,6 +42,9 @@ var MovementController = (function() {
   function update(dt) {
     if (!_active || !_ms || !_ms.running) return;
 
+	  // Log "silenzioso" (appare solo ogni 100 frame per non intasare)
+    if (Math.random() < 0.01) console.log("[MOVEMENT] Loop attivo, fase:", _ms.phase);
+
     _ticker    += dt;
     _microTick += dt;
 
