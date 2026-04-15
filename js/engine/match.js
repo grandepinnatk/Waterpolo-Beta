@@ -143,6 +143,11 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
 			ballStatus: 'held', // Non serve scrivere ms.ballStatus, sei già nell'oggetto
 			possessor: 'my_3'
 		};
+		
+	// Esempio da inserire dove cambi ms.phase (es. al fischio d'inizio o dopo un goal)
+	 console.log("[MATCH ENGINE] Cambio Fase:", ms.phase);
+	 console.log("[MATCH ENGINE] Possessore Palla:", ms.possessor);
+	 console.log("[MATCH ENGINE] Stato Palla:", ms.ballStatus);
 
 	  return {
 		match, isHome,
@@ -190,8 +195,8 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
 		lastScorerId: null,      // ID del giocatore che ha appena segnato (per esultanza)
 		phaseTimer: 0,           // Timer interno per gestire la durata delle animazioni/esultanze
 		ballTargetX: 0.5,        // Coordinata X della palla (centro campo)
-		ballTargetY: 0.5         // Coordinata Y della palla (centro campo)
-	};
+		ballTargetY: 0.5         // Coordinata Y della palla (centro campo)		  
+	  };
 };
 
 
