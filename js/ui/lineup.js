@@ -290,9 +290,7 @@ function renderPlayerSelList() {
   // Footer info
   const footer = document.createElement('div');
   footer.style.cssText = 'margin-top:8px;padding:6px 8px;border-radius:7px;background:var(--panel2);font-size:11px;color:var(--muted);line-height:1.5';
-  footer.innerHTML = `<strong style="color:var(--blue)">${luState.convocati.size}</strong>/${MAX_CONVOCATI} convocati ·
-    Clicca per selezionare · <strong>Trascina</strong> sulle posizioni ·
-    Doppio click per rimuovere`;
+  footer.innerHTML = `<strong style="color:var(--blue)">${luState.convocati.size}</strong>/${MAX_CONVOCATI} ${t('lineup.available')} · ${t('lineup.subtitle')}`;
   container.appendChild(footer);
 }
 
@@ -450,10 +448,10 @@ function updateLuStatus() {
   const convNums = convArr.map(pi => luState.shirtNumbers[pi]).filter(v => v !== undefined);
   const unique   = new Set(convNums).size === convNums.length;
 
-  let msg = `Formazione: <strong>${filled}/${POS_KEYS.length}</strong> · Convocati: <strong>${convCount}/${MAX_CONVOCATI}</strong>`;
-  if (!hasGK && filled > 0)    msg += ' · <span style="color:var(--red)">⚠ Portiere mancante</span>';
-  if (!formationValid)          msg += ' · <span style="color:var(--red)">⚠ Riassegna le posizioni vuote</span>';
-  if (convCount >= MIN_CONVOCATI && !allHaveNum) msg += ' · <span style="color:var(--gold)">Assegna un # a tutti i convocati</span>';
+  let msg = `${t('lineup.titolari')}: <strong>${filled}/${POS_KEYS.length}</strong> · ${t('lineup.available')}: <strong>${convCount}/${MAX_CONVOCATI}</strong>`;
+  if (!hasGK && filled > 0)    msg += ' · <span style="color:var(--red)">⚠ ' + t('roles.POR') + '</span>';
+  if (!formationValid)          msg += ' · <span style="color:var(--red)">⚠ ' + t('lineup.minRequired') + '</span>';
+  if (convCount >= MIN_CONVOCATI && !allHaveNum) msg += ' · <span style="color:var(--gold)">' + t('lineup.shirt') + '</span>';
   if (!unique && convNums.length > 0) msg += ' · <span style="color:var(--red)">⚠ Numeri duplicati</span>';
   if (luState.selectedPlayer !== null) msg += ' · <span style="color:var(--gold)">Ora clicca una posizione</span>';
   if (luState.selectedPos !== null && luState.selectedPlayer === null) msg += ' · <span style="color:var(--gold)">Ora clicca un giocatore</span>';

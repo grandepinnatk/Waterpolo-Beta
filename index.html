@@ -254,7 +254,12 @@
       <!-- Box salva -->
       <div class="bs-top-box bs-box-save" onclick="openSaveMenu()" title="Salva partita">
         <div class="bs-box-icon">💾</div>
-        <div class="bs-box-val">Salva</div>
+        <div class="bs-box-val" id="topbar-save-lbl">Salva</div>
+      </div>
+      <!-- Selettore lingua -->
+      <div class="bs-top-box bs-box-lang" id="btn-lang" title="Change language" onclick="_cycleLang()" style="min-width:52px">
+        <div class="bs-box-icon" id="lang-flag">🇮🇹</div>
+        <div class="bs-box-val" id="lang-top-label">IT</div>
       </div>
       <!-- Selettore tema -->
       <div class="bs-top-box" onclick="cycleTheme()" title="Cambia tema grafico" id="btn-theme" style="min-width:52px">
@@ -534,6 +539,13 @@
     var lang = I18N.getSavedLang();
     var dict = lang === 'en' ? LANG_EN : LANG_IT;
     I18N.load(lang, dict);
+    // Inizializza box lingua nella topbar
+    var flagMap = { it: '🇮🇹', en: '🇬🇧' };
+    var lbl     = { it: 'IT',   en: 'EN'  };
+    var fl = document.getElementById('lang-flag');
+    var lb = document.getElementById('lang-top-label');
+    if (fl) fl.textContent = flagMap[lang] || '🇮🇹';
+    if (lb) lb.textContent = lbl[lang]     || 'IT';
   })();
 </script>
 <script src="js/data/teams.js"></script>

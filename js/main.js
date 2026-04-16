@@ -123,19 +123,18 @@ function confirmSimNextRound() {
   ov.innerHTML = `
     <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:24px;max-width:380px;width:90%;text-align:center">
       <div style="font-size:22px;margin-bottom:12px">⏩</div>
-      <div style="font-weight:700;font-size:15px;margin-bottom:10px;color:var(--text)">Simula Giornata</div>
+      <div style="font-weight:700;font-size:15px;margin-bottom:10px;color:var(--text)">${t('dash.simulate')}</div>
       <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6">
-        Hai selezionato di simulare la giornata senza giocare la partita.<br>
-        <strong style="color:var(--text)">Confermi la selezione?</strong>
+        ${t('match.skipConfirm')}<br><strong style="color:var(--text)">${t('common.confirm')}?</strong>
       </div>
       <div style="display:flex;gap:10px;justify-content:center">
         <button class="btn primary" style="padding:10px 28px;font-size:14px"
           onclick="document.getElementById('sim-confirm-popup').remove();simNextRound()">
-          Sì
+          ${t('common.yes')}
         </button>
         <button class="btn" style="padding:10px 28px;font-size:14px"
           onclick="document.getElementById('sim-confirm-popup').remove()">
-          No
+          ${t('common.no')}
         </button>
       </div>
     </div>`;
@@ -1080,27 +1079,25 @@ function _confirmNewSeason() {
   box.style.cssText = 'background:linear-gradient(180deg,#0d1f3c,#091525);border:2px solid #2a5aaa;border-radius:16px;padding:24px;max-width:400px;width:92%;box-shadow:0 8px 40px rgba(0,0,0,.8)';
   box.innerHTML = `
     <div style="font-size:28px;text-align:center;margin-bottom:10px">🏊</div>
-    <div style="font-size:16px;font-weight:800;color:var(--blue);text-align:center;margin-bottom:6px">Inizia Stagione ${sNum}</div>
+    <div style="font-size:16px;font-weight:800;color:var(--blue);text-align:center;margin-bottom:6px">${t('seasonEnd.newSeason', {n: sNum})}</div>
     <div style="font-size:12px;color:rgba(255,255,255,.65);text-align:center;margin-bottom:16px">
-      La nuova stagione riparte da dove hai lasciato.
+      ${t('common.season')} ${sNum}
     </div>
     <div style="background:rgba(0,194,255,.06);border:1px solid rgba(0,194,255,.2);border-radius:10px;padding:12px;margin-bottom:16px">
-      <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">✅ Cosa viene mantenuto</div>
+      <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">✅ ${t('common.save')}</div>
       <div style="font-size:12px;color:rgba(255,255,255,.75);line-height:2">
-        Rosa completa con tutti i progressi<br>
-        Budget: <strong style="color:var(--gold)">${formatMoney(G.budget)}</strong><br>
-        Stelle: <strong style="color:var(--gold)">⭐ ${G.stars || 0}</strong><br>
-        Storico acquisti e cessioni<br>
-        Registro finanziario
+        ${t('nav.rosa')} · ${t('common.budget')}: <strong style="color:var(--gold)">${formatMoney(G.budget)}</strong><br>
+        ⭐ ${G.stars || 0}<br>
+        ${t('history.title')} · ${t('finance.ledger')}
       </div>
     </div>
     <div style="background:rgba(240,80,80,.06);border:1px solid rgba(240,80,80,.2);border-radius:10px;padding:12px;margin-bottom:18px">
-      <div style="font-size:11px;font-weight:700;color:#e07070;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">🔄 Cosa viene resettato</div>
+      <div style="font-size:11px;font-weight:700;color:#e07070;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">🔄 ${t('common.cancel')}</div>
       <div style="font-size:12px;color:rgba(255,255,255,.75);line-height:2">
-        Calendario e classifica<br>
-        Statistiche stagionali (gol, assist, parate)<br>
-        Obiettivi di stagione<br>
-        Giocatori invecchiano di 1 anno
+        ${t('nav.calendar')} · ${t('nav.standings')}<br>
+        ${t('common.goals')} · ${t('common.assists')} · ${t('common.saves')}<br>
+        ${t('nav.goals')}<br>
+        ${t('common.age')} +1
       </div>
     </div>
     <div style="display:flex;gap:10px">
@@ -1411,7 +1408,7 @@ function openSaveMenu() {
       <div class="save-menu-title">💾 Salva Partita</div>
       ${rows}
       <button class="btn" style="width:100%;margin-top:8px"
-              onclick="document.getElementById('save-menu-modal').remove()">Annulla</button>
+              onclick="document.getElementById('save-menu-modal').remove()">${t('common.cancel')}</button>
     </div>`;
 
   ov.onclick = e => { if (e.target === ov) ov.remove(); };
@@ -2498,11 +2495,11 @@ function _showNationalPopup(called) {
     <div style="background:var(--panel);border:1px solid rgba(0,194,255,.3);border-radius:16px;padding:24px;max-width:400px;width:92%;max-height:85vh;overflow-y:auto;position:relative;z-index:2">
       <div style="text-align:center;margin-bottom:18px">
         <div style="font-size:40px;margin-bottom:6px">🤽</div>
-        <div style="font-weight:800;font-size:18px;color:var(--blue)">Convocazione in Nazionale!</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5">I tuoi giocatori sono stati selezionati per la nazionale.<br>Non sarà possibile schierarli per la prossima gara.</div>
+        <div style="font-weight:800;font-size:18px;color:var(--blue)">${t('national.callup')}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5">${t('national.callupDesc').replace('\n','<br>')}</div>
       </div>
-      ${itaPlayers.length ? `<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🇮🇹 Nazionale Italiana</div>${itaPlayers.map(makeRow).join('')}` : ''}
-      ${othPlayers.length ? `<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 6px">Altre nazionali</div>${othPlayers.map(makeRow).join('')}` : ''}
+      ${itaPlayers.length ? `<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${t('national.italiana')}</div>${itaPlayers.map(makeRow).join('')}` : ''}
+      ${othPlayers.length ? `<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 6px">${t('national.others')}</div>${othPlayers.map(makeRow).join('')}` : ''}
       <button onclick="document.getElementById('national-popup').remove()" style="width:100%;margin-top:18px;padding:10px;background:var(--blue);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:14px;cursor:pointer">
         Ottimo! 💪
       </button>
@@ -2577,17 +2574,17 @@ function _showOfferPopupQueue(offers, idx) {
       animation:offerBounceIn .45s cubic-bezier(.34,1.56,.64,1) both;
       box-shadow:0 8px 40px rgba(0,0,0,.5)">
       <div style="font-size:32px;margin-bottom:10px">${pctIcon}</div>
-      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Offerta di mercato</div>
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">${t('market.offerPopup.title')}</div>
       <div style="font-size:17px;font-weight:800;color:var(--text);margin-bottom:4px">${o.playerName}</div>
       <div style="font-size:13px;color:var(--muted);margin-bottom:16px">${o.buyerName}</div>
       <div style="background:rgba(255,255,255,.05);border-radius:10px;padding:14px;margin-bottom:16px">
         <div style="font-size:26px;font-weight:800;color:var(--blue);margin-bottom:4px">${formatMoney(o.amount)}</div>
         <div style="font-size:12px;color:${pctColor};font-weight:600">
-          ${o.pct}% del prezzo richiesto${isGood ? ' — Offerta accettabile ✓' : ''}
+          ${o.pct}% ${t('market.offerPopup.meets')}${isGood ? ' ✓' : ''}
         </div>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:18px">
-        Vai al <strong>Mercato → Lista Trasferimenti</strong> per accettare o rifiutare.
+        ${t('nav.market')} → ${t('market.myList')}
       </div>
       <button onclick="_closeOfferPopup(${JSON.stringify(offers).replace(/"/g,'&quot;')},${idx+1})"
         style="width:100%;padding:11px;background:var(--blue);border:none;border-radius:8px;

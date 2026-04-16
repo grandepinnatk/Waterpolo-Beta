@@ -133,7 +133,7 @@ function _animLoop(timestamp) {
     if (periodEnded && !matchEnded) {
       // Pausa automatica a fine periodo per consentire sostituzioni
       G.ms.running = false;
-      document.getElementById('btn-play').textContent = '▶ Avvia';
+      document.getElementById('btn-play').textContent = '▶ ' + t('match.resume');
       _lastFrameT = null;
       // Applica recupero stamina durante l'intervallo (period - 1 = periodo appena finito)
       if (typeof applyPeriodBreakRecovery === 'function') {
@@ -553,9 +553,9 @@ function _checkExhaustedPlayers() {
     if (activePlayers > 5 && benchAvail > 0) {
       // Può fare sostituzioni: forza pausa
       ms.running = false;
-      document.getElementById('btn-play').textContent = '▶ Avvia';
+      document.getElementById('btn-play').textContent = '▶ ' + t('match.resume');
       _lastFrameT = null;
-      _appendLog('⏸ Pausa automatica — giocatori esauriti in campo. Effettua una sostituzione.', 'sv');
+      _appendLog(t('injuries.autoPause'), 'sv');
     } else {
       // Solo 5 in campo o panchina vuota: non si può sostituire, continua con penalità
       _appendLog(t('injuries.noSub'), 'fl');
@@ -870,7 +870,7 @@ function _poolPhaseIsSprint() {
 function skipPeriod() {
   const ms = G.ms; if (!ms || ms.finished) return;
   ms.running = false;
-  document.getElementById('btn-play').textContent = '▶ Avvia';
+  document.getElementById('btn-play').textContent = '▶ ' + t('match.resume');
 
   // Calcola quanti secondi di gioco restano nel periodo corrente
   const periodStart  = (ms.period - 1) * PERIOD_SECONDS;
@@ -956,7 +956,7 @@ function openSub() {
   // Metti in pausa e reset selezione inline
   if (ms.running) {
     ms.running = false;
-    document.getElementById('btn-play').textContent = '▶ Avvia';
+    document.getElementById('btn-play').textContent = '▶ ' + t('match.resume');
     _lastFrameT = null;
   }
   _subSelField = null; _subSelBench = null;

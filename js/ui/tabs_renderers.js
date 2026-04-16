@@ -415,16 +415,16 @@ function renderDash() {
 
   // ── Categoria notizia ──
   function msgTag(txt) {
-    if (/infortun|infortun/i.test(txt))              return ['INFORTUNI','#e74c3c'];
-    if (/contratto|rinnov|scadenz|resciss/i.test(txt)) return ['CONTRATTO','#9c27b0'];
-    if (/mercato|offerta|acquist|svinc|vend/i.test(txt)) return ['MERCATO','#ff8c42'];
-    if (/giornata|giocato|pareggi|vince|perde|gol|assist|parate/i.test(txt)) return ['RISULTATO','#1565c0'];
-    if (/ingaggi|budget|bonus|penale|finanz/i.test(txt)) return ['ECONOMIA','#2e7d32'];
-    if (/allenament|tactic|stella/i.test(txt))       return ['ALLENAMENTO','#00838f'];
-    if (/guarit|infortun.*torn/i.test(txt))          return ['RECUPERO','#2e7d32'];
-    if (/playoff|playout|retrocessione|scudetto/i.test(txt)) return ['PLAYOFF','#c62828'];
-    if (/nazional|convocato|nazionale/i.test(txt)) return ['NAZIONALE','#1565c0'];
-    return ['NOTIZIA','#455a64'];
+    if (/infortun|injur|injury|exhausted|out of energy/i.test(txt))              return [t('nav.training').toUpperCase(),'#e74c3c'];
+    if (/contratto|rinnov|scadenz|resciss|contract|renew|expir|terminat/i.test(txt)) return [t('roster.contract').toUpperCase(),'#9c27b0'];
+    if (/mercato|offerta|acquist|svinc|vend|market|transfer|signed|sold|offer/i.test(txt)) return [t('nav.market').toUpperCase(),'#ff8c42'];
+    if (/giornata|giocato|pareggi|vince|perde|gol|assist|parate|matchday|wins|loses|draws|goals|assists|saves/i.test(txt)) return [t('common.result').toUpperCase(),'#1565c0'];
+    if (/ingaggi|budget|bonus|penale|finanz|salary|wages|finance|balance/i.test(txt)) return [t('nav.finance').toUpperCase(),'#2e7d32'];
+    if (/allenament|tactic|stella|training|stars/i.test(txt))       return [t('nav.training').toUpperCase(),'#00838f'];
+    if (/guarit|recover|infortun.*torn/i.test(txt))          return [t('goals.inProgress').toUpperCase(),'#2e7d32'];
+    if (/playoff|playout|retrocessione|scudetto|relegat|survived|champion/i.test(txt)) return [t('nav.playoff').toUpperCase(),'#c62828'];
+    if (/nazional|convocato|nazionale|national|callup|called up/i.test(txt)) return [t('national.badge'),'#1565c0'];
+    return [t('dash.news').toUpperCase(),'#455a64'];
   }
 
   // ── Focus giocatore: miglior morale nella rosa ──
@@ -457,7 +457,7 @@ function renderDash() {
   h += '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px">'
     + '<div style="font-size:22px;opacity:.7">📍</div>'
     + '<div>'
-    + '<div style="font-size:10px;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:.5px">Punti</div>'
+    + '<div style="font-size:10px;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:.5px">' + t('standings.points') + '</div>'
     + '<div style="font-size:26px;font-weight:900;color:#fff;line-height:1.1;font-variant-numeric:tabular-nums">' + ms.pts + '</div>'
     + '</div></div>';
 
@@ -465,11 +465,11 @@ function renderDash() {
   h += '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:10px 16px;display:flex;align-items:center;gap:12px">'
     + vpsDoughnut(ms.w, ms.d, ms.l)
     + '<div>'
-    + '<div style="font-size:10px;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:.5px">V/P/S</div>'
+    + '<div style="font-size:10px;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:.5px">' + t('dash.winRate') + '</div>'
     + '<div style="display:flex;gap:6px;margin-top:2px">'
-    + '<span style="font-size:13px;font-weight:700;color:#2ecc71">' + ms.w + 'V</span>'
-    + '<span style="font-size:13px;font-weight:700;color:#f0c040">' + ms.d + 'P</span>'
-    + '<span style="font-size:13px;font-weight:700;color:#e74c3c">' + ms.l + 'S</span>'
+    + '<span style="font-size:13px;font-weight:700;color:#2ecc71">' + ms.w + ' ' + t('standings.won')[0] + '</span>'
+    + '<span style="font-size:13px;font-weight:700;color:#f0c040">' + ms.d + ' ' + t('standings.drawn')[0] + '</span>'
+    + '<span style="font-size:13px;font-weight:700;color:#e74c3c">' + ms.l + ' ' + t('standings.lost')[0] + '</span>'
     + '</div></div></div>';
 
   // Budget monospaced
@@ -495,11 +495,10 @@ function renderDash() {
       '<span style="font-size:18px;flex-shrink:0">📋</span>' +
       '<div style="flex:1;min-width:0">' +
         '<div style="font-size:12px;font-weight:700;color:#ce93d8;margin-bottom:3px">' +
-          expiringPlayers.length + ' giocator' + (expiringPlayers.length === 1 ? 'e ha' : 'i hanno') +
-          ' il contratto in scadenza</div>' +
+          expiringPlayers.length + ' ' + t('roster.contract').toLowerCase() + ' ' + t('roster.expiring').toLowerCase() + '</div>' +
         '<div style="font-size:11px;color:rgba(255,255,255,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' +
           expiringPlayers.slice(0, 4).map(function(p) { return p.name; }).join(', ') +
-          (expiringPlayers.length > 4 ? ' +altri' : '') +
+          (expiringPlayers.length > 4 ? ' +' + t('common.all').toLowerCase() : '') +
         '</div>' +
       '</div>' +
       '<button onclick="showTab(\'rosa\')\" style="flex-shrink:0;padding:5px 12px;font-size:11px;font-weight:700;' +
@@ -532,7 +531,7 @@ function renderDash() {
     + '135deg,transparent,transparent 8px,rgba(120,80,200,.5) 8px,rgba(120,80,200,.5) 9px);pointer-events:none"></div>';
   h += '<div style="position:relative;padding:14px 16px">';
   h += '<div style="font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;'
-    + 'letter-spacing:1.2px;margin-bottom:10px">Ultima Gara</div>';
+    + 'letter-spacing:1.2px;margin-bottom:10px">' + t('dash.lastMatch') + '</div>';
 
   if (lastMatch) {
     var lih    = lastMatch.home === G.myId;
@@ -542,7 +541,7 @@ function renderDash() {
     var lOppS  = lih ? lastMatch.score.away : lastMatch.score.home;
     var lWon   = lMyS > lOppS, lDrew = lMyS === lOppS;
     var lCol   = lWon ? '#2ecc71' : lDrew ? '#f0c040' : '#e74c3c';
-    var lRes   = lWon ? 'V' : lDrew ? 'P' : 'S';
+    var lRes   = lWon ? t('standings.won')[0].toUpperCase() : lDrew ? t('standings.drawn')[0].toUpperCase() : t('standings.lost')[0].toUpperCase();
     var lMIdx  = G.schedule.indexOf(lastMatch);
     // Badge risultato
     h += '<div style="display:flex;justify-content:center;margin-bottom:8px">';
@@ -605,7 +604,7 @@ function renderDash() {
 
       // Header hub
       h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
-        + '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:1.2px">' + t('extra.nextMatch') + '</div>'        + '<div style="font-size:10px;font-weight:700;color:#00c2ff;text-transform:uppercase;letter-spacing:1.2px">Matchday Hub</div>'
+        + '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:1.2px">' + t('extra.nextMatch') + '</div>'        + '<div style="font-size:10px;font-weight:700;color:#00c2ff;text-transform:uppercase;letter-spacing:1.2px">' + t('dash.matchday') + '</div>'
         + '<div style="font-size:11px;color:rgba(255,255,255,.45);background:rgba(0,194,255,.1);'
         + 'border:1px solid rgba(0,194,255,.2);border-radius:6px;padding:2px 8px">'
         + (ih ? t('common.home') : t('common.away')) + '</div>'
@@ -723,7 +722,7 @@ function renderDash() {
   // Header notizie
   h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;'
     + 'border-bottom:1px solid rgba(255,255,255,.06)">'
-    + '<div style="font-size:11px;font-weight:700;color:' + _wText + ';text-transform:uppercase;letter-spacing:.7px">Ultime Notizie</div>'
+    + '<div style="font-size:11px;font-weight:700;color:' + _wText + ';text-transform:uppercase;letter-spacing:.7px">' + t('dash.news').toUpperCase() + '</div>'
     + '<div style="display:flex;align-items:center;gap:5px">'
     + '<span style="font-size:11px;color:' + _wMuted + '">' + (safePg+1) + '/' + totalPgs + '</span>'
     + '<button onclick="G._newsPage=Math.max(0,(G._newsPage||0)-1);renderDash()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:2px 8px;color:rgba(255,255,255,.5);font-size:12px;' + (safePg===0?'opacity:.3;pointer-events:none;':'cursor:pointer;') + '">‹</button>'
@@ -778,7 +777,7 @@ function renderDash() {
     var ratings = (fp.lastRatings || []).filter(function(r) { return r !== null; });
     var avgR = ratings.length ? (ratings.reduce(function(s,r){return s+r;},0)/ratings.length).toFixed(1) : null;
     h += '<div style="background:' + _wBg + ';border:1px solid ' + _wBorder + ';border-radius:14px;padding:14px">'
-      + '<div style="font-size:10px;font-weight:700;color:' + _wTitle + ';text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">Focus Giocatore</div>'
+      + '<div style="font-size:10px;font-weight:700;color:' + _wTitle + ';text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">' + t('dash.focusPlayer').toUpperCase() + '</div>'
       + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
       + '<div style="width:44px;height:44px;border-radius:10px;background:rgba(0,194,255,.1);border:1px solid rgba(0,194,255,.2);'
       + 'display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🤽</div>'
@@ -788,14 +787,14 @@ function renderDash() {
       + '</div></div>'
       + '<div style="margin-bottom:8px">'
       + '<div style="display:flex;justify-content:space-between;margin-bottom:3px">'
-      + '<span style="font-size:10px;color:' + _wLabel + ';font-weight:600">MORALE</span>'
+      + '<span style="font-size:10px;color:' + _wLabel + ';font-weight:600">' + t('roster.morale').toUpperCase() + '</span>'
       + '<span style="font-size:10px;font-weight:700;color:' + mc + '">' + fp.morale + '%</span>'
       + '</div>'
       + '<div style="height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden">'
       + '<div style="width:' + fp.morale + '%;height:100%;background:' + mc + ';box-shadow:0 0 6px ' + mc + '"></div></div>'
       + '</div>'
       + '<div style="display:flex;justify-content:space-between;font-size:11px">'
-      + '<span style="color:' + _wLabel + ';font-weight:600">Voti medi</span>'
+      + '<span style="color:' + _wLabel + ';font-weight:600">' + t('roster.apps') + '</span>'
       + '<span style="font-weight:700;color:' + (avgR >= 7.5 ? '#2ecc71' : avgR >= 6.5 ? '#f0c040' : '#e74c3c') + '">' + (avgR || '—') + '</span>'
       + '</div>'
       + (fp.goals > 0 ? '<div style="display:flex;justify-content:space-between;font-size:11px;margin-top:3px">'
@@ -807,7 +806,7 @@ function renderDash() {
   if (topScorer && (topScorer.goals || 0) > 0) {
     var ts = topScorer;
     h += '<div style="background:' + _wBg + ';border:1px solid ' + _wBorder + ';border-radius:14px;padding:14px">'
-      + '<div style="font-size:10px;font-weight:700;color:' + _wTitle + ';text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">Top Scorer</div>'
+      + '<div style="font-size:10px;font-weight:700;color:' + _wTitle + ';text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">' + t('dash.topScorer').toUpperCase() + '</div>'
       + '<div style="display:flex;align-items:center;gap:10px">'
       + '<div style="width:38px;height:38px;border-radius:8px;background:rgba(240,192,64,.1);border:1px solid rgba(240,192,64,.25);'
       + 'display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">⚽</div>'
@@ -1184,7 +1183,7 @@ function showRenewalConfirm(rosterIdx, years, popupEl) {
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:300;backdrop-filter:blur(4px)';
   ov.innerHTML = `
     <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;max-width:360px;width:92%">
-      <div style="font-size:15px;font-weight:700;color:var(--blue);margin-bottom:4px">🔄 Rinnovo contratto</div>
+      <div style="font-size:15px;font-weight:700;color:var(--blue);margin-bottom:4px">🔄 ${t('roster.renewContract')}</div>
       <div style="font-size:13px;color:var(--text);margin-bottom:14px">${p.name}</div>
       <div style="background:rgba(255,255,255,.04);border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:6px">
         <span style="color:var(--muted)">Durata</span><span style="font-weight:700">${years} ann${years===1?'o':'i'}</span>
@@ -1198,10 +1197,10 @@ function showRenewalConfirm(rosterIdx, years, popupEl) {
       </div>
       <div style="display:flex;gap:8px">
         <button onclick="renewContractWithBonus(${rosterIdx},${years})" style="flex:1;padding:9px;font-size:13px;font-weight:700;border-radius:8px;background:linear-gradient(135deg,var(--blue),#0080cc);border:none;color:#fff;cursor:pointer">
-          Conferma e invia proposta
+          ${t('common.confirm')} →
         </button>
         <button onclick="document.getElementById('renewal-confirm-popup').remove()" style="padding:9px 14px;font-size:13px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--muted);cursor:pointer">
-          Annulla
+          ${t('common.cancel')}
         </button>
       </div>
     </div>`;
@@ -1269,12 +1268,12 @@ function showPlayerModal(i) {
       <!-- Rinnovo contratto -->
       <div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:10px">
         <div style="font-size:12px;font-weight:700;margin-bottom:8px">
-          🔄 Rinnovo contratto
-          <span style="font-size:11px;font-weight:400;color:var(--muted)"> — richiesta stimata: <strong style="color:var(--gold)">${formatMoney(renewSalary)}/anno</strong></span>
+          🔄 ${t('roster.renewContract')}
+          <span style="font-size:11px;font-weight:400;color:var(--muted)"> — ${t('roster.renewRequest')} <strong style="color:var(--gold)">${formatMoney(renewSalary)}/a</strong></span>
         </div>
         ${p._renewalPending
           ? '<div style="background:rgba(0,194,255,.08);border:1px solid rgba(0,194,255,.3);border-radius:8px;padding:10px;font-size:12px">' +
-            '<div style="color:var(--blue);font-weight:700;margin-bottom:4px">📨 Proposta inviata — in attesa di risposta</div>' +
+            '<div style="color:var(--blue);font-weight:700;margin-bottom:4px">📨 ' + t('contracts.renewProposal', {name: ''}) + ' — ' + t('extra.willReplyNext') + '</div>' +
             '<div style="color:var(--muted)">' + p._renewalPending.years + ' ann' + (p._renewalPending.years===1?'o':'i') +
             ' · ' + formatMoney(p._renewalPending.salary) + '/anno</div>' +
             '<div style="font-size:11px;color:var(--muted);margin-top:4px">Il giocatore risponderà alla prossima giornata.</div>' +
@@ -1286,8 +1285,8 @@ function showPlayerModal(i) {
               const bonus   = Math.round(total * 0.10);
               const canAfford = G.budget >= bonus;
               const title   = canAfford
-                ? y + ' ann' + (y===1?'o':'i') + ' + bonus firma ' + formatMoney(bonus)
-                : 'Budget insufficiente (bonus: ' + formatMoney(bonus) + ')';
+                ? y + ' ' + (y===1?t('common.year'):t('common.years')) + ' + bonus ' + formatMoney(bonus)
+                : t('market.notEnoughBudget') + ' (bonus: ' + formatMoney(bonus) + ')';
               return '<button ' +
                 (canAfford
                   ? 'onclick="showRenewalConfirm(' + i + ',' + y + ',document.getElementById(&quot;' + elId + '&quot;))"'
@@ -1296,7 +1295,7 @@ function showPlayerModal(i) {
                 'border:1.5px solid ' + (canAfford ? 'var(--blue)' : 'rgba(255,255,255,.15)') + ';' +
                 'background:var(--panel2);color:' + (canAfford ? 'var(--blue)' : 'rgba(255,255,255,.25)') + ';' +
                 'cursor:' + (canAfford ? 'pointer' : 'not-allowed') + '">' +
-                y + ' ann' + (y===1?'o':'i') + ' — ' + formatMoney(total) +
+                y + ' ' + (y===1?t('common.year'):t('common.years')) + ' — ' + formatMoney(total) +
                 (canAfford ? '' : ' 🔒') +
                 '</button>';
             }).join('') +
@@ -1420,8 +1419,8 @@ function _buildSellSection(i) {
       <div style="margin-top:12px;border-top:1px solid rgba(255,80,80,.2);padding-top:12px">
         <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
           <strong>${t('extra.rescindContract')}</strong> — penale: <strong style="color:var(--red)">${formatMoney(rescPenalty)}</strong>
-          (${contractLeft} ${contractLeft===1?t('common.year'):'anni'} rimasto/i × ingaggio/2).
-          Il giocatore va sul mercato a costo zero.
+          (${contractLeft} ${contractLeft===1?t('common.year'):t('common.years')} ).
+          ${t('extra.freeAgent')}
         </div>
         <button class="btn danger sm" onclick="rescindContract(${i});this.closest('[style*=fixed]').remove();renderRosa();">✂️ Rescindi contratto</button>
       </div>`;
@@ -1556,10 +1555,10 @@ function showTrainBlockedMsg(hasStars, hasBudget) {
   var msg, icon;
   if (!hasStars) {
     icon = '⭐';
-    msg  = 'Non hai abbastanza token <strong>⭐ Stella</strong> per completare l&#39;attività.<br><br>Attendi il prossimo turno per ricevere nuove stelle.';
+    msg  = t('stars.notEnough');
   } else {
     icon = '💸';
-    msg  = 'Non hai il <strong>denaro sufficiente</strong> per completare questa attività.<br><br>Controlla il tuo budget nel tab Finanza.';
+    msg  = t('market.notEnoughBudget');
   }
 
   var ov = document.createElement('div');
@@ -1679,7 +1678,7 @@ function openTrainPopup(i) {
                 style="flex:1;padding:11px;font-size:13px;font-weight:800;border-radius:8px;
                        border:2px solid var(--blue);background:linear-gradient(135deg,#0a5ca8,#0844a0);
                        color:#fff;cursor:pointer">
-          ✓ Conferma allenamento
+          ${t('training.confirmBtn')}
         </button>
         <button onclick="document.getElementById('train-popup').remove()"
                 style="padding:11px 18px;font-size:13px;font-weight:700;border-radius:8px;
@@ -1696,7 +1695,7 @@ function doTrain(i) {
   const tr = TRAINING_TYPES[i];
   const starCost = tr.stars || 1;
   if (G.budget < tr.cost) { alert(t('market.notEnoughBudget')); return; }
-  if ((G.stars || 0) < starCost) { alert('Stelle insufficienti.'); return; }
+  if ((G.stars || 0) < starCost) { alert(t('stars.notEnough')); return; }
 
   // Rimuovi popup
   const popup = document.getElementById('train-popup');
@@ -1705,7 +1704,7 @@ function doTrain(i) {
   G.budget -= tr.cost;
   G.stars   = (G.stars || 0) - starCost;
   if (typeof _updateStarsBox === 'function') _updateStarsBox();
-  addLedger('allenamento', -tr.cost, `Sessione: ${tr.name}`, currentRound());
+  addLedger(t('nav.training'), -tr.cost, t('training.sessionDone', {name: tr.name}), currentRound());
   G.trainWeeks++;
   G._lastTrainRound = (typeof currentRound === 'function') ? currentRound() : 0;
   const roster = G.rosters[G.myId];
@@ -1787,11 +1786,11 @@ function renderGoals() {
     h += `<div class="card" style="border:1px solid var(--green)">
       <div style="font-weight:700;margin-bottom:8px;color:var(--green)">Riepilogo Stagione ${sNum}</div>
       <div class="irow"><span class="ilbl">${t('extra.finalPosition')}</span><span>${pos}°</span></div>
-      <div class="irow"><span class="ilbl">Punti obiettivi</span><span style="font-weight:700">${totPts}</span></div>
-      <div class="irow"><span class="ilbl">Premi incassati</span><span style="font-weight:700;color:var(--green)">${formatMoney(totRew)}</span></div>
+      <div class="irow"><span class="ilbl">${t('standings.points')} ${t('goals.title').toLowerCase()}</span><span style="font-weight:700">${totPts}</span></div>
+      <div class="irow"><span class="ilbl">${t('goals.reward')}</span><span style="font-weight:700;color:var(--green)">${formatMoney(totRew)}</span></div>
       <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">
         <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
-          Inizia la stagione successiva mantenendo rosa, budget, stelle e progressi.
+          ${t('common.season')} ${sNum + 1}
         </div>
         <button class="btn success" onclick="_confirmNewSeason()" style="width:100%">
           🤽 Inizia Stagione ${sNum + 1}
@@ -1833,7 +1832,7 @@ function _showStandTab(tab) {
 function _buildStandContent(activeTab) {
   // ── Tab nav ──
   let h = `<div style="display:flex;gap:6px;margin-bottom:12px">
-    <button class="btn${activeTab === 'classifica' ? ' primary' : ' sm'}" onclick="_showStandTab('classifica')" style="font-size:13px">🏆 ' + t('nav.standings') + '</button>
+    <button class="btn${activeTab === 'classifica' ? ' primary' : ' sm'}" onclick="_showStandTab('classifica')" style="font-size:13px">' + '🏆 ' + t('nav.standings') + '</button>
     <button class="btn${activeTab === 'marcatori'  ? ' primary' : ' sm'}" onclick="_showStandTab('marcatori')"  style="font-size:13px">⚽ ' + t('extra.topScorer') + '</button>
   </div>`;
 
@@ -2844,8 +2843,8 @@ function renderHistory() {
       <th style="text-align:center">N.</th>
       <th>Fascia</th>
       <th>Pos.</th>
-      <th>Punti</th>
-      <th>V/P/S</th>
+      <th>${t('standings.points')}</th>
+      <th>${t('dash.winRate')}</th>
       <th>GF/GA</th>
       <th>Playoff/Playout</th>
       <th>${t('extra.topScorer')}</th>

@@ -43,8 +43,9 @@ function updateHeader() {
   const starsEl = document.getElementById('bs-stars-val');
   if (starsEl && G) starsEl.textContent = G.stars || 0;
 
-  // Aggiorna etichette sidebar con lingua corrente
+  // Aggiorna etichette sidebar e box lingua con lingua corrente
   _updateNavLabels();
+  _updateLangBox();
 }
 
 // ── Aggiorna le etichette della sidebar ────────
@@ -67,6 +68,8 @@ function _updateNavLabels() {
     const el = document.getElementById(id);
     if (el) el.textContent = t(key);
   });
+  const saveEl = document.getElementById('topbar-save-lbl');
+  if (saveEl) saveEl.textContent = t('common.save');
 }
 
 // ── Mostra/nasconde le schermate principali ────
@@ -126,4 +129,25 @@ function _hideSlotsLoadingOverlay() {
   if (!ov) return;
   ov.style.opacity = '0';
   setTimeout(function(){ if (ov.parentNode) ov.parentNode.removeChild(ov); }, 280);
+}
+
+// ── Selettore lingua nella topbar ─────────────────
+const LANG_CONFIG = {
+  it: { flag: '🇮🇹', label: 'IT' },
+  en: { flag: '🇬🇧', label: 'EN' },
+};
+
+function _updateLangBox() {
+  const lang = I18N.getLang();
+  const cfg  = LANG_CONFIG[lang] || LANG_CONFIG['it'];
+  const flag = document.getElementById('lang-flag');
+  const lbl  = document.getElementById('lang-top-label');
+  if (flag) flag.textContent  = cfg.flag;
+  if (lbl)  lbl.textContent   = cfg.label;
+}
+
+function _cycleLang() {
+  const current = I18N.getLang();
+  const next    = current === 'it' ? 'en' : 'it';
+  I18N.setLang(next);   // salva in localStorage e fa reload
 }
