@@ -539,7 +539,7 @@ function initPostSeason() {
   };
 
   const relName = G.teams.find(t => t.id === G.relegated)?.name || '—';
-  G.msgs.push('Stagione regolare conclusa! Playoff: ' + G.poTeams.map(id => G.teams.find(t => t.id === id)?.name).join(', '));
+  G.msgs.push(t('nav.playoff') + ': ' + G.poTeams.map(id => G.teams.find(t => t.id === id)?.name).join(', '));
   G.msgs.push(t('seasonEnd.relegated', {team: relName}));
   updateHeader(); autoSave();
 }
@@ -752,7 +752,7 @@ function stadiumBuild(sectionKey, type) {  // type: 'level'|'bar'|'shop'
     label = 'Bar — ' + STADIUM_SECTIONS[sectionKey].label;
   } else if (type === 'shop') {
     if (sec.shop) { G.msgs.push('⚠️ ' + t('stadium.shop') + ' — ' + t('stadium.building') + '.'); return; }
-    if (sec.level === 0) { G.msgs.push('⚠️ Devi prima costruire la tribuna.'); return; }
+    if (sec.level === 0) { G.msgs.push('⚠️ ' + t('stadium.requiresLevel', {n:1})); return; }
     if (sec.construction) { G.msgs.push('⚠️ Lavori già in corso.'); return; }
     cost  = STADIUM_SHOP_COST;
     days  = STADIUM_SHOP_DAYS;
@@ -890,8 +890,8 @@ function simPOMatch(type, idx) {
       const ps = _simPenaltyShootout(m.home, m.away);
       poWinner = ps.winner;
       m.scores.push({ home: ps.hG, away: ps.aG, label: 'Rig.' });
-      m._extraInfo = '🎯 Rigori: ' + ps.hG + '-' + ps.aG;
-      G.msgs.push('🎯 Rigori: ' + (hT?.name||'?') + ' ' + ps.hG + '-' + ps.aG + ' ' + (aT?.name||'?') + '. Avanza ' + (G.teams.find(t=>t.id===poWinner)?.name||'?') + '.');
+      m._extraInfo = '🎯 ' + t('lineup.penaltyOrder') + ': ' + ps.hG + '-' + ps.aG;
+      G.msgs.push('🎯 ' + t('lineup.penaltyOrder') + ': ' + (hT?.name||'?') + ' ' + ps.hG + '-' + ps.aG + ' ' + (aT?.name||'?') + '. ' + t('playoff.advances') + ' ' + (G.teams.find(t=>t.id===poWinner)?.name||'?') + '.');
     }
   }
   m.winner = poWinner;
@@ -961,7 +961,7 @@ function simPLMatch(key) {
       const ps = _simPenaltyShootout(m.home, m.away);
       winner = ps.winner;
       const wName = G.teams.find(t => t.id === winner)?.name || '?';
-      G.msgs.push('🎯 Rigori playout: ' + (hT?.name||'?') + ' ' + ps.hGoals + '-' + ps.aGoals + ' ' + (aT?.name||'?') + '. Si salva ' + wName + '.');
+      G.msgs.push('🎯 ' + t('lineup.penaltyOrder') + ' ' + t('playoff.playout').toLowerCase() + ': ' + (hT?.name||'?') + ' ' + ps.hGoals + '-' + ps.aGoals + ' ' + (aT?.name||'?') + '. ' + t('playoff.saves') + ' ' + wName + '.');
     }
   }
   const loser  = winner === m.home ? m.away : m.home;
@@ -982,7 +982,7 @@ function simPLMatch(key) {
     plb.relegated = loser; plb.done = true;
     if (loser === G.myId) { G.playoffResult = 'relegated'; G.msgs.push(t('seasonEnd.relegated', {team: G.myTeam.name})); }
     else if (winner === G.myId) { G.playoffResult = 'survived'; G.msgs.push(t('seasonEnd.survived')); }
-    else G.msgs.push(G.teams.find(t => t.id === loser)?.name + ' retrocede in Serie A2.');
+    else G.msgs.push(G.teams.find(t => t.id === loser)?.name + ' — ' + t('playoff.relegated'));
   }
   autoSave(); renderPlayoff();
 }
@@ -1019,7 +1019,7 @@ function closeSeason() {
   const reward = finalizeObjectives(G.objectives, G.stand, G.myId, G.playoffResult);
   G.budget += reward;
   if (reward) addLedger(t('finance.types.obiettivo'), reward, 'Bonus obiettivi fine stagione', currentRound());
-  G.msgs.push('Stagione conclusa! Budget finale: ' + formatMoney(G.budget));
+  G.msgs.push(t('nav.endSeason') + ' · Budget: ' + formatMoney(G.budget));
 
   // ── Salva record stagione nello storico ──
   if (!G.seasonHistory) G.seasonHistory = [];
@@ -1290,7 +1290,7 @@ function startNewSeason() {
   _cpuMarketActivity();
 
   G.msgs.push('─────────────────────────────────');
-  G.msgs.push('🏊 Stagione ' + seasonNum + ' — Benvenuto! Budget: ' + formatMoney(G.budget) + ' · Stelle: ' + (G.stars || 0));
+  G.msgs.push(t('seasonEnd.newSeason', {n: seasonNum}) + ' · Budget: ' + formatMoney(G.budget) + ' · ⭐ ' + (G.stars || 0));
 
   updateHeader();
   autoSave();
@@ -1355,7 +1355,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Torna alla welcome (con aggiornamento slot) ─
 function goToWelcome() {
   if (G && G.myId) {
-    const ok = confirm('Tornare al menu principale? La partita in corso verrà salvata automaticamente.');
+    const ok = confirm(t('logout.confirm'));
     if (!ok) return;
     autoSave();
   }
@@ -1623,7 +1623,7 @@ function _processMarketOfferResponses() {
 function cancelPending(i) {
   if (!G.pendingPurchases || !G.pendingPurchases[i]) return;
   var p = G.pendingPurchases[i].player;
-  G.msgs.push('❌ Offerta annullata per ' + (p ? p.name : '?') + '.');
+  G.msgs.push('❌ ' + t('market.offerRejected') + ' — ' + (p ? p.name : '?') + '.');
   G.pendingPurchases.splice(i, 1);
   autoSave();
   if (typeof renderMarket === 'function') renderMarket();
@@ -1631,14 +1631,14 @@ function cancelPending(i) {
 
 function buyFromPending(i) {
   if (!G.pendingPurchases || !G.pendingPurchases[i]) {
-    G.msgs.push('❌ Offerta non più disponibile.'); renderMarket(); return;
+    G.msgs.push('❌ ' + t('market.offerRejected') + '.'); renderMarket(); return;
   }
   const pp    = G.pendingPurchases[i];
   const p     = pp.player;
   const price = pp.offerAmount;
 
   if (G.budget < price) {
-    G.msgs.push('❌ Budget insufficiente per acquistare ' + p.name + ' (' + formatMoney(price) + ').');
+    G.msgs.push('❌ ' + t('market.notEnoughBudget') + ' ' + p.name + ' (' + formatMoney(price) + ').');
     renderMarket(); return;
   }
 
@@ -1665,7 +1665,7 @@ function buyFromPending(i) {
   // Rimuovi da pendingPurchases
   G.pendingPurchases.splice(i, 1);
 
-  G.msgs.push('✅ Acquistato ' + p.name + ' da ' + (p._tname || '?') + ' per ' + formatMoney(price) + '. Morale alto!');
+  G.msgs.push('✅ Acquistato ' + p.name + ' da ' + (p._tname || '?') + ' per ' + formatMoney(price) + '. ' + t('morale.high') + '!');
   updateHeader(); autoSave();
   if (typeof renderMarket === 'function') renderMarket();
 }
@@ -1839,7 +1839,7 @@ function updateMoraleAfterMatch(ms) {
   // ── Notifiche morale critico (<30) ──
   const collassi = roster.filter(p => p && p.morale < 30 && !p.injured);
   if (collassi.length > 0) {
-    G.msgs.push('⚠️ Morale critico: ' + collassi.map(p => p.name).join(', ') + ' — considera di migliorare il clima.');
+    G.msgs.push(t('morale.critical', {name: collassi.map(p => p.name).join(', ')}));
   }
 }
 
@@ -1952,9 +1952,7 @@ function renewContractWithBonus(rosterIdx, years) {
   // Segna proposta pendente
   p._renewalPending = { years: years, salary: newSalary, bonus: bonus, round: typeof currentRound === 'function' ? currentRound() : 0 };
   p._justRenewed = false;  // non nascondere SCAD — verrà mostrato 📨 da _scadBadge
-  G.msgs.push('📨 Proposta di rinnovo inviata a ' + p.name + ' — ' +
-    years + ' ann' + (years===1?'o':'i') + ' · ' + formatMoney(newSalary) + '/anno · bonus firma ' + formatMoney(bonus) + ' pagato. ' +
-    t('extra.willReplyNext'));
+  G.msgs.push(t('contracts.renewProposal', {name: p.name}) + ' — ' + years + ' ' + (years===1?t('common.year'):t('common.years')) + ' · ' + formatMoney(newSalary) + '/a · ' + t('extra.wage') + ' ' + formatMoney(bonus) + '. ' + t('extra.willReplyNext'));
 
   // Chiudi popup conferma e modal giocatore
   const cp = document.getElementById('renewal-confirm-popup');
@@ -1979,9 +1977,7 @@ function renewContract(rosterIdx, years, popupEl) {
   // Segna proposta pendente — nessun confirm(), risposta alla giornata successiva
   p._justRenewed = false;  // non nascondere SCAD — verrà mostrato 📨 da _scadBadge
   p._renewalPending = { years: years, salary: newSalary, round: typeof currentRound === 'function' ? currentRound() : 0 };
-  G.msgs.push('📨 Proposta di rinnovo inviata a ' + p.name + ' — ' +
-    years + ' ann' + (years===1?'o':'i') + ' · ' + formatMoney(newSalary) + '/anno. ' +
-    t('extra.willReplyNext'));
+  G.msgs.push(t('contracts.renewProposal', {name: p.name}) + ' — ' + years + ' ' + (years===1?t('common.year'):t('common.years')) + ' · ' + formatMoney(newSalary) + '/a. ' + t('extra.willReplyNext'));
 
   if (popupEl) popupEl.remove();
   updateHeader(); autoSave(); renderRosa();
@@ -2039,8 +2035,8 @@ function _processRenewalResponses() {
       p._renewalPending  = null;
       p._justRenewed     = true;  // evita badge scadenza finché non passa una stagione
       const tierLabels   = { S:'Elite', A:'Alta', B:'Media', C:'Bassa' };
-      G.msgs.push('✅ ' + p.name + ' ha accettato il rinnovo: ' +
-        offer.years + ' ann' + (offer.years===1?'o':'i') + ' a ' + formatMoney(offer.salary) + '/anno. Il giocatore è soddisfatto.');
+      G.msgs.push(t('contracts.renewAccepted', {name: p.name, years: offer.years, yrLabel: offer.years===1?t('common.year'):t('common.years'), salary: formatMoney(offer.salary)}));
+      // renewal accepted
     } else {
       p._renewalPending = null;
       p._justRenewed = false;  // ripristina badge SCAD dopo il rifiuto
@@ -2052,7 +2048,7 @@ function _processRenewalResponses() {
       else if ((p.morale || 70) < 50) reason = t('extra.moraleTooLow');
       else if ((p.lastRatings||[]).filter(r=>r!==null).length === 0) reason = t('extra.wantsMoreTime');
       else reason = 'ha deciso di non rinnovare';
-      G.msgs.push('❌ ' + p.name + ' ha rifiutato il rinnovo — ' + reason + '. A fine stagione sarà svincolato.');
+      G.msgs.push(t('contracts.renewRejected', {name: p.name}));
       // Marca come non rinnovato (verrà liberato da _decrementContracts)
     }
   });

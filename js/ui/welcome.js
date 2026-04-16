@@ -12,9 +12,29 @@ let _pendingNewGameSlot = null;
 // BUILD WELCOME
 // ─────────────────────────────────────────────
 function buildWelcomeScreen() {
+  _applyLangToWelcome();
   _buildTeamList();
   _buildSlotsPanel();
   selectTeamInWelcome(TEAMS_DATA[0].id);
+}
+
+// ── Applica lingua alle label statiche della welcome ──
+function _applyLangToWelcome() {
+  // Sincronizza il select con la lingua corrente
+  var sel = document.getElementById('lang-select');
+  if (sel) sel.value = I18N.getLang();
+
+  var langLabel = document.getElementById('lang-label');
+  if (langLabel) langLabel.textContent = t('welcome.language');
+
+  var chooseTeam = document.getElementById('wc-choose-team');
+  if (chooseTeam) chooseTeam.textContent = t('welcome.chooseTeam');
+
+  var savedGames = document.getElementById('wc-saved-games');
+  if (savedGames) savedGames.textContent = t('welcome.loadSave');
+
+  var newCareerBtn = document.getElementById('wc-new-career');
+  if (newCareerBtn) newCareerBtn.textContent = t('welcome.newCareer') + ' →';
 }
 
 function _buildTeamList() {
@@ -100,7 +120,7 @@ function _buildSlotsPanel() {
         <div class="slot-stats">
           <div class="slot-stat"><span class="slot-stat-val">${meta.position}°</span><span class="slot-stat-lbl">Pos</span></div>
           <div class="slot-stat"><span class="slot-stat-val">${meta.points}</span><span class="slot-stat-lbl">${t('standings.points')}</span></div>
-          <div class="slot-stat"><span class="slot-stat-val">${meta.wins}</span><span class="slot-stat-lbl">${t('common.goals').substring(0,3)}</span></div>
+          <div class="slot-stat"><span class="slot-stat-val">${meta.wins}</span><span class="slot-stat-lbl">${I18N.getLang()==='en'?'Gls':t('common.goals').substring(0,3)}</span></div>
           <div class="slot-stat"><span class="slot-stat-val">${formatMoney(meta.budget)}</span><span class="slot-stat-lbl">Budget</span></div>
         </div>
         <div class="slot-actions">

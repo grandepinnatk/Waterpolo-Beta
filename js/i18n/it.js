@@ -253,6 +253,8 @@ const LANG_IT = {
     available:      'Disponibili',
     myList:         'In vendita',
     offers:         'Offerte ricevute',
+    offerAccepted:   'Accettata',
+    marketUpdated:   'Lista aggiornata ogni giornata',
     noOffers:       'Nessuna offerta',
     noPlayers:      'Nessun giocatore disponibile',
     makeOffer:      'Fai un\'offerta',

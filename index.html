@@ -176,6 +176,12 @@
             <option value="it">🇮🇹 Italiano</option>
             <option value="en">🇬🇧 English</option>
           </select>
+          <script>
+            (function(){
+              var s = document.getElementById('lang-select');
+              if (s) s.value = I18N.getSavedLang();
+            })();
+          </script>
         </div>
 
         <div class="welcome-section-title" id="wc-choose-team">Scegli la tua squadra</div>

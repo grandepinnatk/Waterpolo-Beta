@@ -63,8 +63,8 @@ function showTeamRosterPopup(teamId) {
       <table style="width:100%;border-collapse:collapse">
         <thead>
           <tr style="border-bottom:1px solid var(--border);font-size:10px;color:var(--muted);text-transform:uppercase">
-            <th style="text-align:left;padding:4px 6px">Giocatore</th>
-            <th>Ruolo</th>
+            <th style="text-align:left;padding:4px 6px">${t('roster.title')}</th>
+            <th>${t('roster.sortRole')}</th>
             <th>Mano</th>
             <th style="text-align:center">Età</th>
             <th style="text-align:center">OVR</th>
@@ -504,7 +504,7 @@ function renderDash() {
       '</div>' +
       '<button onclick="showTab(\'rosa\')\" style="flex-shrink:0;padding:5px 12px;font-size:11px;font-weight:700;' +
         'border-radius:6px;background:rgba(123,47,190,.3);border:1px solid rgba(123,47,190,.6);' +
-        'color:#ce93d8;cursor:pointer">Gestisci</button>' +
+        'color:#ce93d8;cursor:pointer">' + t('common.details') + '</button>' +
       '</div>';
   }
 
@@ -572,7 +572,7 @@ function renderDash() {
       + 'background:transparent;border:1.5px solid rgba(120,80,200,.5);color:rgba(180,140,255,.9);'
       + 'cursor:pointer;transition:border-color .15s;letter-spacing:.3px"'
       + ' onmouseover="this.style.borderColor=\'rgba(180,140,255,.8)\'"'
-      + ' onmouseout="this.style.borderColor=\'rgba(120,80,200,.5)\'">🔍 Visualizza Dettaglio</button>';
+      + ' onmouseout="this.style.borderColor=\'rgba(120,80,200,.5)\'">🔍 ' + t('common.details') + '</button>';
   } else {
     h += '<div style="text-align:center;font-size:12px;color:rgba(255,255,255,.25);padding:20px 0">Nessuna partita ancora giocata.</div>';
   }
@@ -657,7 +657,7 @@ function renderDash() {
         + 'transition:border-color .15s"'
         + ' onmouseover="this.style.borderColor=\'rgba(255,255,255,.8)\'"'
         + ' onmouseout="this.style.borderColor=\'rgba(255,255,255,.4)\'">'
-        + '📋 Convocazioni</button>';
+        + '📋 ' + t('lineup.title') + '</button>';
 
       // Primary button - Simula
       h += '<button onclick="confirmSimNextRound()"'
@@ -666,7 +666,7 @@ function renderDash() {
         + 'box-shadow:0 3px 14px rgba(255,140,66,.4);transition:transform .15s,box-shadow .15s"'
         + ' onmouseover="this.style.transform=\'translateY(-1px)\';this.style.boxShadow=\'0 5px 18px rgba(255,140,66,.55)\'"'
         + ' onmouseout="this.style.transform=\'none\';this.style.boxShadow=\'0 3px 14px rgba(255,140,66,.4)\'">'
-        + '▶ Simula Giornata</button>';
+        + '▶ ' + t('dash.simulate') + '</button>';
 
       h += '</div></div></div>';
 
@@ -1055,8 +1055,7 @@ function renderRosa() {
   }
   h += '<div style="display:grid;grid-template-columns:1.8fr 62px 54px 40px 36px 50px 98px 64px 38px 38px 80px 96px;'
     + 'gap:0 6px;padding:0 10px 5px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.28)">'
-    + '<div>Giocatore</div>'
-    + _hdr(t('roster.sortRole'), 'role', '')
+    + '<div>' + t('roster.title') + '</div>'    + _hdr(t('roster.sortRole'), 'role', '')
     + _hdr(t('roster.sortHand'), 'hand', '')
     + '<div>Naz</div>'
     + _hdr(t('common.age'), 'age', '')
@@ -1066,7 +1065,7 @@ function renderRosa() {
     + _hdr(t('common.goals'), 'goals', 'center')
     + _hdr('Ass', 'assists', 'center')
     + '<div style="color:rgba(240,192,64,.5)">Voti</div>'
-    + _hdr(t('roster.value'), 'value', '')
+    + _hdr(t(t('roster.value')), 'value', '')
     + '</div>';
 
   // ── Righe giocatori ──
@@ -1241,11 +1240,11 @@ function showPlayerModal(i) {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:12px">
         <div class="irow" style="margin:0"><span class="ilbl">${t('roster.overall')}</span><span style="font-size:16px;font-weight:700;color:var(--blue)">${p.overall}</span></div>
         <div class="irow" style="margin:0"><span class="ilbl">${t('roster.potential')}</span><span>${p.potential||'—'}</span></div>
-        <div class="irow" style="margin:0"><span class="ilbl">${t('roster.value')}</span><span style="font-size:12px">${formatMoney(p.value)}</span></div>
+        <div class="irow" style="margin:0"><span class="ilbl">${t(t('roster.value'))}</span><span style="font-size:12px">${formatMoney(p.value)}</span></div>
         <div class="irow" style="margin:0"><span class="ilbl">${t('common.salary')}</span><span style="font-size:12px">${formatMoney(p.salary)}/a</span></div>
         <div class="irow" style="margin:0"><span class="ilbl">${t('roster.fitness')}</span><span style="color:${p.fitness>70?'var(--green)':'var(--gold)'}">${p.fitness}%</span></div>
         <div class="irow" style="margin:0"><span class="ilbl">${t('roster.morale')}</span><span>${p.morale}%</span></div>
-        <div class="irow" style="margin:0"><span class="ilbl">${t('roster.apps')}</span><span style="font-weight:700">${p.careerApps||0}</span></div>
+        <div class="irow" style="margin:0"><span class="ilbl">${t(t('roster.apps'))}</span><span style="font-weight:700">${p.careerApps||0}</span></div>
         <div class="irow" style="margin:0"><span class="ilbl">${t('common.goals')} / ${t('common.assists')}</span><span>${p.goals||0} / ${p.assists||0}</span></div>
         ${(p.nationalCaps||0)>0 ? '<div class="irow" style="margin:0"><span class="ilbl">'+t('roster.nat')+'</span><span style="color:#1565c0;font-weight:700">'+(p.nationalCaps||0)+' caps ' + ({'ITA':'🇮🇹','CRO':'🇭🇷','SRB':'🇷🇸','HUN':'🇭🇺','GRE':'🇬🇷','MNE':'🇲🇪','ESP':'🇪🇸'}[p._nationalNat]||'🏳')+'</span></div>' : ''}
         <div class="irow" style="margin:0"><span class="ilbl">${t('roster.contract')}</span>
@@ -1339,7 +1338,7 @@ function showMarketPlayerModal(i) {
       </div>
       <div class="irow"><span class="ilbl">${t('roster.overall')}</span>    <span style="font-size:18px;font-weight:700;color:var(--blue)">${p.overall}</span></div>
       <div class="irow"><span class="ilbl">${t('roster.potential')}</span> <span>${p.potential}</span></div>
-      <div class="irow"><span class="ilbl">${t('roster.value')}</span>     <span>${formatMoney(p.value)}</span></div>
+      <div class="irow"><span class="ilbl">${t(t('roster.value'))}</span>     <span>${formatMoney(p.value)}</span></div>
       <div class="irow"><span class="ilbl">${t('common.salary')}</span>  <span>${formatMoney(p.salary)}/anno</span></div>
       <div class="irow"><span class="ilbl">${t('roster.fitness')}</span>    <span style="color:${p.fitness > 70 ? 'var(--green)' : 'var(--gold)'}">${p.fitness}%</span></div>
       <div class="irow"><span class="ilbl">${t('roster.morale')}</span>     <span style="color:${mc}">${p.morale}%</span></div>
@@ -1389,12 +1388,12 @@ function _buildSellSection(i) {
           <div style="flex:1;font-size:12px"><strong>${o.teamName}</strong>: ${formatMoney(o.amount)}
             <span style="color:${accepted?'var(--green)':'var(--red)'}"> (${Math.round(o.amount/entry.askingPrice*100)}%)</span>
           </div>
-          <button class="btn sm success" onclick="acceptOffer(${i},${oi});this.closest('[style*=fixed]').remove();renderRosa();">Accetta</button>
-          <button class="btn sm" onclick="rejectOffer(${i},${oi});document.getElementById('modal-sell-section-${i}').innerHTML=_buildSellSection(${i})">Rifiuta</button>
+          <button class="btn sm success" onclick="acceptOffer(${i},${oi});this.closest('[style*=fixed]').remove();renderRosa();">' + t('market.offerPopup.accept') + '</button>
+          <button class="btn sm" onclick="rejectOffer(${i},${oi});document.getElementById('modal-sell-section-${i}').innerHTML=_buildSellSection(${i})">' + t('market.offerPopup.reject') + '</button>
         </div>`;
       });
     } else {
-      html += `<div style="font-size:12px;color:var(--muted)">Nessuna offerta ricevuta. Le offerte arrivano a fine giornata.</div>`;
+      html += `<div style="font-size:12px;color:var(--muted)">${t('market.noOffers')}. ${t('market.marketUpdated')}.</div>`;
     }
     html += `<button class="btn danger sm" style="margin-top:10px" onclick="removeFromMarket(${i});this.closest('[style*=fixed]').remove();renderRosa()">${t('extra.removeFromMarket')}</button>`;
     return html;
@@ -1758,10 +1757,10 @@ function renderGoals() {
     const icon = o.achieved ? '✅' : o.failed ? '❌' : '⏳';
     let prog = '';
     let pct  = 0;
-    if (o.type === 'position') { prog = `Attuale: ${pos}° / Target: top ${o.target}`; pct = Math.min(100, Math.round((o.target / pos) * 100)); }
-    else if (o.type === 'wins')    { prog = `${ms.w}/${o.target} vittorie`;  pct = Math.min(100, Math.round(ms.w / (o.target || 1) * 100)); }
+    if (o.type === 'position') { prog = t('goals.inProgress') + `: ${pos}° / Target: top ${o.target}`; pct = Math.min(100, Math.round((o.target / pos) * 100)); }
+    else if (o.type === 'wins')    { prog = `${ms.w}/${o.target} ${t('history.winStreak').toLowerCase()}`;  pct = Math.min(100, Math.round(ms.w / (o.target || 1) * 100)); }
     else if (o.type === 'goals')   { prog = `${ms.gf}/${o.target} gol`;      pct = Math.min(100, Math.round(ms.gf / (o.target || 1) * 100)); }
-    else if (o.type === 'survive') { prog = pos <= 12 ? 'In salvo (' + pos + '°)' : 'ATTENZIONE (' + pos + '°)'; }
+    else if (o.type === 'survive') { prog = pos <= 12 ? t('goals.inProgress') + ' (' + pos + '°)' : '⚠️ (' + pos + '°)'; }
     else if (o.type === 'champion'){ prog = G.playoffResult === 'champion' ? 'Campione!' : G.phase === 'done' ? t('extra.notReached') : t('extra.noPlayoff'); }
 
     h += `<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
@@ -1834,18 +1833,18 @@ function _showStandTab(tab) {
 function _buildStandContent(activeTab) {
   // ── Tab nav ──
   let h = `<div style="display:flex;gap:6px;margin-bottom:12px">
-    <button class="btn${activeTab === 'classifica' ? ' primary' : ' sm'}" onclick="_showStandTab('classifica')" style="font-size:13px">🏆 Classifica</button>
-    <button class="btn${activeTab === 'marcatori'  ? ' primary' : ' sm'}" onclick="_showStandTab('marcatori')"  style="font-size:13px">⚽ Marcatori</button>
+    <button class="btn${activeTab === 'classifica' ? ' primary' : ' sm'}" onclick="_showStandTab('classifica')" style="font-size:13px">🏆 ' + t('nav.standings') + '</button>
+    <button class="btn${activeTab === 'marcatori'  ? ' primary' : ' sm'}" onclick="_showStandTab('marcatori')"  style="font-size:13px">⚽ ' + t('extra.topScorer') + '</button>
   </div>`;
 
   if (activeTab === 'classifica') {
     // ── Classifica ──
     const s = getSortedStandings(G.stand);
     h += `<div class="card">
-      <div style="font-weight:700;color:var(--blue);margin-bottom:10px">Classifica Serie A1 — 2025/26</div>
+      <div style="font-weight:700;color:var(--blue);margin-bottom:10px">${t('nav.standings')} Serie A1 — 2025/26</div>
       <table><thead><tr>
         <th>#</th><th>${t('standings.team')}</th><th>G</th><th>' + t('standings.won') + '</th><th>' + t('standings.drawn') + '</th><th>${t('standings.lost')}</th>
-        <th>${t('standings.gf')}</th><th>GS</th><th>' + t('standings.diff') + '</th><th>${t('standings.points')}</th>
+        <th>${t('standings.gf')}</th><th>' + t('standings.ga') + '</th><th>' + t('standings.diff') + '</th><th>${t('standings.points')}</th>
       </tr></thead><tbody>`;
 
     s.forEach((t, i) => {
@@ -1896,7 +1895,7 @@ function _buildStandContent(activeTab) {
     allScorers.sort((a, b) => b.goals !== a.goals ? b.goals - a.goals : b.assists - a.assists);
 
     h += `<div class="card">
-      <div style="font-weight:700;color:var(--blue);margin-bottom:10px">Marcatori Serie A1 — 2025/26</div>`;
+      <div style="font-weight:700;color:var(--blue);margin-bottom:10px">${t('extra.topScorer')} — Serie A1 2025/26</div>`;
 
     if (!allScorers.length) {
       h += `<div style="color:var(--muted);padding:16px;text-align:center;font-size:13px">
@@ -1904,7 +1903,7 @@ function _buildStandContent(activeTab) {
       </div>`;
     } else {
       h += `<table><thead><tr>
-        <th>#</th><th>Giocatore</th><th>${t('standings.team')}</th><th>Ruolo</th><th style="text-align:center">⚽</th><th style="text-align:center">Ass.</th>
+        <th>#</th><th>${t('roster.title')}</th><th>' + t('standings.team') + '</th><th>${t('roster.sortRole')}</th><th style="text-align:center">⚽</th><th style="text-align:center">Ass.</th>
       </tr></thead><tbody>`;
 
       allScorers.forEach((p, i) => {
@@ -1959,8 +1958,7 @@ function renderCal(activeTab) {
         + 'font-size:14px;font-weight:700;cursor:pointer;transition:background .15s"'
         + ' onmouseover="this.style.background=\'rgba(0,194,255,.18)\'"'
         + ' onmouseout="this.style.background=\'var(--panel2)\'"'
-        + ' title="Dettaglio partita">'
-        + m.score.home + ' - ' + m.score.away
+        + 'title="' + t('common.details') + '">'        + m.score.home + ' - ' + m.score.away
         + '</span>';
       if (isMe) {
         var mw = (ih && m.score.home > m.score.away) || (!ih && m.score.away > m.score.home);
@@ -2290,7 +2288,7 @@ function renderMarket() {
         <span style="font-size:11px;font-weight:400;color:var(--muted)">(scadono alla prossima giornata)</span>
       </div>
       <table><thead><tr>
-        <th>Giocatore</th><th>Da</th><th>Ruolo</th><th>OVR</th><th>Prezzo offerta</th><th>${t('extra.expires')}</th><th></th>
+        <th>${t('roster.title')}</th><th>Da</th><th>' + t('roster.sortRole') + '</th><th>OVR</th><th>Prezzo offerta</th><th>${t('extra.expires')}</th><th></th>
       </tr></thead><tbody>`;
     pending.forEach((pp, i) => {
       const p = pp.player;
@@ -2327,7 +2325,7 @@ function renderMarket() {
     h += `<div style="color:var(--muted);font-size:13px;padding:8px 0">Nessun giocatore in lista di trasferimento. Clicca su un giocatore nella scheda Rosa per metterlo in vendita.</div>`;
   } else {
     h += `<table><thead><tr>
-      <th>Giocatore</th><th>Ruolo</th><th>OVR</th><th>Prezzo richiesto</th><th>Offerte</th><th></th>
+      <th>${t('roster.title')}</th><th>${t('roster.sortRole')}</th><th>OVR</th><th>Prezzo richiesto</th><th>Offerte</th><th></th>
     </tr></thead><tbody>`;
     selling.forEach(({ entry, p, rosterIdx }) => {
       const offerCount  = entry.offers ? entry.offers.length : 0;
@@ -2412,7 +2410,7 @@ function renderMarket() {
 
     let offerBadge = '';
     if (res === 'accepted') {
-      offerBadge = `<span style="font-size:10px;color:var(--green);font-weight:700">✓ Accettata</span>`;
+      offerBadge = `<span style="font-size:10px;color:var(--green);font-weight:700">${t('market.offerAccepted')}</span>`;
     } else if (has) {
       offerBadge = `<span style="font-size:10px;color:var(--gold)">⏳ In attesa</span>`;
     }
@@ -2803,7 +2801,7 @@ function renderHistory() {
 
   h += _recordCard('⚽', t('history.mostGoals'), topGoals,   _statVal(topGoals, 'careerGoals', 'goals'), t('common.goals').toLowerCase());
   h += _recordCard('🤝', t('history.mostAssists'), topAssists, _statVal(topAssists, 'careerAssists', 'assists'), t('common.assists').toLowerCase());
-  h += _recordCard('📅', t('history.mostApps'), topApps, topApps ? (topApps.careerApps || 0) : 0, t('roster.apps').toLowerCase());
+  h += _recordCard('📅', t('history.mostApps'), topApps, topApps ? (topApps.careerApps || 0) : 0, t(t('roster.apps')).toLowerCase());
 
   h += '</div></div>';
 

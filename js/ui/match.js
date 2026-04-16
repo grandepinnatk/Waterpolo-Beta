@@ -1030,7 +1030,7 @@ function _renderSubLists() {
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <span onclick="event.stopPropagation();showMatchPlayerInfo(${pi})"
-                title="Scheda giocatore"
+                title="Info"
                 style="width:18px;height:18px;border-radius:50%;border:1px solid var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;color:var(--muted);font-style:italic;font-weight:700;flex-shrink:0">i</span>
           ${sel ? '<span style="color:var(--blue);font-size:18px">✓</span>' : ''}
         </div>
@@ -1064,7 +1064,7 @@ function _renderSubLists() {
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <span onclick="event.stopPropagation();showMatchPlayerInfo(${pi})"
-                title="Scheda giocatore"
+                title="Info"
                 style="width:18px;height:18px;border-radius:50%;border:1px solid var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;color:var(--muted);font-style:italic;font-weight:700;flex-shrink:0">i</span>
           ${sel ? '<span style="color:var(--blue);font-size:18px">✓</span>' : ''}
         </div>

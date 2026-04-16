@@ -241,6 +241,8 @@ const LANG_EN = {
     available:      'Available',
     myList:         'Listed',
     offers:         'Offers received',
+    offerAccepted:   'Accepted',
+    marketUpdated:   'List updated every matchday',
     noOffers:       'No offers',
     noPlayers:      'No players available',
     makeOffer:      'Make an offer',
