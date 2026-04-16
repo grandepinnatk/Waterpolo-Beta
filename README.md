@@ -1,6 +1,6 @@
 # Waterpolo Manager
 
-**Versione:** 0.6.21 beta  
+**Versione:** 0.7-beta  
 **Campionato:** Serie A1 Maschile — Stagione 2025/26  
 **Piattaforma:** Browser (HTML5 + CSS3 + JavaScript vanilla)  
 **Dipendenze:** Firebase Auth + Realtime Database (autenticazione e sync cloud)
@@ -92,7 +92,7 @@ G = {
 
 ---
 
-## Funzionalità — v0.6.21 beta
+## Funzionalità — v0.7-beta
 
 ### Campionato
 - 14 squadre della Serie A1 2025/26 con budget, tier (S/A/B/C) e forza reale
@@ -197,6 +197,82 @@ G = {
 - 3 slot localStorage con auto-save
 - Sync cloud Firebase RTDB (timestamp `savedAtMs` per confronto preciso)
 - Tutti i campi serializzati: stelle, storico, stadio, tattica, mercato, contratti
+
+---
+
+## Schede allenamento per ruolo
+
+L'OVR è la **media ponderata degli attributi**, con pesi diversi per ruolo. Allena gli attributi con peso maggiore per massimizzare la crescita del giocatore.
+
+### Formula OVR per ruolo
+
+| Ruolo | ATT | DIF | VEL | FOR | TEC | RES |
+|-------|-----|-----|-----|-----|-----|-----|
+| ATT   | **35%** | 5% | **20%** | 15% | 15% | 10% |
+| DIF   | 10% | **35%** | 15% | **20%** | 10% | 10% |
+| CEN   | 20% | 20% | **20%** | 15% | 15% | 10% |
+| CB    | **25%** | 15% | **20%** | 15% | 15% | 10% |
+| POR   | 5% | **30%** | 15% | **20%** | 15% | **15%** |
+
+### Attributi prioritari per ruolo
+
+| Ruolo | Priorità 1 | Priorità 2 | Priorità 3 | Note |
+|-------|-----------|-----------|-----------|------|
+| **ATT** | ATT (35%) | VEL (20%) | TEC (15%) | Mano critica: destri penalizzati in pos 1 (RW), mancini in pos 5 (LW) |
+| **DIF** | DIF (35%) | FOR (20%) | VEL (15%) | Destri → pos 4 (DL), mancini → pos 2 (DR) per evitare penalità |
+| **CEN** | ATT/DIF/VEL (20% ciascuno) | FOR (15%) | TEC (15%) | Nessuna penalità per mano (pos centrale) |
+| **CB** | ATT (25%) | VEL (20%) | TEC (15%) | Nessuna penalità per mano (pos centrale) |
+| **POR** | DIF (30%) | FOR (20%) | RES (15%) | RES influenza la tenuta nei finali di partita |
+
+### Efficacia allenamenti per ruolo — ΔOVR stagione (26 sessioni)
+
+Medie simulate su 300 partite partendo da tutti gli attributi a 60.
+
+| Allenamento | Costo | ATT | DIF | CEN | CB | POR |
+|-------------|-------|-----|-----|-----|-----|-----|
+| Attacco (`att+4, spe+2`) | 12k | **+19** | +8 | +13 | +15 | +6 |
+| Difesa (`def+4, str+2`) | 12k | +6 | **+19** | +12 | +10 | **+17** |
+| Tattica (`att+2, def+2, spe+1, str+1`) | 12k | +15 | +16 | **+15** | +15 | +14 |
+| Resistenza (`res+4, str+2`) | 13k | +8 | +9 | +8 | +8 | +11 |
+| Tecnica (`tec+5, spe+1`) | 14k | +9 | +6 | +9 | +9 | +8 |
+| Preparazione atletica (`att+1, def+1, spe+1, str+1, res+1`) | 15k | +11 | +12 | +11 | +11 | +11 |
+
+**Raccomandazioni per ruolo:**
+- **ATT**: Allenamento Attacco → poi Tattica per arrotondare
+- **DIF**: Allenamento Difesa → poi Resistenza per la tenuta fisica
+- **CEN**: Tattica (unico allenamento bilanciato su tutti i pesi) → poi Attacco o Difesa
+- **CB**: Allenamento Attacco → poi Tecnica per la precisione
+- **POR**: Allenamento Difesa → poi Resistenza (RES pesa 15%, unico ruolo con peso elevato)
+
+### Efficacia fuori ruolo
+
+Quando un giocatore copre una posizione non nativa, l'efficacia viene moltiplicata. Valori indicativi:
+
+| Giocatore \ Posizione | POR | DIF | CEN | ATT | CB |
+|------------------------|-----|-----|-----|-----|----|
+| ATT | 35% | 60% | 70% | **100%** | 80% |
+| DIF | 40% | **100%** | 75% | 60% | 55% |
+| CEN | 40% | 80% | **100%** | 85% | 75% |
+| CB | 35% | 60% | 75% | 80% | **100%** |
+| POR | **100%** | 55% | 40% | 35% | 35% |
+
+> Il portiere è completamente inefficace fuori dalla porta. Il CEN è il ruolo più versatile.
+
+### Stamina e tattica
+
+La stamina influenza l'efficacia in partita: `eff = OVR × roleFactor × (0.40 + stamina/100 × 0.60)`. Un giocatore esausto vale il 40% di uno fresco.
+
+| Tattica | Drain stamina | Indicato per |
+|---------|--------------|--------------|
+| Difensiva | ×0.70 | Proteggere il vantaggio |
+| Bilanciata | ×1.00 | Default |
+| Contropiede | ×1.10 | Rosa veloce con VEL alta |
+| Attacco | ×1.30 | Rimontare |
+| Pressing | ×1.60 | Emergenza (breve periodo) |
+
+Con uomo in meno (espulsioni / nazionali), ogni giocatore mancante riduce la forza del **20% moltiplicativo** e aumenta il drain degli altri del **+25%**.
+
+---
 
 ---
 

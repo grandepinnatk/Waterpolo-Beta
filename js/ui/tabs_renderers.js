@@ -6,7 +6,7 @@ function showTeamRosterPopup(teamId) {
   const team   = G.teams.find(t => t.id === teamId);
   if (!team) return;
   const roster = G.rosters[teamId] || [];
-  const rl     = { POR:'Portiere', DIF:'Difensore', CEN:'Centromediano', ATT:'Attaccante', CB:'Centroboa' };
+  const rl     = { POR:t('roles.POR'), DIF:t('roles.DIF'), CEN:'Centromediano', ATT:t('roles.ATT'), CB:t('roles.CB') };
   const isMe   = teamId === G.myId;
 
   const existing = document.getElementById('team-roster-popup');
@@ -68,8 +68,8 @@ function showTeamRosterPopup(teamId) {
             <th>Mano</th>
             <th style="text-align:center">Età</th>
             <th style="text-align:center">OVR</th>
-            <th style="text-align:right">Naz.</th>
-            <th style="text-align:right">Ingaggio</th>
+            <th style="text-align:right">${t('roster.nat')}</th>
+            <th style="text-align:right">${t('extra.wage')}</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -163,7 +163,7 @@ function showAnyPlayerPopup(playerName, teamId) {
   const myIdx = isMe ? G.rosters[G.myId].indexOf(p) : -1;
   if (isMe && myIdx >= 0) { showPlayerModal(myIdx); return; }
   // Popup semplificato per giocatori avversari
-  const rl = { POR:'Portiere', DIF:'Difensore', CEN:'Centromediano', ATT:'Attaccante', CB:'Centroboa' };
+  const rl = { POR:t('roles.POR'), DIF:t('roles.DIF'), CEN:'Centromediano', ATT:t('roles.ATT'), CB:t('roles.CB') };
   const existing = document.getElementById('any-player-popup');
   if (existing) existing.remove();
   const ov = document.createElement('div');
@@ -188,13 +188,13 @@ function showAnyPlayerPopup(playerName, teamId) {
         <span class="badge ${hCls}">${p.hand}</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:10px">
-        <div class="irow" style="margin:0"><span class="ilbl">Overall</span><span style="font-size:16px;font-weight:700;color:var(--blue)">${p.overall}</span></div>
-        <div class="irow" style="margin:0"><span class="ilbl">Potenziale</span><span>${p.potential||'—'}</span></div>
-        <div class="irow" style="margin:0"><span class="ilbl">Forma</span><span style="color:${fc}">${Math.round(p.fitness||0)}%</span></div>
-        <div class="irow" style="margin:0"><span class="ilbl">Morale</span><span>${p.morale||0}%</span></div>
+        <div class="irow" style="margin:0"><span class="ilbl">${t('roster.overall')}</span><span style="font-size:16px;font-weight:700;color:var(--blue)">${p.overall}</span></div>
+        <div class="irow" style="margin:0"><span class="ilbl">${t('roster.potential')}</span><span>${p.potential||'—'}</span></div>
+        <div class="irow" style="margin:0"><span class="ilbl">${t('roster.fitness')}</span><span style="color:${fc}">${Math.round(p.fitness||0)}%</span></div>
+        <div class="irow" style="margin:0"><span class="ilbl">${t('roster.morale')}</span><span>${p.morale||0}%</span></div>
         <div class="irow" style="margin:0"><span class="ilbl">Gol / Ass.</span><span>${p.goals||0} / ${p.assists||0}</span></div>
-        <div class="irow" style="margin:0"><span class="ilbl">Ingaggio</span><span style="color:var(--gold)">${formatMoney(p.salary||0)}</span></div>
-        ${(p.nationalCaps||0)>0 ? '<div class="irow" style="margin:0"><span class="ilbl">Naz.</span><span style="color:#1565c0;font-weight:700">'+(p.nationalCaps||0)+' caps ' + ({'ITA':'🇮🇹','CRO':'🇭🇷','SRB':'🇷🇸','HUN':'🇭🇺','GRE':'🇬🇷','MNE':'🇲🇪','ESP':'🇪🇸'}[p._nationalNat]||'🏳')+'</span></div>' : ''}
+        <div class="irow" style="margin:0"><span class="ilbl">${t('extra.wage')}</span><span style="color:var(--gold)">${formatMoney(p.salary||0)}</span></div>
+        ${(p.nationalCaps||0)>0 ? '<div class="irow" style="margin:0"><span class="ilbl">'+t('roster.nat')+'</span><span style="color:#1565c0;font-weight:700">'+(p.nationalCaps||0)+' caps ' + ({'ITA':'🇮🇹','CRO':'🇭🇷','SRB':'🇷🇸','HUN':'🇭🇺','GRE':'🇬🇷','MNE':'🇲🇪','ESP':'🇪🇸'}[p._nationalNat]||'🏳')+'</span></div>' : ''}
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;font-size:11px">
         ${['att','def','spe','str','tec','res'].map(k=>`
@@ -250,7 +250,7 @@ function showMatchDetailPopup(matchIdx) {
         </table>
       </div>`;
   } else {
-    partialsHtml = `<div style="margin-bottom:14px;font-size:12px;color:var(--muted)">Parziali non disponibili</div>`;
+    partialsHtml = `<div style="margin-bottom:14px;font-size:12px;color:var(--muted)">${t('extra.noPartials')}</div>`;
   }
 
   // Marcatori per squadra
@@ -262,7 +262,7 @@ function showMatchDetailPopup(matchIdx) {
       .map(s => {
         const goalsStr   = s.goals   > 0 ? `<span style="color:var(--blue);font-weight:700">⚽${s.goals}</span>` : '';
         const assistsStr = s.assists > 0 ? `<span style="color:var(--green);font-size:11px"> 🤝${s.assists}</span>` : '';
-        const _sTeamId = label === (hT?hT.abbr:'Casa') ? m.home : m.away;
+        const _sTeamId = label === (hT?hT.abbr:t('common.home')) ? m.home : m.away;
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px">
           <span style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" onclick="showAnyPlayerPopup('${s.name}','${m.home}')">${s.name}</span>
           <span style="display:flex;gap:6px;align-items:center">${goalsStr}${assistsStr}</span>
@@ -301,8 +301,8 @@ function showMatchDetailPopup(matchIdx) {
           </div>
         </div>
         ${m.attendance > 0 ? `<div style="font-size:11px;color:var(--muted);margin-top:6px">
-          👥 Spettatori: <strong style="color:rgba(255,255,255,.7)">${m.attendance.toLocaleString('it-IT')}</strong>
-          — ${Math.round(m.attendance / (m.capacity||500) * 100)}% sul totale di ${(m.capacity||500).toLocaleString('it-IT')}
+          👥 Spettatori: <strong style="color:rgba(255,255,255,.7)">${m.attendance.toLocaleString(I18N.getLang() === 'en' ? 'en-GB' : 'it-IT')}</strong>
+          — ${Math.round(m.attendance / (m.capacity||500) * 100)}% sul totale di ${(m.capacity||500).toLocaleString(I18N.getLang() === 'en' ? 'en-GB' : 'it-IT')}
         </div>` : ''}
       </div>
 
@@ -313,7 +313,7 @@ function showMatchDetailPopup(matchIdx) {
       ${d ? `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div>
-          <div style="font-size:11px;font-weight:700;color:${homeIsMe?'var(--blue)':'var(--muted)'};text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${hT?hT.abbr:'Casa'}</div>
+          <div style="font-size:11px;font-weight:700;color:${homeIsMe?'var(--blue)':'var(--muted)'};text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${hT?hT.abbr:t('common.home')}</div>
           ${buildScorersList(d.home, m.home)}
         </div>
         <div>
@@ -450,8 +450,7 @@ function renderDash() {
   h += '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px">'
     + '<div style="font-size:22px;opacity:.7">🛡️</div>'
     + '<div>'
-    + '<div style="font-size:10px;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:.5px">Posizione</div>'
-    + '<div style="font-size:22px;font-weight:800;color:' + pc + ';line-height:1.2">' + pos + '° ' + trendHtml + '</div>'
+    + '<div style="font-size:10px;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:.5px">' + t('extra.position') + '</div>'    + '<div style="font-size:22px;font-weight:800;color:' + pc + ';line-height:1.2">' + pos + '° ' + trendHtml + '</div>'
     + '</div></div>';
 
   // Punti
@@ -566,7 +565,7 @@ function renderDash() {
     h += '</div>';
     // Giornata e casa/trasferta
     h += '<div style="text-align:center;font-size:10px;color:#fff;opacity:.85;margin-bottom:10px">'
-      + 'G' + lastMatch.round + ' · ' + (lih ? 'Casa' : 'Trasferta') + '</div>';
+      + 'G' + lastMatch.round + ' · ' + (lih ? t('common.home') : t('common.away')) + '</div>';
     // Pulsante
     h += '<button onclick="showMatchDetailPopup(' + lMIdx + ')"'
       + ' style="width:100%;padding:7px 0;font-size:11px;font-weight:700;border-radius:8px;'
@@ -606,11 +605,10 @@ function renderDash() {
 
       // Header hub
       h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
-        + '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:1.2px">Prossima Partita</div>'
-        + '<div style="font-size:10px;font-weight:700;color:#00c2ff;text-transform:uppercase;letter-spacing:1.2px">Matchday Hub</div>'
+        + '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:1.2px">' + t('extra.nextMatch') + '</div>'        + '<div style="font-size:10px;font-weight:700;color:#00c2ff;text-transform:uppercase;letter-spacing:1.2px">Matchday Hub</div>'
         + '<div style="font-size:11px;color:rgba(255,255,255,.45);background:rgba(0,194,255,.1);'
         + 'border:1px solid rgba(0,194,255,.2);border-radius:6px;padding:2px 8px">'
-        + (ih ? 'Casa' : 'Trasferta') + '</div>'
+        + (ih ? t('common.home') : t('common.away')) + '</div>'
         + '</div>';
 
       // Squadre
@@ -801,8 +799,7 @@ function renderDash() {
       + '<span style="font-weight:700;color:' + (avgR >= 7.5 ? '#2ecc71' : avgR >= 6.5 ? '#f0c040' : '#e74c3c') + '">' + (avgR || '—') + '</span>'
       + '</div>'
       + (fp.goals > 0 ? '<div style="display:flex;justify-content:space-between;font-size:11px;margin-top:3px">'
-        + '<span style="color:' + _wLabel + ';font-weight:600">Gol stagione</span>'
-        + '<span style="font-weight:700;color:#4db6ff">' + fp.goals + ' ⚽</span></div>' : '')
+        + '<span style="color:' + _wLabel + ';font-weight:600">' + t('extra.seasonGoals') + '</span>'        + '<span style="font-weight:700;color:#4db6ff">' + fp.goals + ' ⚽</span></div>' : '')
       + '</div>';
   }
 
@@ -1000,7 +997,7 @@ function renderRosa() {
         var midY = (H / 2).toFixed(1);
         svg += '<line x1="' + (cx-2).toFixed(1) + '" y1="' + midY + '" x2="' + (cx+2).toFixed(1) + '" y2="' + midY + '"'
           + ' stroke="rgba(255,255,255,.2)" stroke-width="1.5" stroke-linecap="round">'
-          + '<title>Non convocato</title></line>';
+          + '<title>' + t('extra.notCalled') + '</title></line>';
       }
     });
 
@@ -1059,17 +1056,17 @@ function renderRosa() {
   h += '<div style="display:grid;grid-template-columns:1.8fr 62px 54px 40px 36px 50px 98px 64px 38px 38px 80px 96px;'
     + 'gap:0 6px;padding:0 10px 5px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.28)">'
     + '<div>Giocatore</div>'
-    + _hdr('Ruolo', 'role', '')
-    + _hdr('Mano', 'hand', '')
+    + _hdr(t('roster.sortRole'), 'role', '')
+    + _hdr(t('roster.sortHand'), 'hand', '')
     + '<div>Naz</div>'
-    + _hdr('Età', 'age', '')
-    + _hdr('OVR', 'overall', 'center')
-    + '<div>Morale</div>'
-    + _hdr('Forma', 'fitness', '')
-    + _hdr('Gol', 'goals', 'center')
+    + _hdr(t('common.age'), 'age', '')
+    + _hdr(t('roster.sortOvr'), 'overall', 'center')
+    + '<div>' + t('roster.morale') + '</div>'
+    + _hdr(t('roster.fitness'), 'fitness', '')
+    + _hdr(t('common.goals'), 'goals', 'center')
     + _hdr('Ass', 'assists', 'center')
     + '<div style="color:rgba(240,192,64,.5)">Voti</div>'
-    + _hdr('Valore', 'value', '')
+    + _hdr(t('roster.value'), 'value', '')
     + '</div>';
 
   // ── Righe giocatori ──
@@ -1216,7 +1213,7 @@ window.showRenewalConfirm = showRenewalConfirm;
 
 function showPlayerModal(i) {
   const p   = G.rosters[G.myId][i];
-  const rl  = { POR:'Portiere', DIF:'Difensore', CEN:'Centromediano', ATT:'Attaccante', CB:'Centroboa' };
+  const rl  = { POR:t('roles.POR'), DIF:t('roles.DIF'), CEN:'Centromediano', ATT:t('roles.ATT'), CB:t('roles.CB') };
   const cy  = p.contractYears !== undefined ? p.contractYears : 1;
   const isExpiring = cy <= 1 && !p._justRenewed;
   // Calcola ingaggio richiesto per rinnovo
@@ -1242,18 +1239,18 @@ function showPlayerModal(i) {
       </div>
       <!-- Stats grid 2 colonne -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:12px">
-        <div class="irow" style="margin:0"><span class="ilbl">Overall</span><span style="font-size:16px;font-weight:700;color:var(--blue)">${p.overall}</span></div>
-        <div class="irow" style="margin:0"><span class="ilbl">Potenziale</span><span>${p.potential||'—'}</span></div>
-        <div class="irow" style="margin:0"><span class="ilbl">Valore</span><span style="font-size:12px">${formatMoney(p.value)}</span></div>
-        <div class="irow" style="margin:0"><span class="ilbl">Stipendio</span><span style="font-size:12px">${formatMoney(p.salary)}/a</span></div>
-        <div class="irow" style="margin:0"><span class="ilbl">Forma</span><span style="color:${p.fitness>70?'var(--green)':'var(--gold)'}">${p.fitness}%</span></div>
-        <div class="irow" style="margin:0"><span class="ilbl">Morale</span><span>${p.morale}%</span></div>
-        <div class="irow" style="margin:0"><span class="ilbl">Presenze</span><span style="font-weight:700">${p.careerApps||0}</span></div>
-        <div class="irow" style="margin:0"><span class="ilbl">Gol / Assist</span><span>${p.goals||0} / ${p.assists||0}</span></div>
-        ${(p.nationalCaps||0)>0 ? '<div class="irow" style="margin:0"><span class="ilbl">Naz.</span><span style="color:#1565c0;font-weight:700">'+(p.nationalCaps||0)+' caps ' + ({'ITA':'🇮🇹','CRO':'🇭🇷','SRB':'🇷🇸','HUN':'🇭🇺','GRE':'🇬🇷','MNE':'🇲🇪','ESP':'🇪🇸'}[p._nationalNat]||'🏳')+'</span></div>' : ''}
-        <div class="irow" style="margin:0"><span class="ilbl">Contratto</span>
+        <div class="irow" style="margin:0"><span class="ilbl">${t('roster.overall')}</span><span style="font-size:16px;font-weight:700;color:var(--blue)">${p.overall}</span></div>
+        <div class="irow" style="margin:0"><span class="ilbl">${t('roster.potential')}</span><span>${p.potential||'—'}</span></div>
+        <div class="irow" style="margin:0"><span class="ilbl">${t('roster.value')}</span><span style="font-size:12px">${formatMoney(p.value)}</span></div>
+        <div class="irow" style="margin:0"><span class="ilbl">${t('common.salary')}</span><span style="font-size:12px">${formatMoney(p.salary)}/a</span></div>
+        <div class="irow" style="margin:0"><span class="ilbl">${t('roster.fitness')}</span><span style="color:${p.fitness>70?'var(--green)':'var(--gold)'}">${p.fitness}%</span></div>
+        <div class="irow" style="margin:0"><span class="ilbl">${t('roster.morale')}</span><span>${p.morale}%</span></div>
+        <div class="irow" style="margin:0"><span class="ilbl">${t('roster.apps')}</span><span style="font-weight:700">${p.careerApps||0}</span></div>
+        <div class="irow" style="margin:0"><span class="ilbl">${t('common.goals')} / ${t('common.assists')}</span><span>${p.goals||0} / ${p.assists||0}</span></div>
+        ${(p.nationalCaps||0)>0 ? '<div class="irow" style="margin:0"><span class="ilbl">'+t('roster.nat')+'</span><span style="color:#1565c0;font-weight:700">'+(p.nationalCaps||0)+' caps ' + ({'ITA':'🇮🇹','CRO':'🇭🇷','SRB':'🇷🇸','HUN':'🇭🇺','GRE':'🇬🇷','MNE':'🇲🇪','ESP':'🇪🇸'}[p._nationalNat]||'🏳')+'</span></div>' : ''}
+        <div class="irow" style="margin:0"><span class="ilbl">${t('roster.contract')}</span>
           <span style="font-weight:700;color:${isExpiring?'#7b2fbe':'var(--text)'}">
-            ${cy} ${cy===1?'anno':'anni'}${isExpiring?' ⚠️':''}
+            ${cy} ${cy===1?t('common.year'):'anni'}${isExpiring?' ⚠️':''}
           </span>
         </div>
       </div>
@@ -1323,7 +1320,7 @@ function showPlayerModal(i) {
 function showMarketPlayerModal(i) {
   const p  = G._mercList[i];
   if (!p) return;
-  const rl   = { POR:'Portiere', DIF:'Difensore', CEN:'Centromediano', ATT:'Attaccante', CB:'Centroboa' };
+  const rl   = { POR:t('roles.POR'), DIF:t('roles.DIF'), CEN:'Centromediano', ATT:t('roles.ATT'), CB:t('roles.CB') };
   const hand = p.hand === 'AMB' ? 'Ambidestro' : p.hand === 'L' ? 'Mancino' : 'Destro';
   const mc   = p.morale > 70 ? 'var(--green)' : p.morale > 40 ? 'var(--gold)' : 'var(--red)';
   const ok   = G.budget >= p.value;
@@ -1340,13 +1337,13 @@ function showMarketPlayerModal(i) {
         </div>
         <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">✕</button>
       </div>
-      <div class="irow"><span class="ilbl">Overall</span>    <span style="font-size:18px;font-weight:700;color:var(--blue)">${p.overall}</span></div>
-      <div class="irow"><span class="ilbl">Potenziale</span> <span>${p.potential}</span></div>
-      <div class="irow"><span class="ilbl">Valore</span>     <span>${formatMoney(p.value)}</span></div>
-      <div class="irow"><span class="ilbl">Stipendio</span>  <span>${formatMoney(p.salary)}/anno</span></div>
-      <div class="irow"><span class="ilbl">Forma</span>    <span style="color:${p.fitness > 70 ? 'var(--green)' : 'var(--gold)'}">${p.fitness}%</span></div>
-      <div class="irow"><span class="ilbl">Morale</span>     <span style="color:${mc}">${p.morale}%</span></div>
-      <div class="irow"><span class="ilbl">Gol / Assist</span><span>${p.goals} / ${p.assists}</span></div>
+      <div class="irow"><span class="ilbl">${t('roster.overall')}</span>    <span style="font-size:18px;font-weight:700;color:var(--blue)">${p.overall}</span></div>
+      <div class="irow"><span class="ilbl">${t('roster.potential')}</span> <span>${p.potential}</span></div>
+      <div class="irow"><span class="ilbl">${t('roster.value')}</span>     <span>${formatMoney(p.value)}</span></div>
+      <div class="irow"><span class="ilbl">${t('common.salary')}</span>  <span>${formatMoney(p.salary)}/anno</span></div>
+      <div class="irow"><span class="ilbl">${t('roster.fitness')}</span>    <span style="color:${p.fitness > 70 ? 'var(--green)' : 'var(--gold)'}">${p.fitness}%</span></div>
+      <div class="irow"><span class="ilbl">${t('roster.morale')}</span>     <span style="color:${mc}">${p.morale}%</span></div>
+      <div class="irow"><span class="ilbl">${t('common.goals')} / ${t('common.assists')}</span><span>${p.goals} / ${p.assists}</span></div>
       ${p.role === 'POR' ? `<div class="irow"><span class="ilbl">Parate</span><span>${p.saves}</span></div>` : ''}
       <div style="margin-top:10px">
         <div class="slbl" style="margin-top:0">Attributi</div>
@@ -1399,7 +1396,7 @@ function _buildSellSection(i) {
     } else {
       html += `<div style="font-size:12px;color:var(--muted)">Nessuna offerta ricevuta. Le offerte arrivano a fine giornata.</div>`;
     }
-    html += `<button class="btn danger sm" style="margin-top:10px" onclick="removeFromMarket(${i});this.closest('[style*=fixed]').remove();renderRosa()">Ritira dal mercato</button>`;
+    html += `<button class="btn danger sm" style="margin-top:10px" onclick="removeFromMarket(${i});this.closest('[style*=fixed]').remove();renderRosa()">${t('extra.removeFromMarket')}</button>`;
     return html;
   } else {
     // Non in vendita: mostra form per mettere in vendita
@@ -1416,15 +1413,15 @@ function _buildSellSection(i) {
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Il giocatore perderà morale. Le offerte arriveranno nelle prossime giornate.</div>
       <button class="btn warn" onclick="
         const pr=parseInt(document.getElementById('sell-price-${i}').value,10);
-        if(!pr||pr<${Math.round(p.value*0.3)}){alert('Prezzo troppo basso');return;}
+        if(!pr||pr<${Math.round(p.value*0.3)}){alert(t('extra.priceTooLow'));return;}
         putPlayerOnMarket(${i},pr);
         this.closest('[style*=fixed]').remove();
         renderRosa();
       ">💰 Metti in vendita</button>
       <div style="margin-top:12px;border-top:1px solid rgba(255,80,80,.2);padding-top:12px">
         <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
-          <strong>Rescissione contratto</strong> — penale: <strong style="color:var(--red)">${formatMoney(rescPenalty)}</strong>
-          (${contractLeft} ${contractLeft===1?'anno':'anni'} rimasto/i × ingaggio/2).
+          <strong>${t('extra.rescindContract')}</strong> — penale: <strong style="color:var(--red)">${formatMoney(rescPenalty)}</strong>
+          (${contractLeft} ${contractLeft===1?t('common.year'):'anni'} rimasto/i × ingaggio/2).
           Il giocatore va sul mercato a costo zero.
         </div>
         <button class="btn danger sm" onclick="rescindContract(${i});this.closest('[style*=fixed]').remove();renderRosa();">✂️ Rescindi contratto</button>
@@ -1507,7 +1504,7 @@ function renderTrain() {
       + '<div style="display:flex;align-items:center;gap:5px">'
       + '<span style="font-size:14px">⭐</span>'
       + '<span class="train-star-label" style="font-size:13px;font-weight:800;color:' + (!okStars ? '#e74c3c' : '#ffe566') + '">'
-      + starCost + ' ' + (starCost === 1 ? 'stella' : 'stelle') + '</span>'
+      + starCost + ' ' + (starCost === 1 ? 'stella' : t('training.stars')) + '</span>'
       + '</div>'
       + '<div style="font-size:12px;font-weight:600;color:' + (tr.cost === 0 ? '#69f0ae' : !okBudget ? '#e74c3c' : 'rgba(255,255,255,.48)') + '">'
       + (tr.cost ? formatMoney(tr.cost) : '🆓 Gratuito') + '</div>'
@@ -1621,11 +1618,11 @@ function openTrainPopup(i) {
   const eff = tr.eff;
   const fatigueSign = (tr.fatigue || 0) > 0;
   let effHTML = '';
-  if (eff.fitness)  effHTML += effRow('Forma',          1, eff.fitness,  'var(--green)');
-  if (eff.morale)   effHTML += effRow('Morale',           1, eff.morale,   'var(--green)');
+  if (eff.fitness)  effHTML += effRow(t('roster.fitness'),          1, eff.fitness,  'var(--green)');
+  if (eff.morale)   effHTML += effRow(t('roster.morale'),           1, eff.morale,   'var(--green)');
   if (eff.att)      effHTML += effRow('ATT (attacco)',     0, eff.att,      'var(--blue)');
   if (eff.def)      effHTML += effRow('DIF (difesa)',      0, eff.def,      'var(--blue)');
-  if (eff.spe)      effHTML += effRow('VEL (velocità)',    0, eff.spe,      'var(--blue)');
+  if (eff.spe)      effHTML += effRow(t('extra.speedAttr'),    0, eff.spe,      'var(--blue)');
   if (eff.str)      effHTML += effRow('FOR (forza)',       0, eff.str,      'var(--blue)');
   if (eff.tec)      effHTML += effRow('TEC (tecnica)',     0, eff.tec,      'var(--blue)');
   if (eff.res)      effHTML += effRow('RES (resistenza)',   0, eff.res,      'var(--blue)');
@@ -1660,7 +1657,7 @@ function openTrainPopup(i) {
                     border-radius:8px;padding:10px;text-align:center">
           <div style="font-size:20px">⭐</div>
           <div style="font-size:16px;font-weight:800;color:var(--gold)">${starCost}</div>
-          <div style="font-size:10px;color:var(--muted)">${starCost===1?'stella':'stelle'} (hai ${stars})</div>
+          <div style="font-size:10px;color:var(--muted)">${starCost===1?'stella':t('training.stars')} (hai ${stars})</div>
         </div>
         <div style="flex:1;background:rgba(240,192,64,.08);border:1px solid rgba(240,192,64,.3);
                     border-radius:8px;padding:10px;text-align:center">
@@ -1699,7 +1696,7 @@ function openTrainPopup(i) {
 function doTrain(i) {
   const tr = TRAINING_TYPES[i];
   const starCost = tr.stars || 1;
-  if (G.budget < tr.cost) { alert('Budget insufficiente.'); return; }
+  if (G.budget < tr.cost) { alert(t('market.notEnoughBudget')); return; }
   if ((G.stars || 0) < starCost) { alert('Stelle insufficienti.'); return; }
 
   // Rimuovi popup
@@ -1728,13 +1725,12 @@ function doTrain(i) {
       const ceiling = p.maxTec !== undefined ? p.maxTec : 99;
       p.stats.tec   = Math.min(ceiling, cap(p.stats.tec + rnd(0, tr.eff.tec)));
     }
-    // Il potenziale è il tetto massimo — l'OVR non può superarlo con l'allenamento
-    var potCap = (p.potential !== undefined && p.potential > 0) ? p.potential : 99;
-    if (tr.eff.gk && p.role === 'POR' && Math.random() < 0.35) p.overall = Math.min(potCap, p.overall + 1);
     p.fitness = Math.round(cap(p.fitness - (tr.fatigue || 0) + rnd(-2, 2)));
-    if (rnd(1, 100) <= 8 && p.overall < potCap) { p.overall = Math.min(potCap, p.overall + 1); improved++; }
-    // Sanity check: overall non può mai superare potential
-    if (p.potential && p.overall > p.potential) p.overall = p.potential;
+    // Ricalcola overall dagli attributi aggiornati (formula pesata per ruolo)
+    const potCap = (p.potential !== undefined && p.potential > 0) ? p.potential : 99;
+    const newOvr = _calcOverallFromStats(p);
+    if (newOvr > p.overall) improved++;
+    p.overall = Math.min(potCap, newOvr);
   });
 
   const effDesc = tr.eff ? Object.entries(tr.eff).map(([k, v]) => '+' + v + ' ' + k).join(', ') : '';
@@ -1766,7 +1762,7 @@ function renderGoals() {
     else if (o.type === 'wins')    { prog = `${ms.w}/${o.target} vittorie`;  pct = Math.min(100, Math.round(ms.w / (o.target || 1) * 100)); }
     else if (o.type === 'goals')   { prog = `${ms.gf}/${o.target} gol`;      pct = Math.min(100, Math.round(ms.gf / (o.target || 1) * 100)); }
     else if (o.type === 'survive') { prog = pos <= 12 ? 'In salvo (' + pos + '°)' : 'ATTENZIONE (' + pos + '°)'; }
-    else if (o.type === 'champion'){ prog = G.playoffResult === 'champion' ? 'Campione!' : G.phase === 'done' ? 'Non raggiunto' : 'Playoff non ancora disputati'; }
+    else if (o.type === 'champion'){ prog = G.playoffResult === 'champion' ? 'Campione!' : G.phase === 'done' ? t('extra.notReached') : t('extra.noPlayoff'); }
 
     h += `<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
       <div style="font-size:20px">${icon}</div>
@@ -1791,7 +1787,7 @@ function renderGoals() {
     const sNum = G.seasonNumber || 1;
     h += `<div class="card" style="border:1px solid var(--green)">
       <div style="font-weight:700;margin-bottom:8px;color:var(--green)">Riepilogo Stagione ${sNum}</div>
-      <div class="irow"><span class="ilbl">Posizione finale</span><span>${pos}°</span></div>
+      <div class="irow"><span class="ilbl">${t('extra.finalPosition')}</span><span>${pos}°</span></div>
       <div class="irow"><span class="ilbl">Punti obiettivi</span><span style="font-weight:700">${totPts}</span></div>
       <div class="irow"><span class="ilbl">Premi incassati</span><span style="font-weight:700;color:var(--green)">${formatMoney(totRew)}</span></div>
       <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">
@@ -1848,8 +1844,8 @@ function _buildStandContent(activeTab) {
     h += `<div class="card">
       <div style="font-weight:700;color:var(--blue);margin-bottom:10px">Classifica Serie A1 — 2025/26</div>
       <table><thead><tr>
-        <th>#</th><th>Squadra</th><th>G</th><th>V</th><th>P</th><th>S</th>
-        <th>GF</th><th>GS</th><th>DR</th><th>Pts</th>
+        <th>#</th><th>${t('standings.team')}</th><th>G</th><th>' + t('standings.won') + '</th><th>' + t('standings.drawn') + '</th><th>${t('standings.lost')}</th>
+        <th>${t('standings.gf')}</th><th>GS</th><th>' + t('standings.diff') + '</th><th>${t('standings.points')}</th>
       </tr></thead><tbody>`;
 
     s.forEach((t, i) => {
@@ -1908,7 +1904,7 @@ function _buildStandContent(activeTab) {
       </div>`;
     } else {
       h += `<table><thead><tr>
-        <th>#</th><th>Giocatore</th><th>Squadra</th><th>Ruolo</th><th style="text-align:center">⚽</th><th style="text-align:center">Ass.</th>
+        <th>#</th><th>Giocatore</th><th>${t('standings.team')}</th><th>Ruolo</th><th style="text-align:center">⚽</th><th style="text-align:center">Ass.</th>
       </tr></thead><tbody>`;
 
       allScorers.forEach((p, i) => {
@@ -2149,7 +2145,7 @@ function _buildPOScorers(details, homeId, awayId) {
 
     // Etichetta esito — per playout m1 il vincitore si salva, il perdente va alla finale
     var isPloutM1   = isPlayout && (m.label && m.label.indexOf('11°') >= 0);
-    var winnerLabel = isPlayout ? (isPloutM1 ? 'Si salva:' : 'Si salva:') : 'Avanza:';
+    var winnerLabel = isPlayout ? (isPloutM1 ? t('playoff.saves') : t('playoff.saves')) : t('playoff.advances');
     var winnerColor = isPlayout ? '#2ecc71' : 'var(--green)';
     // Per playout m1, mostra anche chi va alla finale
     var loserLabel  = isPloutM1 && m.winner
@@ -2175,7 +2171,7 @@ function _buildPOScorers(details, homeId, awayId) {
   h += '<div class="card"><div style="font-weight:700;margin-bottom:10px;color:var(--blue)">Playoff Scudetto</div>';
   pb.sf.forEach(function(sf) { h += renderBracketMatch(sf, 'var(--blue)', false); });
   if (pb.final.home) {
-    h += renderBracketMatch(Object.assign({label:'Finale Scudetto'}, pb.final), 'var(--gold)', false);
+    h += renderBracketMatch(Object.assign({label:t('playoff.final')}, pb.final), 'var(--gold)', false);
     if (pb.final.winner) h += '<div style="color:var(--gold);font-size:14px;margin-top:8px">🏆 Campione: <strong>' + tname(pb.final.winner) + '</strong></div>';
   }
   h += '</div>';
@@ -2233,7 +2229,7 @@ function _buildPOScorers(details, homeId, awayId) {
       h += '<button class="btn" onclick="simPLMatch(\'m2\')">Simula PL Finale</button>';
   }
   if (finDone && plb.done)
-    h += '<button class="btn success" onclick="closeSeason()">Chiudi Stagione</button>';
+    h += '<button class="btn success" onclick="closeSeason()">' + t('extra.closeSeason') + '</button>';
   h += '</div>';
   document.getElementById('tab-playoff').innerHTML = h;
 }
@@ -2283,7 +2279,7 @@ function renderMarket() {
   const curRnd  = typeof currentRound === 'function' ? currentRound() : 0;
 
   let h = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-    <div style="font-weight:700;color:var(--blue);font-size:15px">Mercato Trasferimenti</div>
+    <div style="font-weight:700;color:var(--blue);font-size:15px">${t('extra.transferMarket')}</div>
     <div style="font-size:12px;color:var(--muted)">Budget: <strong style="color:var(--blue)">${formatMoney(G.budget)}</strong></div>
   </div>`;
 
@@ -2294,7 +2290,7 @@ function renderMarket() {
         <span style="font-size:11px;font-weight:400;color:var(--muted)">(scadono alla prossima giornata)</span>
       </div>
       <table><thead><tr>
-        <th>Giocatore</th><th>Da</th><th>Ruolo</th><th>OVR</th><th>Prezzo offerta</th><th>Scade</th><th></th>
+        <th>Giocatore</th><th>Da</th><th>Ruolo</th><th>OVR</th><th>Prezzo offerta</th><th>${t('extra.expires')}</th><th></th>
       </tr></thead><tbody>`;
     pending.forEach((pp, i) => {
       const p = pp.player;
@@ -2366,7 +2362,7 @@ function renderMarket() {
   h += `<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <div style="font-weight:600;color:var(--blue)">🔍 Giocatori disponibili sul mercato</div>
-      <div style="font-size:11px;color:var(--muted)">Lista aggiornata ogni giornata</div>
+      <div style="font-size:11px;color:var(--muted)">${t('extra.marketUpdated')}</div>
     </div>
     <table><thead><tr>
       <th onclick="_mktSortClick('name')"   style="cursor:pointer">Giocatore ${_sortArrow('name')}</th>
@@ -2529,11 +2525,11 @@ function openOfferPopup(i) {
       <div style="font-size:12px;color:var(--muted);margin-bottom:16px">${p.name} · ${p._tname} · OVR ${p.overall}</div>
 
       <div class="irow" style="margin-bottom:8px">
-        <span class="ilbl">Valore di mercato</span>
+        <span class="ilbl">${t('extra.marketValue')}</span>
         <span style="font-weight:700">${p.value > 0 ? formatMoney(p.value) : formatMoney(realValue) + ' <span style=\"font-size:10px;color:#7b2fbe\">(svincolato)</span>'}</span>
       </div>
       <div class="irow" style="margin-bottom:16px">
-        <span class="ilbl">Budget disponibile</span>
+        <span class="ilbl">${t('extra.budgetAvail')}</span>
         <span style="font-weight:700;color:var(--blue)">${formatMoney(G.budget)}</span>
       </div>
 
@@ -2592,7 +2588,7 @@ function _updateOfferHint(i) {
   else if (pct >= 0.90){ txt = 'Offerta vicina al valore — buona probabilità'; color = 'var(--green)'; }
   else if (pct >= 0.75){ txt = 'Offerta discreta — probabilità moderata'; color = 'var(--gold)'; }
   else if (pct >= 0.50){ txt = 'Offerta bassa — probabilità ridotta'; color = 'var(--red)'; }
-  else                 { txt = 'Offerta troppo bassa'; color = 'var(--red)'; }
+  else                 { txt = t('extra.offerTooLow'); color = 'var(--red)'; }
   hint.textContent = txt; hint.style.color = color;
 }
 
@@ -2649,7 +2645,7 @@ function renderFinance() {
     : `<span style="color:var(--red);font-weight:700">${formatMoney(v)}</span>`;
 
   const typeIcon  = { vittoria:'🏆', pareggio:'🤝', ingaggi:'💸', acquisto:'🛒', vendita:'💰', allenamento:'🏋️', obiettivo:'🎯', playoff:'🥇' };
-  const typeLabel = { vittoria:'Vittoria', pareggio:'Pareggio', ingaggi:'Ingaggi', acquisto:'Acquisto', vendita:'Vendita', allenamento:'Allenamento', obiettivo:'Obiettivo', playoff:'Playoff' };
+  const typeLabel = { vittoria:t('finance.types.vittoria'), pareggio:t('finance.types.pareggio'), ingaggi:t('finance.wages'), acquisto:t('finance.types.acquisto'), vendita:t('finance.types.vendita'), allenamento:t('finance.types.allenamento'), obiettivo:t('finance.types.obiettivo'), playoff:t('nav.playoff') };
   const recent = [...ledger].reverse().slice(0, 40);
 
   // Giornate di regular season giocate (per calcolare ingaggi versati vs attesi)
@@ -2670,7 +2666,7 @@ function renderFinance() {
       </div>
       <!-- Saldo netto -->
       <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(30,58,92,.3)">
-        <span style="color:var(--muted)">Saldo netto stagione</span>
+        <span style="color:var(--muted)">${t('extra.netBalance')}</span>
         <span>${fmSaldo(saldo)}</span>
       </div>
 
@@ -2732,7 +2728,7 @@ function renderFinance() {
       ? '<div style="font-size:13px;color:var(--muted);padding:8px 0">Nessuna transazione ancora registrata.</div>'
       : `<table style="width:100%;font-size:12px">
           <thead><tr style="border-bottom:1px solid var(--border)">
-            <th style="text-align:left;color:var(--muted);font-weight:600;padding-bottom:6px">Descrizione</th>
+            <th style="text-align:left;color:var(--muted);font-weight:600;padding-bottom:6px">${t('extra.description')}</th>
             <th style="text-align:center;color:var(--muted);font-weight:600;padding-bottom:6px;width:40px">G.</th>
             <th style="text-align:right;color:var(--muted);font-weight:600;padding-bottom:6px;width:110px">Importo</th>
           </tr></thead>
@@ -2805,9 +2801,9 @@ function renderHistory() {
       '</div>';
   }
 
-  h += _recordCard('⚽', 'Miglior marcatore', topGoals,   _statVal(topGoals, 'careerGoals', 'goals'), 'gol');
-  h += _recordCard('🤝', 'Miglior assistman', topAssists, _statVal(topAssists, 'careerAssists', 'assists'), 'assist');
-  h += _recordCard('📅', 'Più presenze nel club', topApps, topApps ? (topApps.careerApps || 0) : 0, 'presenze');
+  h += _recordCard('⚽', t('history.mostGoals'), topGoals,   _statVal(topGoals, 'careerGoals', 'goals'), t('common.goals').toLowerCase());
+  h += _recordCard('🤝', t('history.mostAssists'), topAssists, _statVal(topAssists, 'careerAssists', 'assists'), t('common.assists').toLowerCase());
+  h += _recordCard('📅', t('history.mostApps'), topApps, topApps ? (topApps.careerApps || 0) : 0, t('roster.apps').toLowerCase());
 
   h += '</div></div>';
 
@@ -2854,7 +2850,7 @@ function renderHistory() {
       <th>V/P/S</th>
       <th>GF/GA</th>
       <th>Playoff/Playout</th>
-      <th>Marcatore</th>
+      <th>${t('extra.topScorer')}</th>
       <th>Assistman</th>
     </tr></thead><tbody>`;
 
@@ -2926,18 +2922,18 @@ function renderStadium() {
   var usablePct  = cap > 0 ? Math.round(activeCap / cap * 100) : 100;
   var capCardHtml = '<div style="background:linear-gradient(135deg,rgba(255,255,255,.06) 0%,rgba(255,255,255,.02) 100%);'
     + 'border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:14px 12px;position:relative;overflow:hidden">'
-    + '<div style="font-size:22px;font-weight:900;color:#00c2ff;line-height:1">' + cap.toLocaleString('it-IT') + '</div>'
+    + '<div style="font-size:22px;font-weight:900;color:#00c2ff;line-height:1">' + cap.toLocaleString(I18N.getLang() === 'en' ? 'en-GB' : 'it-IT') + '</div>'
     + '<div style="font-size:10px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.6px;margin-top:3px">Capienza TOT</div>'
     + '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.07)">'
     + '<div style="font-size:18px;font-weight:800;color:' + (usablePct < 100 ? '#f0c040' : '#69f0ae') + ';line-height:1">'
-    + activeCap.toLocaleString('it-IT') + ' <span style="font-size:12px;font-weight:600">(' + usablePct + '%)</span></div>'
+    + activeCap.toLocaleString(I18N.getLang() === 'en' ? 'en-GB' : 'it-IT') + ' <span style="font-size:12px;font-weight:600">(' + usablePct + '%)</span></div>'
     + '<div style="font-size:10px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.6px;margin-top:3px">Capienza utilizzabile</div>'
     + '</div>'
     + '<div style="position:absolute;right:10px;top:10px;font-size:28px;opacity:.15">🏟️</div>'
     + '</div>';
   h += capCardHtml;
   var fillPct = Math.round((rev.fill || 0) * 100);
-  h += statCard('👥', 'Stima spettatori · ' + fillPct + '% pieni', rev.paying.toLocaleString('it-IT'), '#69f0ae');
+  h += statCard('👥', 'Stima spettatori · ' + fillPct + '% pieni', rev.paying.toLocaleString(I18N.getLang() === 'en' ? 'en-GB' : 'it-IT'), '#69f0ae');
   h += statCard('🎫', 'Biglietto', rev.revenue > 0 ? (G.stadium.ticketPrice || 15) + '€' : (G.stadium.ticketPrice || 15) + '€', '#f0c040');
   h += statCard('💰', 'Incasso stimato', formatMoney(rev.revenue), '#ff8c42');
   h += '</div>';
@@ -3179,7 +3175,7 @@ function _sectionCard(key) {
   // Capienza info
   h += '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:12px">'
     + '📐 Capienza aggiuntiva: <strong style="color:rgba(255,255,255,.7)">'
-    + (capThis > 0 ? '+' + capThis.toLocaleString('it-IT') : '—') + '</strong> posti'
+    + (capThis > 0 ? '+' + capThis.toLocaleString(I18N.getLang() === 'en' ? 'en-GB' : 'it-IT') : '—') + '</strong> posti'
     + (sec.bar || sec.shop
        ? ' &nbsp;·&nbsp; ' + (sec.bar ? '🍺 +' + (STADIUM_BAR_BONUS*100|0) + '%' : '')
          + (sec.shop ? (sec.bar ? ' ' : '') + '🛍️ +' + (STADIUM_SHOP_BONUS*100|0) + '%' : '')
@@ -3278,7 +3274,7 @@ function renderCredits() {
         <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Tecnologie</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
           <div class="irow"><span class="ilbl">Frontend</span><span>HTML5 · CSS3 · JavaScript</span></div>
-          <div class="irow"><span class="ilbl">Autenticazione</span><span>Firebase Auth</span></div>
+          <div class="irow"><span class="ilbl">${t('extra.authentication')}</span><span>Firebase Auth</span></div>
           <div class="irow"><span class="ilbl">Database</span><span>Firebase Realtime DB</span></div>
           <div class="irow"><span class="ilbl">Grafici</span><span>Canvas HTML5</span></div>
           <div class="irow"><span class="ilbl">Hosting</span><span>GitHub Pages</span></div>

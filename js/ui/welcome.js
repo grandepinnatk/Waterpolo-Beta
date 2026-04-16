@@ -70,16 +70,16 @@ function _buildSlotsPanel() {
 
     if (meta) {
       // ── Slot occupato ──
-      const stagione = 'Stagione ' + (meta.seasonNumber || 1);
-      const giornata = 'Giornata ' + Math.max(1, (meta.round || 0) + 1);
+      const stagione = t('common.season') + ' ' + (meta.seasonNumber || 1);
+      const giornata = t('common.round') + ' ' + Math.max(1, (meta.round || 0) + 1);
       const phaseLabel = {
         regular: stagione + ' · ' + giornata,
-        playoff: stagione + ' · Playoff',
+        playoff: stagione + ` · ${t('nav.playoff')}`,
         playout: stagione + ' · Play-out',
-        done:    stagione + ' · Conclusa',
+        done:    stagione + ` · ${t('nav.endSeason')}`,
       }[meta.phase] || (stagione + ' · ' + meta.phase);
 
-      const savedDate = new Date(meta.savedAt).toLocaleString('it-IT', {
+      const savedDate = new Date(meta.savedAt).toLocaleString(I18N.getLang() === 'en' ? 'en-GB' : 'it-IT', {
         day: '2-digit', month: '2-digit', year: '2-digit',
         hour: '2-digit', minute: '2-digit',
       });
@@ -99,25 +99,25 @@ function _buildSlotsPanel() {
         </div>
         <div class="slot-stats">
           <div class="slot-stat"><span class="slot-stat-val">${meta.position}°</span><span class="slot-stat-lbl">Pos</span></div>
-          <div class="slot-stat"><span class="slot-stat-val">${meta.points}</span><span class="slot-stat-lbl">Pts</span></div>
-          <div class="slot-stat"><span class="slot-stat-val">${meta.wins}</span><span class="slot-stat-lbl">Vit</span></div>
+          <div class="slot-stat"><span class="slot-stat-val">${meta.points}</span><span class="slot-stat-lbl">${t('standings.points')}</span></div>
+          <div class="slot-stat"><span class="slot-stat-val">${meta.wins}</span><span class="slot-stat-lbl">${t('common.goals').substring(0,3)}</span></div>
           <div class="slot-stat"><span class="slot-stat-val">${formatMoney(meta.budget)}</span><span class="slot-stat-lbl">Budget</span></div>
         </div>
         <div class="slot-actions">
-          <button class="btn primary sm" onclick="loadSlot(${i})">▶ Carica</button>
+          <button class="btn primary sm" onclick="loadSlot(${i})">${t('welcome.loadSave')}</button>
           <button class="btn sm"         onclick="saveCurrentToSlot(${i})" id="btn-save-slot-${i}" style="display:none">💾 Salva qui</button>
-          <button class="btn sm"         onclick="confirmOverwriteSlot(${i})">✏️ Nuova qui</button>
-          <button class="btn danger sm"  onclick="confirmDeleteSlot(${i})">✕ Elimina</button>
+          <button class="btn sm"         onclick="confirmOverwriteSlot(${i})">${t('welcome.newCareer')}</button>
+          <button class="btn danger sm"  onclick="confirmDeleteSlot(${i})">${t('welcome.deleteSlot')}</button>
         </div>`;
     } else {
       // ── Slot vuoto ──
       card.innerHTML = `
         <div class="slot-empty">
           <div class="slot-empty-icon">＋</div>
-          <div class="slot-empty-label">Slot ${i + 1} — Vuoto</div>
+          <div class="slot-empty-label">${t('welcome.saveSlot', {n: i+1})} — ${t('welcome.emptySlot')}</div>
         </div>
         <div class="slot-actions">
-          <button class="btn primary sm" onclick="startNewGameInSlot(${i})">Inizia qui</button>
+          <button class="btn primary sm" onclick="startNewGameInSlot(${i})">${t('welcome.newCareer')}</button>
         </div>`;
     }
     panel.appendChild(card);
@@ -135,7 +135,7 @@ function _buildSlotsPanel() {
 function loadSlot(slotIndex) {
   const payload = loadFromSlot(slotIndex);
   if (!payload) {
-    _showSlotFeedback('Errore nel caricamento dello slot ' + (slotIndex + 1), 'danger');
+    _showSlotFeedback(t('errors.saveLoad'), 'danger');
     return;
   }
   G = applyLoadedSave(payload);
@@ -159,8 +159,7 @@ function confirmOverwriteSlot(slotIndex) {
   const meta = readSlotMeta(slotIndex);
   if (!meta) { startNewGameInSlot(slotIndex); return; }
   const ok = confirm(
-    'Sovrascrivere lo slot ' + (slotIndex + 1) + ' con ' + meta.teamName + '?\n' +
-    'Il salvataggio verrà perso definitivamente.'
+    t('welcome.confirmDelete', {n: slotIndex+1}) + '\n' + meta.teamName
   );
   if (ok) startNewGameInSlot(slotIndex);
 }
@@ -169,10 +168,10 @@ function confirmOverwriteSlot(slotIndex) {
 function confirmDeleteSlot(slotIndex) {
   const meta = readSlotMeta(slotIndex);
   const name = meta ? meta.teamName : 'slot ' + (slotIndex + 1);
-  const ok = confirm('Eliminare il salvataggio di ' + name + '? Azione irreversibile.');
+  const ok = confirm(t('welcome.confirmDelete', {n: slotIndex+1}));
   if (!ok) return;
   deleteSlot(slotIndex);
-  _showSlotFeedback('Slot ' + (slotIndex + 1) + ' eliminato.', 'warn');
+  _showSlotFeedback(t('welcome.saveSlot', {n: slotIndex+1}) + ' — ' + t('welcome.deleteSlot'), 'warn');
   _buildSlotsPanel();
 }
 
@@ -182,10 +181,10 @@ function saveCurrentToSlot(slotIndex) {
   const result = saveToSlot(G, slotIndex);
   if (result.ok) {
     G._currentSlot = slotIndex;
-    _showSlotFeedback('Salvato nello slot ' + (slotIndex + 1) + '.', 'success');
+    _showSlotFeedback(t('welcome.saveSlot', {n: slotIndex+1}), 'success');
     _buildSlotsPanel();
   } else {
-    _showSlotFeedback('Errore: ' + result.error, 'danger');
+    _showSlotFeedback(t('errors.saveFail'), 'danger');
   }
 }
 

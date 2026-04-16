@@ -108,17 +108,6 @@ const NEUTRAL_EVENTS = [
   'Superiorità numerica gestita', 'Tiro fuori misura', 'Fallo in attacco',
 ];
 
-/*
-// Cerca dove viene gestito il passaggio (probabilmente in una funzione tipo processStep)
-// Quando viene scelto un nuovo ricevitore:
-ms.ballStatus = 'passing'; // Nuovo stato per la palla
-ms.targetReceiver = nextPlayerId; // Il segnalino verso cui deve andare la palla
-// Invece di cambiare il possessore istantaneamente:
-_ms.isBallInFlight = true;
-_ms.ballTargetToken = nextPlayerId;
-*/
-
-
 // ── Crea lo stato iniziale ────────────────────
 function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster, formation, shirtNumbers }) {
   const onFieldIdxs = new Set(Object.values(formation));
@@ -136,69 +125,38 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
   const stamina = {};
   myRoster.forEach((p, i) => { stamina[i] = p.fitness; });
 
-	var ms = { // Qui ms viene DEFINITA
-			//home: matchObj.home,
-			//away: matchObj.away,
-			// ...
-			ballStatus: 'held', // Non serve scrivere ms.ballStatus, sei già nell'oggetto
-			possessor: 'my_3'
-		};
-		
-	// Esempio da inserire dove cambi ms.phase (es. al fischio d'inizio o dopo un goal)
-	 console.log("[MATCH ENGINE] Cambio Fase:", ms.phase);
-	 console.log("[MATCH ENGINE] Possessore Palla:", ms.possessor);
-	 console.log("[MATCH ENGINE] Stato Palla:", ms.ballStatus);
-
-	  return {
-		match, isHome,
-		myTeam: G.myTeam,
-		oppTeam: luState.opp,
-		onField: { ...formation },
-		bench,
-		myScore: 0, oppScore: 0,
-		period: 1, totalSeconds: 0,
-		running: false, finished: false,
-		myShots: 0, oppShots: 0, mySaves: 0, myFouls: 0,
-		gkSaves: {},   // { rosterIndex: savesCount } — per ogni GK che ha parato
-		tactic: 'balanced',
-		actions: [],
-		myRoster, oppRoster,
-		subs: 0, subOut: null, subIn: null,
-		lastActionTime: 0, nextActionIn: rnd(7, 14),
-		poType: null, poMatch: null,
-		shirtNumbers: shirtNumbers || {},
-		tempExp,
-		expelled: new Set(),
-		stamina,
-		speed: 1,
-		// Gol segnati IN QUESTA PARTITA: { rosterIdx → count }
-		matchGoals:   {},
-		matchAssists: {},
-		matchRatings: {},   // { rosterIdx → voto live 0-10 }
-		matchDuels:   {},   // { rosterIdx → { won, lost } } confronti vinti/persi
-		injuries:     [],   // [ rosterIdx ] giocatori infortunati in questa partita
-		// Parziali per periodo: array di { my, opp } per ciascuno dei 4 tempi
-		periodScores: [ {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0} ],
-		// Punteggio al termine del periodo precedente (per calcolare il parziale corrente)
-		_prevScore: { my:0, opp:0 },
-		// [File: js/engine/match.js]
-		possessor: 'my_3',       // Chi ha la palla (es. squadra_posizione)
-		ballStatus: 'held',      // 'held' (in mano) o 'passing' (in volo)
-		targetReceiver: null,    // ID del giocatore che deve ricevere
-		formation: luState.formation, // Prende la formazione salvata in lineup.js
-		shirtNumbers: luState.shirtNumbers,
-		ms,
-	    // --- NUOVI CAMPI PER DINAMICHE REALI ---
-		phase: 'sprint',         // Fase attuale: 'sprint', 'action', 'celebration', 'kickoff'
-		ballStatus: 'center',    // La palla parte al centro (sostituisce 'held' all'inizio)
-		possessor: null,         // Nessuno ha la palla durante lo sprint
-		lastScorerId: null,      // ID del giocatore che ha appena segnato (per esultanza)
-		phaseTimer: 0,           // Timer interno per gestire la durata delle animazioni/esultanze
-		ballTargetX: 0.5,        // Coordinata X della palla (centro campo)
-		ballTargetY: 0.5         // Coordinata Y della palla (centro campo)		  
-	  };
-};
-
+  return {
+    match, isHome, myTeam, oppTeam,
+    onField: { ...formation },
+    bench,
+    myScore: 0, oppScore: 0,
+    period: 1, totalSeconds: 0,
+    running: false, finished: false,
+    myShots: 0, oppShots: 0, mySaves: 0, myFouls: 0,
+    gkSaves: {},   // { rosterIndex: savesCount } — per ogni GK che ha parato
+    tactic: 'balanced',
+    actions: [],
+    myRoster, oppRoster,
+    subs: 0, subOut: null, subIn: null,
+    lastActionTime: 0, nextActionIn: rnd(7, 14),
+    poType: null, poMatch: null,
+    shirtNumbers: shirtNumbers || {},
+    tempExp,
+    expelled: new Set(),
+    stamina,
+    speed: 1,
+    // Gol segnati IN QUESTA PARTITA: { rosterIdx → count }
+    matchGoals:   {},
+    matchAssists: {},
+    matchRatings: {},   // { rosterIdx → voto live 0-10 }
+    matchDuels:   {},   // { rosterIdx → { won, lost } } confronti vinti/persi
+    injuries:     [],   // [ rosterIdx ] giocatori infortunati in questa partita
+    // Parziali per periodo: array di { my, opp } per ciascuno dei 4 tempi
+    periodScores: [ {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0} ],
+    // Punteggio al termine del periodo precedente (per calcolare il parziale corrente)
+    _prevScore: { my:0, opp:0 },
+  };
+}
 
 // ── Avanza il tempo ───────────────────────────
 function advanceTime(ms, dt) {
@@ -690,126 +648,4 @@ function getMatchReward(myScore, oppScore) {
   if (myScore > oppScore) return 75000;
   if (myScore === oppScore) return 25000;
   return 0;
-}
-
-
-/**
- * Logica del Motore di Gara
- */
-function processMatchStep(match) {
-    // Gestione Contropiede: 2, 3, 4 lanciano per 1, 5, 6
-    if (match.tactic === 'CONTROPIEDE' && ['2', '3', '4'].includes(match.currentPossessor.pos)) {
-        let potentialReceivers = match.team.filter(p => ['1', '5', '6'].includes(p.pos));
-        if (potentialReceivers.length > 0) {
-            match.instruction = 'LONG_PASS';
-            match.targetPlayer = potentialReceivers[Math.floor(Math.random() * potentialReceivers.length)];
-        }
-    }
-
-    // Tiro: se indicato dall'engine, attiva l'animazione verso la porta
-    if (match.shouldShoot) {
-        executeShot(match.ball, match.targetGoal);
-    }
-}
-
-// All'interno della logica di gestione possesso (processStep)
-function handlePossessionLogic(ms) {
-    if (ms.tactic === 'counter' && ['2', '3', '4'].includes(ms.currentPossessor.pos)) {
-        // Se chi ha palla è in posizione 2,3,4, cerca un compagno in 1,5,6 per lancio lungo
-        let targets = ['1', '5', '6'];
-        ms.nextAction = 'LONG_PASS';
-        ms.actionTarget = targets[Math.floor(Math.random() * targets.length)];
-    }
-	
-		// Nella logica di passaggio (processStep)
-	if (ms.tactic === 'counter' && ['2', '3', '4'].includes(ms.currentPossessor.pos)) {
-		// I difensori (2,3,4) cercano subito le ali o il centro (1,5,6) in avanti
-		ms.preferredReceiverPos = ['1', '5', '6'];
-	}
-    
-    if (ms.instruction === 'SHOOT') {
-        // Logica tiro chiamata da UI o Engine
-        executeShot(ms);
-    }
-}
-
-// Da inserire nel ciclo principale del motore
-function updateTacticalPhase() {
-    const isMyTeamAttacking = (_ms.possession === 'my');
-
-    // Applica a tutti i segnalini
-    Object.keys(_ms.tokens).forEach(id => {
-        let token = _ms.tokens[id];
-        let isHome = id.startsWith('my_');
-
-        if ((isMyTeamAttacking && isHome) || (!isMyTeamAttacking && !isHome)) {
-            // SQUADRA IN ATTACCO: Target verso la porta avversaria
-            token.targetX = isHome ? PLAY.oppNetX0 - 0.1 : PLAY.myNetX0 + 0.1;
-        } else {
-            // SQUADRA IN DIFESA: Rientro rapido verso la propria porta
-            token.targetX = isHome ? PLAY.myNetX0 + 0.1 : PLAY.oppNetX0 - 0.1;
-            
-            // PRESSIONE FORTE: se attiva, il target diventa l'avversario
-            if (_ms.tactic === 'press') {
-                let oppId = isHome ? id.replace('my_', 'opp_') : id.replace('opp_', 'my_');
-                if (_ms.tokens[oppId]) {
-                    token.targetX = _ms.tokens[oppId].x + (isHome ? -0.02 : 0.02);
-                    token.targetY = _ms.tokens[oppId].y;
-                }
-            }
-        }
-    });
-}
-
-// Dentro il loop di match.js
-function updateMatchPhase(ms) {
-    // Se la palla passa di mano, inverti i target di tutti i giocatori
-    let attackingTeam = ms.ballPossession; 
-    
-    ms.players.forEach(p => {
-        if (p.team === attackingTeam) {
-            p.mode = 'ATTACK'; // Nuotano verso la porta avversaria
-        } else {
-            p.mode = 'DEFENSE'; // Nuotano verso la propria porta
-        }
-    });
-}
-
-// Logica per il possesso e il goal
-function updateBallLogic() {
-    if (_ms.phase === 'goal') {
-        // Palla dietro il portiere nel rettangolo di porta
-        var goalX = (_ms.lastScorer === 'home') ? 0.95 : 0.05; 
-        _ball.x = goalX;
-        _ball.y = 0.5; // Centro porta
-    } else if (_ms.status === 'saved') {
-        // Aggancio al portiere
-        var gk = _tokens[_ms.possession + '_GK'];
-        if (gk) {
-            _ball.x = gk.x;
-            _ball.y = gk.y;
-        }
-    }
-}
-
-function updateBall(ms) { // Aggiungi ms qui tra le parentesi
-   ms.ballStatus = 'passing'; 
-}
-
-// [File: js/engine/match.js]
-
-function startLiveMatch(match) {
-    console.log("%c[MATCH] Avvio partita in corso...", "color: white; background: green; padding: 5px;");
-	// 1. Creiamo lo stato e lo assegniamo alla variabile 'ms'
-    const ms = createMatchState(match); 
-    
-    // 2. Ora 'ms' esiste in questa funzione e possiamo passarlo al canvas
-    if (typeof poolInitTokens === 'function') {
-		console.log("[MATCH] Chiamata a poolInitTokens riuscita");
-        poolInitTokens(ms); // Passiamo ms a pool.js
-    } else { 
-		console.error("[MATCH ERROR] poolInitTokens NON è definita!");
-	}
-    
-
 }

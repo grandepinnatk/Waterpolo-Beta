@@ -10,36 +10,43 @@
 // e poi aggiornato da engine/* e ui/*.
 let G = {};
 
-// Inserisci dopo let G = {};
-G.REALISM = {
-    SPEED_REF_STAT: 100,
-    SECONDS_TO_CROSS: 10, // Tempo per coprire la distanza da porta a porta
-    BASE_SPEED_STAT: 100,
-	FPS: 60
-};
-
-// Costanti tattiche per il posizionamento "stile basket"
-// Queste verranno usate dai segnalini per capire dove nuotare in fase di attacco/difesa
-G.PHASES = {
-    ATTACK: 'attack',
-    DEFENSE: 'defense'
-};
-
-// ═══════════════════════════════════════════════════════
-// SIMULAZIONE SU CAMPO - MOVIMENTI REALISTICI
-// ═══════════════════════════════════════════════════════
-const REALISM_CONFIG = {
-    MAX_SPEED_STAT: 100,
-    SECONDS_TO_CROSS: 10, // Un giocatore con 100 percorre il campo in 10s
-    FPS: 60
-};
-
-
-
-
-
 // ── Utility globali ───────────────────────────
 // Disponibili a tutti i moduli senza import (vanilla JS).
+// ── Calcola overall da attributi pesati per ruolo ────────────────────────
+// Usata da allenamento, invecchiamento e caricamento salvataggio
+function _calcOverallFromStats(p) {
+  if (!p || !p.stats) return p ? (p.overall || 60) : 60;
+  const s = p.stats;
+  const weights = {
+    POR: { att:0.05, def:0.30, spe:0.15, str:0.20, tec:0.15, res:0.15 },
+    DIF: { att:0.10, def:0.35, spe:0.15, str:0.20, tec:0.10, res:0.10 },
+    CEN: { att:0.20, def:0.20, spe:0.20, str:0.15, tec:0.15, res:0.10 },
+    ATT: { att:0.35, def:0.05, spe:0.20, str:0.15, tec:0.15, res:0.10 },
+    CB:  { att:0.25, def:0.15, spe:0.20, str:0.15, tec:0.15, res:0.10 },
+  };
+  const w = weights[p.role] || weights['CEN'];
+  const raw = (s.att||0)*w.att + (s.def||0)*w.def + (s.spe||0)*w.spe +
+              (s.str||0)*w.str + (s.tec||0)*w.tec + (s.res||0)*w.res;
+  const potCap = (p.potential !== undefined && p.potential > 0) ? p.potential : 99;
+  return Math.min(potCap, Math.max(40, Math.round(raw)));
+}
+
+// Versione senza cap potential — usata per aggiornare il potential stesso
+function _calcOverallRaw(p) {
+  if (!p || !p.stats) return p ? (p.overall || 60) : 60;
+  const s = p.stats;
+  const weights = {
+    POR: { att:0.05, def:0.30, spe:0.15, str:0.20, tec:0.15, res:0.15 },
+    DIF: { att:0.10, def:0.35, spe:0.15, str:0.20, tec:0.10, res:0.10 },
+    CEN: { att:0.20, def:0.20, spe:0.20, str:0.15, tec:0.15, res:0.10 },
+    ATT: { att:0.35, def:0.05, spe:0.20, str:0.15, tec:0.15, res:0.10 },
+    CB:  { att:0.25, def:0.15, spe:0.20, str:0.15, tec:0.15, res:0.10 },
+  };
+  const w = weights[p.role] || weights['CEN'];
+  return Math.max(40, Math.round((s.att||0)*w.att + (s.def||0)*w.def + (s.spe||0)*w.spe +
+              (s.str||0)*w.str + (s.tec||0)*w.tec + (s.res||0)*w.res));
+}
+
 function rnd(a, b)  { return Math.floor(Math.random() * (b - a + 1)) + a; }
 function pick(arr)  { return arr[Math.floor(Math.random() * arr.length)]; }
 function cap(n)     { return Math.min(100, Math.max(0, Math.round(n))); }
@@ -307,7 +314,7 @@ function _replenishRoster(teamId) {
 
 function simNextRound() {
   const r = nextMyRound();
-  if (!r) { G.msgs.push('Nessuna giornata rimanente.'); renderDash(); return; }
+  if (!r) { G.msgs.push(t('dash.noMatches')); renderDash(); return; }
 
   console.group('%c[SIM] Giornata ' + r, 'color:#00c2ff;font-weight:bold');
   console.log('[SIM] Squadra:', G.myTeam?.name, '| Fase:', G.phase, '| Budget:', G.budget);
@@ -379,7 +386,7 @@ function simNextRound() {
       const reward  = myScore > opScore ? getMatchReward(myScore, opScore) : 0;
       if (reward) {
         G.budget += reward;
-        const tipo = myScore > opScore ? 'vittoria' : 'pareggio';
+        const tipo = myScore > opScore ? t('extra.ledgerWin') : t('finance.types.pareggio');
         addLedger(tipo, reward, `G${r}: ${G.myTeam.name} vs ${opp.name} (${myScore}-${opScore})`, r);
       }
       G.msgs.push(`G${r}: ${G.myTeam.name} ${res} vs ${opp.name} (${myScore}-${opScore})` +
@@ -404,7 +411,7 @@ function simNextRound() {
         if (_injured.length) {
           _injured.forEach(name => {
             const inj = (G.rosters[G.myId] || []).find(p => p && p.name === name);
-            if (inj) G.msgs.push('🚑 ' + inj.name + ' infortunato durante la partita simulata — out per ' + inj.injuryWeeks + ' giornate.');
+            if (inj) G.msgs.push(t('injuries.injurySim', {name: inj.name, weeks: inj.injuryWeeks}));
           });
         }
       }
@@ -434,7 +441,7 @@ function simNextRound() {
       if (p.injuryWeeks <= 0) {
         p.injured     = false;
         p.injuryWeeks = 0;
-        G.msgs.push('✅ ' + p.name + ' è guarito — torna disponibile.');
+        G.msgs.push(t('injuries.recovered', {name: p.name}));
       }
     });
   }
@@ -460,8 +467,8 @@ function simNextRound() {
     const wage = calcWageBill();
     if (wage > 0) {
       G.budget -= wage;
-      addLedger('ingaggi', -wage, `Monte ingaggi G${r}`, r);
-      G.msgs.push(`💸 Ingaggi G${r}: -${formatMoney(wage)}`);
+      addLedger(t('extra.ledgerWages'), -wage, `${t('extra.wagesRound')}${r}`, r);
+      G.msgs.push(`💸 ${t('finance.wages')} G${r}: -${formatMoney(wage)}`);
     }
   }
 
@@ -503,7 +510,7 @@ function simNextRound() {
 
 function simEntireSeason() {
   simulateAllRemaining(G.schedule, G.stand, G.teams, G.myId, G.rosters);
-  G.msgs.push('Campionato simulato fino alle tue partite rimanenti.');
+  G.msgs.push(t('dash.noMatches'));
   updateHeader(); autoSave(); renderDash();
 }
 
@@ -533,7 +540,7 @@ function initPostSeason() {
 
   const relName = G.teams.find(t => t.id === G.relegated)?.name || '—';
   G.msgs.push('Stagione regolare conclusa! Playoff: ' + G.poTeams.map(id => G.teams.find(t => t.id === id)?.name).join(', '));
-  G.msgs.push(relName + ' retrocede direttamente in Serie A2.');
+  G.msgs.push(t('seasonEnd.relegated', {team: relName}));
   updateHeader(); autoSave();
 }
 
@@ -731,20 +738,20 @@ function stadiumBuild(sectionKey, type) {  // type: 'level'|'bar'|'shop'
 
   if (type === 'level') {
     var nextLv = (sec.level || 0) + 1;
-    if (nextLv > 4) { G.msgs.push('⚠️ ' + STADIUM_SECTIONS[sectionKey].label + ' è già al livello massimo.'); return; }
-    if (sec.construction) { G.msgs.push('⚠️ Lavori già in corso nella ' + STADIUM_SECTIONS[sectionKey].label + '.'); return; }
+    if (nextLv > 4) { G.msgs.push('⚠️ ' + STADIUM_SECTIONS[sectionKey].label + ' — ' + t('stadium.maxLevel') + '.'); return; }
+    if (sec.construction) { G.msgs.push('⚠️ ' + STADIUM_SECTIONS[sectionKey].label + ' — ' + t('stadium.building') + '.'); return; }
     cost  = STADIUM_LEVEL_COST[nextLv];
     days  = STADIUM_LEVEL_DAYS[nextLv];
     label = STADIUM_SECTIONS[sectionKey].label + ' → Livello ' + nextLv;
   } else if (type === 'bar') {
-    if (sec.bar) { G.msgs.push('⚠️ Bar già presente.'); return; }
-    if (sec.level === 0) { G.msgs.push('⚠️ Devi prima costruire la tribuna.'); return; }
-    if (sec.construction) { G.msgs.push('⚠️ Lavori già in corso.'); return; }
+    if (sec.bar) { G.msgs.push('⚠️ ' + t('stadium.bar') + ' — ' + t('stadium.building') + '.'); return; }
+    if (sec.level === 0) { G.msgs.push('⚠️ ' + t('stadium.requiresLevel', {n:1})); return; }
+    if (sec.construction) { G.msgs.push('⚠️ ' + t('stadium.building') + '.'); return; }
     cost  = STADIUM_BAR_COST;
     days  = STADIUM_BAR_DAYS;
     label = 'Bar — ' + STADIUM_SECTIONS[sectionKey].label;
   } else if (type === 'shop') {
-    if (sec.shop) { G.msgs.push('⚠️ Shop già presente.'); return; }
+    if (sec.shop) { G.msgs.push('⚠️ ' + t('stadium.shop') + ' — ' + t('stadium.building') + '.'); return; }
     if (sec.level === 0) { G.msgs.push('⚠️ Devi prima costruire la tribuna.'); return; }
     if (sec.construction) { G.msgs.push('⚠️ Lavori già in corso.'); return; }
     cost  = STADIUM_SHOP_COST;
@@ -753,13 +760,13 @@ function stadiumBuild(sectionKey, type) {  // type: 'level'|'bar'|'shop'
   } else return;
 
   if (G.budget < cost) {
-    G.msgs.push('❌ Budget insufficiente per ' + label + ' (' + formatMoney(cost) + ').');
+    G.msgs.push('❌ ' + t('stadium.notEnoughBudget') + ' ' + label + ' (' + formatMoney(cost) + ')');
     renderStadium(); return;
   }
   G.budget -= cost;
-  addLedger('stadio', -cost, 'Lavori: ' + label, typeof currentRound === 'function' ? currentRound() : 0);
+  addLedger(t('nav.stadium'), -cost, 'Lavori: ' + label, typeof currentRound === 'function' ? currentRound() : 0);
   sec.construction = { type: type, daysLeft: days, label: label };
-  G.msgs.push('🏗️ Lavori avviati: ' + label + ' — completamento tra ' + days + ' giornate. Costo: ' + formatMoney(cost) + '.');
+  G.msgs.push('🏗️ ' + t('stadium.upgradeQueued') + ' ' + label + ' — ' + t('common.round') + ' +' + days + '. ' + formatMoney(cost));
   updateHeader(); autoSave(); renderStadium();
 }
 
@@ -775,7 +782,7 @@ function _updateStadiumConstruction() {
       if (t === 'level')  sec.level = (sec.level || 0) + 1;
       else if (t === 'bar')  sec.bar  = true;
       else if (t === 'shop') sec.shop = true;
-      G.msgs.push('✅ Lavori completati: ' + sec.construction.label + '! Nuova capienza: ' + stadiumCapacity().toLocaleString('it-IT') + ' posti.');
+      G.msgs.push('✅ ' + sec.construction.label + ' — ' + t('stadium.capacity') + ': ' + stadiumCapacity().toLocaleString() + '.');
       sec.construction = null;
     }
   });
@@ -805,12 +812,12 @@ function _stadiumWear() {
 
     // Prima chiudi bar e shop se presenti (prima di scendere al livello 0)
     if (sec.level === 1) {
-      if (sec.shop) { sec.shop = false; G.msgs.push('⚠️ Usura stadio: lo shop della ' + sname + ' è stato chiuso per danni strutturali.'); return; }
-      if (sec.bar)  { sec.bar  = false; G.msgs.push('⚠️ Usura stadio: il bar della '  + sname + ' è stato chiuso per danni strutturali.'); return; }
+      if (sec.shop) { sec.shop = false; G.msgs.push('⚠️ ' + t('stadium.worn') + ' — ' + t('stadium.shop') + ' ' + sname + '.'); return; }
+      if (sec.bar)  { sec.bar  = false; G.msgs.push('⚠️ ' + t('stadium.worn') + ' — ' + t('stadium.bar') + ' ' + sname + '.'); return; }
     }
     // Scendi di livello
     sec.level = Math.max(0, sec.level - 1);
-    G.msgs.push('🏚️ Lo stadio cade a pezzi! La zona ' + sname + ' è scesa al livello ' + sec.level + '.');
+    G.msgs.push('🏚️ ' + sname + ' — ' + t('stadium.level', {n: sec.level}));
   });
 }
 
@@ -820,8 +827,8 @@ function _collectStadiumRevenue() {
   var r = stadiumMatchRevenue();
   if (r.revenue > 0) {
     G.budget += r.revenue;
-    addLedger('stadio', r.revenue, 'Incasso stadio (' + r.paying.toLocaleString('it-IT') + ' spettatori)', typeof currentRound === 'function' ? currentRound() : 0);
-    G.msgs.push('🏟️ Stadio: ' + r.paying.toLocaleString('it-IT') + ' spettatori · +' + formatMoney(r.revenue) + '.');
+    addLedger(t('nav.stadium'), r.revenue, 'Incasso stadio (' + r.paying.toLocaleString() + ' spettatori)', typeof currentRound === 'function' ? currentRound() : 0);
+    G.msgs.push('🏟️ ' + t('stadium.attendance') + ': ' + r.paying.toLocaleString() + ' · +' + formatMoney(r.revenue));
   }
 }
 
@@ -895,7 +902,7 @@ function simPOMatch(type, idx) {
     const wname = G.teams.find(t => t.id === m.winner)?.name;
     if (m.winner === G.myId) {
       G.playoffResult = 'champion';
-      G.msgs.push('HAI VINTO LO SCUDETTO! 🏆');
+      G.msgs.push(t('seasonEnd.champion', {team: G.myTeam.name}));
     }
     // Aumento ingaggi +20% per la squadra campione
     const champRoster = G.rosters[m.winner] || [];
@@ -909,7 +916,7 @@ function simPOMatch(type, idx) {
         : '💰 ' + wname + ' campione: ingaggi rosa +20%.';
       G.msgs.push(msg);
     }
-    if (m.winner !== G.myId) G.msgs.push('Campione d\'Italia: ' + wname);
+    if (m.winner !== G.myId) G.msgs.push(t('playoff.champion') + ' ' + wname);
   }
   autoSave(); renderPlayoff();
 }
@@ -966,15 +973,15 @@ function simPLMatch(key) {
     const savedName = G.teams.find(t => t.id === winner)?.name || '?';
     if (winner === G.myId) {
       G.playoffResult = 'survived';
-      G.msgs.push('✅ Vittoria nel playout! ' + savedName + ' si salva direttamente in Serie A1.');
+      G.msgs.push(t('seasonEnd.survived'));
     } else {
-      G.msgs.push('✅ ' + savedName + ' si salva direttamente. Il perdente va alla finale playout.');
+      G.msgs.push('✅ ' + savedName + ' — ' + t('playoff.saves'));
     }
   } else {
     // Finale playout: il perdente retrocede
     plb.relegated = loser; plb.done = true;
-    if (loser === G.myId) { G.playoffResult = 'relegated'; G.msgs.push('Sei retrocesso in Serie A2!'); }
-    else if (winner === G.myId) { G.playoffResult = 'survived'; G.msgs.push('Playout superato! Rimani in Serie A1.'); }
+    if (loser === G.myId) { G.playoffResult = 'relegated'; G.msgs.push(t('seasonEnd.relegated', {team: G.myTeam.name})); }
+    else if (winner === G.myId) { G.playoffResult = 'survived'; G.msgs.push(t('seasonEnd.survived')); }
     else G.msgs.push(G.teams.find(t => t.id === loser)?.name + ' retrocede in Serie A2.');
   }
   autoSave(); renderPlayoff();
@@ -1011,7 +1018,7 @@ function closeSeason() {
   G.phase = 'done';
   const reward = finalizeObjectives(G.objectives, G.stand, G.myId, G.playoffResult);
   G.budget += reward;
-  if (reward) addLedger('obiettivo', reward, 'Bonus obiettivi fine stagione', currentRound());
+  if (reward) addLedger(t('finance.types.obiettivo'), reward, 'Bonus obiettivi fine stagione', currentRound());
   G.msgs.push('Stagione conclusa! Budget finale: ' + formatMoney(G.budget));
 
   // ── Salva record stagione nello storico ──
@@ -1176,7 +1183,7 @@ function _recalcTiers() {
     // Notifica cambiamento tier per la nostra squadra
     if (tid === G.myId && newTier !== oldTier) {
       const tierLabels = { S:'Elite (S)', A:'Alta (A)', B:'Media (B)', C:'Bassa (C)' };
-      const direction  = clampedIdx > prevIdx ? '⬆️ promosso' : '⬇️ declassato';
+      const direction  = clampedIdx > prevIdx ? '⬆️ ' + t('tier.promoted') : '⬇️ ' + t('tier.relegated');
       G.msgs.push('📊 ' + G.myTeam.name + ' ' + direction + ' in fascia ' + tierLabels[newTier] +
         ' (pos. ' + pos + '°, OVR medio ' + Math.round(avgOvr) + ', budget ' + formatMoney(budget) + ')');
     }
@@ -1211,9 +1218,18 @@ function startNewSeason() {
       if (p.age !== undefined) p.age++;
       // Reset flag rinnovo: la stagione è ricominciata
       if (p._justRenewed) p._justRenewed = false;
-      // Calo naturale over-30 (tutte le squadre)
-      if ((p.age || 25) > 30 && Math.random() < 0.35) {
-        p.overall = Math.max(48, p.overall - 1);
+      // Calo naturale over-30: decrementa un attributo casuale e ricalcola overall
+      if ((p.age || 25) > 30 && Math.random() < 0.35 && p.stats) {
+        const attrs = ['att','def','spe','str','tec','res'];
+        const attr = attrs[Math.floor(Math.random() * attrs.length)];
+        p.stats[attr] = Math.max(40, (p.stats[attr] || 60) - 1);
+        // Ricalcola overall dagli attributi
+        if (typeof _calcOverallFromStats === 'function') {
+          const potCap = (p.potential || 99);
+          p.overall = Math.min(potCap, Math.max(48, _calcOverallFromStats(p)));
+        } else {
+          p.overall = Math.max(48, p.overall - 1);
+        }
       }
       // Segna come ritirato se ha raggiunto l'età massima
       if (p.retirementAge !== undefined && p.age >= p.retirementAge) {
@@ -1233,7 +1249,7 @@ function startNewSeason() {
 
   // Notifica ritiri nella squadra del manager
   if (retiredNames.length > 0) {
-    G.msgs.push('👴 Fine carriera: ' + retiredNames.join(', ') + ' si ritirano dal professionismo.');
+    G.msgs.push(t('seasonEnd.retired', {names: retiredNames.join(', ')}));
   }
 
   // Resetta lineup salvata (i ritirati potrebbero essere in campo)
@@ -1416,7 +1432,7 @@ function putPlayerOnMarket(rosterIdx, askingPrice) {
   const p = G.rosters[G.myId][rosterIdx];
   if (p) {
     p.morale = Math.max(0, p.morale - rnd(8, 15));
-    G.msgs.push(p.name + ' messo sul mercato. Morale calato.');
+    G.msgs.push(p.name + ' — ' + t('roster.willLoseMorale'));
   }
   autoSave();
 }
@@ -1426,7 +1442,7 @@ function removeFromMarket(rosterIdx) {
   if (!G.transferList) return;
   const p = G.rosters[G.myId][rosterIdx];
   G.transferList = G.transferList.filter(e => e.rosterIdx !== rosterIdx);
-  if (p) G.msgs.push(p.name + ' ritirato dal mercato.');
+  if (p) G.msgs.push(p.name + ' — ' + t('market.myList'));
   autoSave();
 }
 
@@ -1543,7 +1559,7 @@ function refreshMarketPool() {
   if (G.pendingPurchases) {
     const prevExpired = G.pendingPurchases.filter(pp => pp.expiresAfterRound < currentRnd);
     prevExpired.forEach(pp => {
-      G.msgs.push('⌛ Offerta scaduta per ' + pp.player.name + ' — il trasferimento non è stato finalizzato in tempo.');
+      G.msgs.push('⌛ ' + pp.player.name + ' — ' + t('extra.transferExpired'));
     });
     G.pendingPurchases = G.pendingPurchases.filter(pp => pp.expiresAfterRound >= currentRnd);
   }
@@ -1627,7 +1643,7 @@ function buyFromPending(i) {
   }
 
   G.budget -= price;
-  addLedger('acquisto', -price, 'Acquistato ' + p.name + ' da ' + p._tname, currentRound ? currentRound() : 0);
+  addLedger(t('finance.types.acquisto'), -price, 'Acquistato ' + p.name + ' da ' + p._tname, currentRound ? currentRound() : 0);
 
   // Aggiungi alla nostra rosa
   const np = { ...p };
@@ -1721,7 +1737,7 @@ function acceptOffer(rosterIdx, offerIdx) {
 
   // Incassa l'importo
   G.budget += offer.amount;
-  addLedger('vendita', offer.amount, `Venduto ${p.name} a ${offer.teamName}`, currentRound());
+  addLedger(t('finance.types.vendita'), offer.amount, `Venduto ${p.name} a ${offer.teamName}`, currentRound());
 
   // Trasferisce il giocatore alla squadra acquirente
   const buyerRoster = G.rosters[offer.teamId];
@@ -1931,14 +1947,14 @@ function renewContractWithBonus(rosterIdx, years) {
 
   // Detrai bonus subito
   G.budget -= bonus;
-  addLedger('rinnovo', -bonus, 'Bonus firma ' + p.name + ' (' + years + ' ann' + (years===1?'o':'i') + ')', typeof currentRound === 'function' ? currentRound() : 0);
+  addLedger(t('extra.wage'), -bonus, 'Bonus firma ' + p.name + ' (' + years + ' ann' + (years===1?'o':'i') + ')', typeof currentRound === 'function' ? currentRound() : 0);
 
   // Segna proposta pendente
   p._renewalPending = { years: years, salary: newSalary, bonus: bonus, round: typeof currentRound === 'function' ? currentRound() : 0 };
   p._justRenewed = false;  // non nascondere SCAD — verrà mostrato 📨 da _scadBadge
   G.msgs.push('📨 Proposta di rinnovo inviata a ' + p.name + ' — ' +
     years + ' ann' + (years===1?'o':'i') + ' · ' + formatMoney(newSalary) + '/anno · bonus firma ' + formatMoney(bonus) + ' pagato. ' +
-    'Il giocatore risponderà alla prossima giornata.');
+    t('extra.willReplyNext'));
 
   // Chiudi popup conferma e modal giocatore
   const cp = document.getElementById('renewal-confirm-popup');
@@ -1965,7 +1981,7 @@ function renewContract(rosterIdx, years, popupEl) {
   p._renewalPending = { years: years, salary: newSalary, round: typeof currentRound === 'function' ? currentRound() : 0 };
   G.msgs.push('📨 Proposta di rinnovo inviata a ' + p.name + ' — ' +
     years + ' ann' + (years===1?'o':'i') + ' · ' + formatMoney(newSalary) + '/anno. ' +
-    'Il giocatore risponderà alla prossima giornata.');
+    t('extra.willReplyNext'));
 
   if (popupEl) popupEl.remove();
   updateHeader(); autoSave(); renderRosa();
@@ -2033,8 +2049,8 @@ function _processRenewalResponses() {
       const tierScore  = { S: 100, A: 75, B: 45, C: 20 }[G.myTeam.tier || 'B'] || 50;
       let reason = '';
       if (ambition > tierScore + 20) reason = 'cerca un club di fascia superiore';
-      else if ((p.morale || 70) < 50) reason = 'morale troppo basso';
-      else if ((p.lastRatings||[]).filter(r=>r!==null).length === 0) reason = 'vuole più spazio in campo';
+      else if ((p.morale || 70) < 50) reason = t('extra.moraleTooLow');
+      else if ((p.lastRatings||[]).filter(r=>r!==null).length === 0) reason = t('extra.wantsMoreTime');
       else reason = 'ha deciso di non rinnovare';
       G.msgs.push('❌ ' + p.name + ' ha rifiutato il rinnovo — ' + reason + '. A fine stagione sarà svincolato.');
       // Marca come non rinnovato (verrà liberato da _decrementContracts)
@@ -2056,7 +2072,7 @@ function rescindContract(rosterIdx) {
     return;
   }
   G.budget -= penalty;
-  addLedger('rescissione', -penalty, 'Rescissione ' + p.name, currentRound ? currentRound() : 0);
+  addLedger(t('extra.rescindContract'), -penalty, 'Rescissione ' + p.name, currentRound ? currentRound() : 0);
   // Mette il giocatore sul mercato a costo zero
   const fp = { ...p, value: 0, _fromRescission: true };
   delete fp._tid; delete fp._tname;
@@ -2069,7 +2085,7 @@ function rescindContract(rosterIdx) {
   });
   // Rimuove dalla rosa
   roster.splice(rosterIdx, 1);
-  G.msgs.push('✂️ Contratto di ' + p.name + ' rescisso. Penale: ' + formatMoney(penalty) + '. Giocatore disponibile sul mercato a costo zero.');
+  G.msgs.push('✂️ Contratto di ' + p.name + ' rescisso. Penale: ' + formatMoney(penalty) + '. ' + t('extra.freeAgent'));
   updateHeader(); autoSave();
 }
 
@@ -2289,7 +2305,7 @@ function _showYouthPopup() {
       const p = youth[idx];
       const np = { ...p }; delete np._fromYouth;
       G.rosters[G.myId].push(np);
-      addLedger('giovane', 0, 'Ingaggio giovane ' + np.name, 0);
+      addLedger(t('extra.youthWage'), 0, t('extra.youthWage') + ' ' + np.name, 0);
       G.msgs.push('🌟 ' + np.name + ' (' + np.role + ', ' + np.age + 'a, OVR ' + np.overall + ') entra in rosa dalla categoria giovanile. Ingaggio: ' + formatMoney(np.salary) + '/anno');
     });
     document.getElementById('youth-popup').remove();
@@ -2614,4 +2630,3 @@ function _closeOfferPopup(offers, nextIdx) {
     setTimeout(() => _showOfferPopupQueue(offers, nextIdx), 120);
   }
 }
-

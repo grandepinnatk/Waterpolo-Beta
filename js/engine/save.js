@@ -163,6 +163,14 @@ function _migratePayload(p) {
         if (pl && pl.contractYears === undefined) pl.contractYears = Math.floor(Math.random() * 3) + 1;
         // Resetta sempre il flag nazionale al caricamento: viene riassegnato da simNextRound
         if (pl) { pl._national = false; pl._nationalNext = false; pl._nationalNat = undefined; }
+        // Riallinea overall/potential dagli attributi (usa funzioni globali da main.js)
+        if (pl && pl.stats && typeof _calcOverallRaw === 'function') {
+          var rawOvr = _calcOverallRaw(pl);  // senza cap potential
+          // Se gli attributi superano il potential, aggiorna il potential
+          if (rawOvr > (pl.potential || 0)) pl.potential = Math.min(99, rawOvr);
+          // Overall = raw capped al potential aggiornato
+          pl.overall = Math.min(pl.potential || 99, rawOvr);
+        }
       });
     });
   } // stelle: default 5 per salvataggi vecchi

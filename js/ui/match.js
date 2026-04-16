@@ -29,10 +29,10 @@ function startLiveMatch(match, isHome, opp, poType = null, poMatch = null) {
 
   const homeTeam = isHome ? G.myTeam : opp;
   const awayTeam = isHome ? opp : G.myTeam;
-  document.getElementById('m-lbl').textContent   = poType === 'final' ? 'Finale Scudetto'
+  document.getElementById('m-lbl').textContent   = poType === 'final' ? t('playoff.final')
                                                   : poType === 'sf'   ? match.label
                                                   : poType === 'pl'   ? 'Play-out'
-                                                  : 'Giornata ' + match.round;
+                                                  : t('common.round') + ' ' + match.round;
   document.getElementById('m-title').textContent = homeTeam.name + ' vs ' + awayTeam.name;
   document.getElementById('my-team-lbl').textContent = G.myTeam.name;
   document.getElementById('btn-end').style.display   = 'none';
@@ -88,7 +88,7 @@ function showGoalAnimation(scorerName, teamType, ms) {
   }
 
   // Testo e scorer
-  textEl.textContent = 'GOAL!';
+  textEl.textContent = t('match.goalScored');
   textEl.className   = 'goal-text ' + side;
   scorerEl.textContent = scorerName || '';
   splashEl.className = 'water-splash' + (side === 'away' ? ' away' : '');
@@ -211,7 +211,7 @@ function _handleExpulsion(expelledPi, tokenKey) {
     _appendLog('↔ Auto-cambio: entra ' + result.inPlayer.name +
                ' (#' + (G.ms.shirtNumbers[G.ms.onField[result.posKey]] || '?') + ') al posto dell\'espulso', 'sub');
   } else {
-    _appendLog('⚠ Nessun sostituto disponibile per posizione ' + result.posKey, 'fl');
+    _appendLog(t('extra.noSubForPos') + ' ' + result.posKey, 'fl');
   }
   // Nasconde il token del giocatore espulso
   if (tokenKey && _tokens) {
@@ -230,8 +230,8 @@ function refreshMatchUI() {
   const hS = ms.isHome ? ms.myScore : ms.oppScore;
   const aS = ms.isHome ? ms.oppScore : ms.myScore;
   document.getElementById('m-score').textContent   = hS + ' - ' + aS;
-  document.getElementById('m-period').textContent  = ms.period + '° Tempo';
-  const _subEl = document.getElementById('sub-count'); if (_subEl) _subEl.textContent = ms.subs;
+  document.getElementById('m-period').textContent  = ms.period + '° ' + t('match.period', {n:''}).replace('°','').trim();
+  const _subEl = document.getElementById('sub-count'); if (_subEl) _subEl.textContent = t('match.subsDone', {n: ms.subs});
 
   // ── Timer countdown: mostra secondi rimanenti nel periodo corrente ──
   const elapsed  = ms.totalSeconds - (ms.period - 1) * PERIOD_SECONDS;
@@ -544,7 +544,7 @@ function _checkExhaustedPlayers() {
   });
   exhausted.forEach(({ pi, pk, p, shirt }) => {
     const name = p ? _shortPlayerName(p) : '#' + shirt;
-    _appendLog(`⚠️ #${shirt} ${name} è esaurito — sostituzione necessaria!`, 'fl');
+    _appendLog(`⚠️ #${shirt} ${name} ${t('extra.playerExhausted')}`, 'fl');
   });
   // Pausa automatica se ci sono esauriti — SOLO se ci sono abbastanza giocatori per sostituire
   if (exhausted.length > 0 && ms.running) {
@@ -558,7 +558,7 @@ function _checkExhaustedPlayers() {
       _appendLog('⏸ Pausa automatica — giocatori esauriti in campo. Effettua una sostituzione.', 'sv');
     } else {
       // Solo 5 in campo o panchina vuota: non si può sostituire, continua con penalità
-      _appendLog('⚠️ Giocatore esaurito ma nessuna sostituzione possibile — efficacia drasticamente ridotta.', 'fl');
+      _appendLog(t('injuries.noSub'), 'fl');
     }
   }
 }
@@ -640,14 +640,14 @@ function _updateSwapButton() {
   if (_subSelField !== null && _subSelBench !== null) {
     btn.disabled = false;
     btn.classList.add('ready');
-    if (status) status.textContent = 'Pronto!';
+    if (status) status.textContent = t('common.ok') + '!';
   } else {
     btn.disabled = true;
     btn.classList.remove('ready');
     if (status) {
       if (_subSelField === null && _subSelBench === null) status.textContent = '';
-      else if (_subSelField === null) status.textContent = 'Sel. in campo';
-      else status.textContent = 'Sel. panchina';
+      else if (_subSelField === null) status.textContent = t('match.onField');
+      else status.textContent = t('match.bench');
     }
   }
 }
@@ -789,7 +789,7 @@ function renderFieldLists(anim) {
       ${c_(`<span style="font-weight:700;color:${isBench?'var(--muted)':'var(--blue)'};font-size:10px">#${shirt}</span>`)}
       <div style="font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
                   cursor:pointer;color:var(--blue);text-decoration:underline dotted;text-underline-offset:2px"
-           onclick="showMatchPlayerInfo(${pi})" title="Scheda giocatore">${_shortPlayerName(p)}</div>
+           onclick="showMatchPlayerInfo(${pi})" title="Info">${_shortPlayerName(p)}</div>
       ${c_(`<span style="font-size:11px;font-weight:800;color:${dispRc}">${dispRating}</span>`, 'text-align:center')}
       ${c_(`<span style="font-size:10px;font-weight:700;color:var(--blue)">${posLabel}</span>`, 'text-align:center')}
       ${c_(`<span style="display:flex;gap:1px;flex-wrap:wrap;align-items:center">${roleBadge(p.role)}${p.secondRole ? roleBadge(p.secondRole) : ''}</span>`)}
@@ -884,7 +884,7 @@ function skipPeriod() {
   const SIM_INTERVAL = 7; // secondi di gioco per evento
   let simTime = 0;
 
-  _appendLog('⏩ Simulazione fine ' + ms.period + '° tempo...', '');
+  _appendLog(t('extra.simEnd') + ' ' + ms.period + '°...', '');
 
   // Registra i giocatori attualmente in campo come "hanno giocato"
   if (!ms._everOnField) ms._everOnField = new Set();
@@ -938,7 +938,7 @@ function skipPeriod() {
     ms.finished = true;
     document.getElementById('btn-end').style.display  = '';
     document.getElementById('btn-play').style.display = 'none';
-    _appendLog('🏁 Fine partita!', 'sv');
+    _appendLog(t('extra.fullTime'), 'sv');
     // Le stelle e la deduzione ingaggi vengono assegnate in _doEndMatch
     // quando l'utente clicca "Fine Partita". Segniamo un flag per sicurezza.
     ms._skipEndedMatch = true;
@@ -1186,7 +1186,7 @@ function _showEndMatchPopup(ms) {
   const awayN = ms.isHome ? ms.oppTeam.name : ms.myTeam.name;
   const won   = ms.myScore > ms.oppScore;
   const drew  = ms.myScore === ms.oppScore;
-  const resultLabel = won ? '🏆 VITTORIA' : drew ? '🤝 PAREGGIO' : '😞 SCONFITTA';
+  const resultLabel = won ? t('extra.victory') : drew ? '🤝 PAREGGIO' : '😞 SCONFITTA';
   const resultColor = won ? 'var(--green)' : drew ? 'var(--gold)' : 'var(--red)';
 
   // Parziali
@@ -1323,8 +1323,8 @@ function _doEndMatch() {
       _resolvePlayoffMatch(ms.poType, ms.poMatch, winner);
       const earned = winner === G.myId ? 120000 : 40000;
       G.budget += earned;
-      addLedger('playoff', earned, 'Playoff: ' + G.myTeam.name + ' vs ' + ms.oppTeam.name + ' (' + ms.myScore + '-' + ms.oppScore + ')', currentRound());
-      G.msgs.push(G.myTeam.name + (winner === G.myId ? ' avanza' : ' eliminato') + ' (' + ms.myScore + '-' + ms.oppScore + ') +' + formatMoney(earned));
+      addLedger('playoff', earned, t('nav.playoff') + ': ' + G.myTeam.name + ' vs ' + ms.oppTeam.name + ' (' + ms.myScore + '-' + ms.oppScore + ')', currentRound());
+      G.msgs.push(G.myTeam.name + (winner === G.myId ? ' ' + t('match.result.win') : ' ' + t('match.result.loss')) + ' (' + ms.myScore + '-' + ms.oppScore + ') +' + formatMoney(earned));
       G.ms = null;
       showScreen('sc-game'); updateHeader(); showTab('playoff');
     } else if (!ms.extraTime) {
@@ -1380,7 +1380,7 @@ function _doEndMatch() {
     const earned = getMatchReward(ms.myScore, ms.oppScore);
     G.budget += earned;
     if (earned) {
-      const tipo = mw ? 'vittoria' : 'pareggio';
+      const tipo = mw ? t('extra.ledgerWin') : 'pareggio';
       addLedger(tipo, earned, `G${ms.match.round}: ${G.myTeam.name} vs ${ms.oppTeam.name} (${ms.myScore}-${ms.oppScore})`, ms.match.round);
     }
     // Deduzione ingaggi (solo regular season)
@@ -1388,12 +1388,12 @@ function _doEndMatch() {
       const wage = calcWageBill();
       if (wage > 0) {
         G.budget -= wage;
-        addLedger('ingaggi', -wage, `Monte ingaggi G${ms.match.round}`, ms.match.round);
-        G.msgs.push(`💸 Ingaggi G${ms.match.round}: -${formatMoney(wage)}`);
+        addLedger(t('extra.ledgerWages'), -wage, `${t('extra.wagesRound')}${ms.match.round}`, ms.match.round);
+        G.msgs.push(`💸 ${t('finance.wages')} G${ms.match.round}: -${formatMoney(wage)}`);
       }
     }
     G.msgs.push('G' + ms.match.round + ': ' + G.myTeam.name + ' ' +
-                (mw ? 'VINCE' : md ? 'pareggia' : 'perde') + ' vs ' + ms.oppTeam.name +
+                (mw ? t('match.result.win').toUpperCase() : md ? t('match.result.draw') : t('match.result.loss')) + ' vs ' + ms.oppTeam.name +
                 ' (' + ms.myScore + '-' + ms.oppScore + ')' + (earned ? ' +' + formatMoney(earned) : ''));
     // Giocatori infortunati: penalizza fitness e assegna durata infortunio (2-6 giornate)
     if (ms.injuries && ms.injuries.length) {
@@ -1403,7 +1403,7 @@ function _doEndMatch() {
         p.fitness = Math.max(5, (p.fitness || 70) - penalty);
         p.injured      = true;
         p.injuryWeeks  = 2 + Math.floor(Math.random() * 5); // 2-6 giornate
-        G.msgs.push('🚑 ' + p.name + ' infortunato: forma ' + p.fitness + '% — out per ' + p.injuryWeeks + ' giornate.');
+        G.msgs.push(t('injuries.injurySim', {name: p.name, weeks: p.injuryWeeks}));
       });
     }
     // Salva voti finali nelle ultime 4 partite di ogni giocatore
@@ -1460,7 +1460,7 @@ function _doEndMatch() {
       if (p.injuryWeeks <= 0) {
         p.injured     = false;
         p.injuryWeeks = 0;
-        G.msgs.push('✅ ' + p.name + ' è guarito — torna disponibile.');
+        G.msgs.push(t('injuries.recovered', {name: p.name}));
       }
     });
     simulateRound(G.schedule, G.stand, G.teams, ms.match.round, G.myId, G.rosters);
@@ -1610,7 +1610,7 @@ function _showPenaltyPopup() {
       '</div>' +
       '<div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:8px">' +
         'Seleziona <strong style="color:#00c2ff">5 rigoristi</strong> nell\'ordine di battuta (clicca per selezionare/deselezionare). ' +
-        'La % indica la probabilità di segnare.' +
+        t('extra.penaltyTip') +
       '</div>' +
       // Header colonne
       '<div style="display:grid;grid-template-columns:24px 1fr 50px 50px 60px 50px;gap:8px;padding:0 10px 6px;' +

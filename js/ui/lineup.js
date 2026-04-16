@@ -27,10 +27,10 @@ function openLineup(match, isHome, opp, poType = null, poMatch = null) {
     match, isHome, opp, poType, poMatch,
   };
   const label = poType === 'sf' ? match.label
-              : poType === 'final' ? 'Finale Scudetto'
+              : poType === 'final' ? t('playoff.final')
               : poType === 'pl' ? 'Play-out'
-              : 'Giornata ' + match.round;
-  document.getElementById('lu-lbl').textContent   = label + ' · ' + (isHome ? 'Casa' : 'Trasferta');
+              : t('common.round') + ' ' + match.round;
+  document.getElementById('lu-lbl').textContent   = label + ' · ' + (isHome ? t('common.home') : t('common.away'));
   document.getElementById('lu-title').textContent = G.myTeam.name + ' vs ' + opp.name;
   showScreen('sc-lineup');
   renderLineupPool(); renderPlayerSelList(); updateLuStatus();
@@ -65,9 +65,9 @@ function _slotName(p) {
 
 // Etichetta mano: include Ambidestro
 function _handLabel(hand) {
-  if (hand === 'AMB') return 'Ambidestro';
-  if (hand === 'L')   return 'Mancino';
-  return 'Destro';
+  if (hand === 'AMB') return t('hand.AMB');
+  if (hand === 'L')   return t('hand.L');
+  return t('hand.R');
 }
 
 // Badge ruolo colorato (stessa CSS del tab Rosa)
@@ -171,7 +171,7 @@ function renderPlayerSelList() {
   // Intestazione
   const hdr = document.createElement('div');
   hdr.style.cssText = 'display:grid;grid-template-columns:34px 1fr 76px 38px 22px;gap:4px;padding:3px 6px 5px;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);margin-bottom:4px';
-  hdr.innerHTML = '<div title="Numero maglia">#</div><div>Giocatore</div><div>Pos / Ruolo</div><div>Forma</div><div></div>';
+  hdr.innerHTML = `<div title="${t('lineup.shirt')}">#</div><div>${t('roster.title')}</div><div>Pos / ${t('roles.POR').replace('Portiere','Ruolo')}</div><div>${t('roster.fitness')}</div><div></div>`;
   container.appendChild(hdr);
 
   const roleOrder = { POR:0, DIF:1, CEN:2, ATT:3, CB:4 };
@@ -188,7 +188,7 @@ function renderPlayerSelList() {
     const usedPk = usedByPos[i];
     const isConv = luState.convocati.has(i);
     const shirt  = luState.shirtNumbers[i] || '';
-    const posLabel = usedPk ? (POSITIONS[usedPk]?.label || usedPk) : (isConv ? 'Riserva' : '');
+    const posLabel = usedPk ? (POSITIONS[usedPk]?.label || usedPk) : (isConv ? t('lineup.panchina') : '');
 
     const row = document.createElement('div');
     row.style.cssText = [
@@ -207,7 +207,7 @@ function renderPlayerSelList() {
       // Mostra calottina SVG cliccabile (o placeholder se non numerato)
       const capDiv = document.createElement('div');
       capDiv.style.cssText = 'display:flex;align-items:center;justify-content:center;cursor:pointer';
-      capDiv.title = shirt ? 'Calottina #' + shirt + ' — clicca per cambiare' : 'Clicca per assegnare il numero';
+      capDiv.title = shirt ? t('lineup.shirt') + ' #' + shirt : t('lineup.shirt');
       capDiv.onclick = e => { e.stopPropagation(); openCapAssignment(i); };
       if (shirt) {
         capDiv.innerHTML = _capSVG(shirt, shirt === 1, 34);
@@ -223,9 +223,9 @@ function renderPlayerSelList() {
     // Cella nome
     const nameCell = document.createElement('div');
     nameCell.style.cssText = 'min-width:0';
-    const infTag = p.injured ? ' <span style="font-size:9px;background:#c0392b;color:#fff;font-weight:700;padding:1px 4px;border-radius:3px;margin-left:3px" title="Infortunato — non disponibile">INF+</span>' : '';
+    const infTag = p.injured ? ` <span style="font-size:9px;background:#c0392b;color:#fff;font-weight:700;padding:1px 4px;border-radius:3px;margin-left:3px" title="${t('lineup.injured')}">INF+</span>` : '';
     const flags = { ITA:'🇮🇹', CRO:'🇭🇷', SRB:'🇷🇸', HUN:'🇭🇺', GRE:'🇬🇷', MNE:'🇲🇪', ESP:'🇪🇸' };
-    const nazTag = (p._national || p._nationalNext) ? ' <span style="font-size:9px;background:#1565c0;color:#fff;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:3px" title="Convocato in Nazionale — non disponibile">NAZ ' + (flags[p._nationalNat]||'') + '</span>' : '';
+    const nazTag = (p._national || p._nationalNext) ? ' <span style="font-size:9px;background:#1565c0;color:#fff;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:3px" title="Nat">NAZ ' + (flags[p._nationalNat]||'') + '</span>' : '';
     const rowOpacity = (p.injured || p._national || p._nationalNext) ? '.45' : '1';
     nameCell.innerHTML = `
       <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:${rowOpacity}">${p.name}${_ritBadge(p)}${_scadBadge(p)}${infTag}${nazTag}</div>
@@ -250,7 +250,7 @@ function renderPlayerSelList() {
     const infoCell = document.createElement('div');
     infoCell.style.cssText = 'display:flex;align-items:center;justify-content:center';
     infoCell.innerHTML = `<span
-      title="Scheda giocatore"
+      title="Info"
       style="width:18px;height:18px;border-radius:50%;border:1px solid var(--muted);display:inline-flex;
              align-items:center;justify-content:center;cursor:pointer;font-size:11px;color:var(--muted);
              font-style:italic;font-weight:700;flex-shrink:0">i</span>`;
@@ -555,9 +555,9 @@ function openCapAssignment(playerRosterIdx) {
     'z-index:500', 'backdrop-filter:blur(6px)',
   ].join(';');
 
-  const playerName = p ? p.name : 'Tutti i convocati';
-  const subtitle   = p ? 'Scegli la calottina da assegnare a <strong>' + playerName + '</strong>'
-                       : 'Seleziona un giocatore e poi clicca la calottina da assegnargli';
+  const playerName = p ? p.name : t('lineup.available');
+  const subtitle   = p ? `${t('lineup.shirt')}: <strong>${playerName}</strong>`
+                       : t('lineup.subtitle');
 
   let capsHtml = '';
   for (let n = 1; n <= 13; n++) {
@@ -569,7 +569,7 @@ function openCapAssignment(playerRosterIdx) {
 
     capsHtml += `
       <div onclick="assignCapNumber(${playerRosterIdx}, ${n})"
-           title="${taken && !isAssignedToThis ? 'Assegnata a ' + (owner ? _slotName(owner) : '?') : 'Assegna #' + n}"
+           title="${taken && !isAssignedToThis ? t('lineup.shirt') + ' — ' + (owner ? _slotName(owner) : '?') : t('lineup.shirt') + ' #' + n}"
            style="
              display:flex; flex-direction:column; align-items:center; gap:4px;
              cursor:${taken && !isAssignedToThis ? 'not-allowed' : 'pointer'};

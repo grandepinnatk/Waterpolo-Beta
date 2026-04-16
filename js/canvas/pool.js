@@ -1,5 +1,3 @@
-console.log("[POOL] File pool.js caricato correttamente");
-
 // ─────────────────────────────────────────────
 // canvas/pool.js — Pallanuoto realistica v2
 // ─────────────────────────────────────────────
@@ -184,7 +182,6 @@ function _dist(tok) {
 
 // ── API pubblica ──────────────────────────────
 function poolInitTokens(ms) {
-	console.log("[POOL] Inizializzazione token con stato:", ms);
   _tokens     = {};
   _ball       = { x: PLAY.cx, y: PLAY.cy, tx: PLAY.cx, ty: PLAY.cy };
   _phase      = 'idle';
@@ -311,27 +308,17 @@ function poolStartPeriod() {
 // ── Chiamata da togglePlay quando si preme Avvia dopo kickoff ────
 function poolBeginSprint(prevSpeed) {
   if (_phase !== 'idle') return;
-	console.log("[POOL] Inizio Sprint! Fase precedente:", _phase); // LOG DEBUG
   _prevSpeed  = prevSpeed || 10;
   _phase      = 'sprint';
   _sprintT    = 0;
   _sprintDone = false;
-	
   // Forza velocità 1x durante lo sprint (tramite main.js setSpeed)
-  //if (typeof setSpeed === 'function') setSpeed(1);
-
- // I numeri 6 (e non i 3 come nel vecchio codice) puntano alla palla
-  var my6  = _tokens['my_6'];
-  var opp6 = _tokens['opp_6'];
-  
-  if (my6)  { 
-    my6.tx  = PLAY.cx; my6.ty  = PLAY.cy; 
-    console.log("[POOL] My_6 punta al centro:", PLAY.cx, PLAY.cy); // LOG DEBUG
-  }
-  if (opp6) { 
-    opp6.tx = PLAY.cx; opp6.ty = PLAY.cy; 
-    console.log("[POOL] Opp_6 punta al centro:", PLAY.cx, PLAY.cy); // LOG DEBUG
-	}
+  if (typeof setSpeed === 'function') setSpeed(1);
+  // I pos 3 di entrambe le squadre scattano verso il centro
+  var my3  = _tokens['my_3'];
+  var opp3 = _tokens['opp_3'];
+  if (my3)  { my3.tx  = PLAY.cx - 0.02; my3.ty  = PLAY.cy; }
+  if (opp3) { opp3.tx = PLAY.cx + 0.02; opp3.ty = PLAY.cy; }
 }
 
 function poolGetPhase()  { return _phase; }
@@ -346,16 +333,11 @@ function poolShootAndScore(targetX, targetY, scorer, team, teamName) {
 
 // ── Goal: dichiarato quando la palla è entrata in rete ────────────
 function poolShowGoal(scorer, team) {
-	console.log(`%c[GOAL] Rilevato! Segnato da: ${scorer} (Team: ${team})`, "background: #222; color: #bada55; font-size: 1.2em;");
-	
   _pendingGoal = null;
   _goalAnim = { timer: 0, total: 2.5, scorer: scorer || '', team: team || 'my', teamName: teamName || '' };
   _phase = 'goal';
   var mySubito = (team === 'opp');
 
-	// Log delle posizioni di esultanza
-  console.log("[POOL] I segnalini iniziano l'esultanza verso lo schieramento...");
-	
   Object.values(_tokens).forEach(function(tok) {
     if (tok.expelled) return;
     var pos;
@@ -629,223 +611,4 @@ function _pill(ctx,x,y,w,h,r) {
   ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
   ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
   ctx.closePath();
-}
-
-
-
-/**
- * Gestione della palla e aggancio ai giocatori
- */
-function renderBall(ctx, ball, players, matchStatus) {
-    if (matchStatus.isGoal) {
-        // Palla nel rettangolo di porta dietro il portiere
-        ball.x = ball.targetGoalSide === 'left' ? 10 : canvas.width - 10;
-        ball.y = canvas.height / 2;
-    } 
-    else if (matchStatus.isSaved || matchStatus.possessor.role === 'GK') {
-        // Palla agganciata al portiere
-        let goalkeeper = players.find(p => p.role === 'GK' && p.team === matchStatus.possession);
-        ball.x = goalkeeper.x;
-        ball.y = goalkeeper.y;
-    } 
-    else if (matchStatus.isPassing) {
-        // La palla scorre tra i segnalini
-        moveToTarget(ball, matchStatus.receiver.x, matchStatus.receiver.y, ball.speed);
-    }
-    
-    // Disegno della palla
-    ctx.drawImage(imgPalla, ball.x, ball.y, 15, 15);
-}
-
-// Modifica la funzione che aggiorna la posizione della palla (_ball)
-function updateBallVisuals() {
-    if (_ms.isGoal) {
-        // Goal: palla nel rettangolo di rete dietro il portiere
-        if (_ms.lastScorerTeam === 'my') {
-            _ball.x = PLAY.oppNetX0 + 0.02; // Rete destra
-        } else {
-            _ball.x = PLAY.myNetX0 + 0.02;  // Rete sinistra
-        }
-        _ball.y = PLAY.cy;
-    } 
-    else if (_ms.isSaved || (_ms.possessor && _ms.possessor.role === 'POR')) {
-        // Parata o possesso portiere: aggancia al segnalino GK
-        let gkToken = _ms.tokens[_ms.possession === 'my' ? 'my_GK' : 'opp_GK'];
-        if (gkToken) {
-            _ball.x = gkToken.x;
-            _ball.y = gkToken.y;
-        }
-    }
-}
-
-
-function updateBallPosition() {
-    if (_ms.isGoal) {
-        // Posiziona la palla stabilmente dietro la linea di porta
-		_ball.x = PLAY.oppNetX0 + 0.02; // Posiziona la palla "dentro" la rete
-		_ball.y = PLAY.cy;
-		ms.ballStatus = 'goal'; // Ferma le altre logiche
-    } 
-    else if (_ms.isSaved || (_ms.possessor && _ms.possessor.role === 'POR')) {
-        // Se il portiere para o ha palla, la palla segue il suo segnalino esattamente
-        let gk = _ms.tokens[_ms.possession === 'my' ? 'my_GK' : 'opp_GK'];
-        if (gk) {
-            _ball.x = gk.x;
-            _ball.y = gk.y;
-        }
-    }
-}
-
-function poolUpdateBall(ball, ms) {
-	
-	if (ms.phase === 'sprint') {
-        // La palla è ferma al centro
-        ball.x = 0.5; ball.y = 0.5;
-
-        // Controlla se un numero 6 ha toccato la palla
-        ['my_6', 'opp_6'].forEach(id => {
-            let tok = _tokens[id];
-            if (tok && dist(tok.x, tok.y, 0.5, 0.5) < 0.02) {
-                ms.phase = 'action';   // Inizia la partita vera
-                ms.possessor = id;     // Il primo che arriva prende palla
-                ms.ballStatus = 'held';
-            }
-        });
-    }
-	
-	
-	if (ms.isGoal) {
-        // Palla nel rettangolo di porta dietro il portiere
-        ball.x = ms.lastScorerTeam === 'my' ? PLAY.oppNetX1 - 0.02 : PLAY.myNetX0 + 0.02;
-        ball.y = PLAY.cy;
-    } else if (ms.isSaved || (ms.possessor && ms.possessor.role === 'POR')) {
-        // Palla agganciata al segnalino del portiere
-        let gkId = ms.possession === 'my' ? 'my_GK' : 'opp_GK';
-        if (ms.tokens[gkId]) {
-            ball.x = ms.tokens[gkId].x;
-            ball.y = ms.tokens[gkId].y;
-        }
-    }
-   
-}
-
-// Sostituisci il calcolo della velocità nei movimenti dei segnalini
-function getRealismSpeed(playerStat) {
-    // 0.80 unità in 10 secondi = 0.08 unità al secondo.
-    // Se il gioco gira a 60 FPS, la velocità per frame è:
-    const baseSpeed = (0.80 / 10) / 60; // circa 0.00133 per frame
-
-    // Applichiamo la statistica del giocatore (spe)
-    return baseSpeed * (playerStat / 100);
-}
-
-// Modifica la funzione di aggiornamento della palla
-function updateBallPhysics(ball, possessorToken, isGoal, isSaves) {
-    if (isGoal) {
-        // La palla finisce nel rettangolo dietro il portiere
-        ball.x = (ball.side === 'my') ? PLAY.oppNetX0 + 0.02 : PLAY.myNetX0 + 0.02;
-        ball.y = PLAY.cy; // Centro porta
-    } else if (isSaves || (possessorToken && possessorToken.role === 'POR')) {
-        // Aggancio al portiere
-        ball.x = possessorToken.x;
-        ball.y = possessorToken.y;
-    } else if (possessorToken) {
-        // Movimento fluido tra i giocatori della squadra in possesso
-        // Implementa un'interpolazione verso il giocatore che riceve
-        ball.targetX = possessorToken.x;
-        ball.targetY = possessorToken.y;
-    }
-}
-
-// [File: js/canvas/pool.js]
-function poolUpdateBallPhysics(ms) {
-    if (ms.ballStatus === 'passing' && ms.targetReceiver) {
-        var targetTok = _tokens[ms.targetReceiver];
-        if (targetTok) {
-            // Velocità del passaggio (0.015 è un buon valore per il realismo)
-            var speed = 0.015;
-            
-            // Muovi la palla verso il giocatore
-            var dx = targetTok.x - _ball.x;
-            var dy = targetTok.y - _ball.y;
-            var dist = Math.sqrt(dx*dx + dy*dy);
-
-            if (dist > speed) {
-                _ball.x += (dx / dist) * speed;
-                _ball.y += (dy / dist) * speed;
-            } else {
-                // Palla arrivata!
-                _ball.x = targetTok.x;
-                _ball.y = targetTok.y;
-                ms.ballStatus = 'held';
-                ms.possessor = ms.targetReceiver;
-            }
-        }
-    } else if (ms.ballStatus === 'held' && ms.possessor) {
-        // La palla segue il giocatore che ce l'ha in mano
-        var holder = _tokens[ms.possessor];
-        if (holder) {
-            _ball.x = holder.x;
-            _ball.y = holder.y;
-        }
-    }
-}
-
-/**
- * Funzione da chiamare nel loop di rendering principale (es. requestAnimationFrame)
- * Gestisce il movimento fluido della palla e i log di stato
- */
-function poolUpdateBallPhysics(dt, ms) {
-    if (!ms) return;
-
-    // Se la palla è in volo (passaggio)
-    if (ms.ballStatus === 'passing' && ms.targetReceiver) {
-        var targetTok = _tokens[ms.targetReceiver];
-        if (targetTok) {
-            var dx = targetTok.x - _ball.x;
-            var dy = targetTok.y - _ball.y;
-            var dist = Math.sqrt(dx*dx + dy*dy);
-
-            if (dist > 0.01) {
-                // Muovi la palla verso il target
-                _ball.x += (dx / dist) * 0.015; 
-                _ball.y += (dy / dist) * 0.015;
-            } else {
-                // Palla arrivata al ricevitore
-                console.log("%c[BALL] Palla ricevuta da: " + ms.targetReceiver, "color: green; font-weight: bold;");
-                _ball.x = targetTok.x;
-                _ball.y = targetTok.y;
-                ms.ballStatus = 'held';
-                ms.possessor = ms.targetReceiver;
-            }
-        }
-    } 
-    // Se la palla è "in mano" a un giocatore
-    else if (ms.ballStatus === 'held' && ms.possessor) {
-        var holder = _tokens[ms.possessor];
-        if (holder) {
-            _ball.x = holder.x;
-            _ball.y = holder.y;
-        }
-    }
-}
-
-// Inserisci questa logica nel loop di update (es. dentro poolUpdate)
-// per gestire la presa della palla
-function _checkBallPickup(ms) {
-    if (_phase !== 'sprint') return;
-
-    ['my_6', 'opp_6'].forEach(id => {
-        let t = _tokens[id];
-        if (t) {
-            let d = Math.hypot(t.x - PLAY.cx, t.y - PLAY.cy);
-            if (d < 0.02) {
-                console.log(`%c[POOL] Palla presa da ${id}!`, "color: green; font-weight: bold;");
-                _phase = 'action';
-                ms.phase = 'action';
-                ms.possessor = id;
-                ms.ballStatus = 'held';
-            }
-        }
-    });
 }
