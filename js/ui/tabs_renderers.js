@@ -2006,8 +2006,8 @@ function _buildStandContent(activeTab) {
     h += `<div class="card">
       <div style="font-weight:700;color:var(--blue);margin-bottom:10px">${t('nav.standings')} Serie A1 — 2025/26</div>
       <table><thead><tr>
-        <th>#</th><th>${t('standings.team')}</th><th>G</th><th>' + t('standings.won') + '</th><th>${t('standings.drawn')}</th><th>${t('standings.lost')}</th>
-        <th>${t('standings.gf')}</th><th>' + t('standings.ga') + '</th><th>${t('standings.diff')}</th><th>${t('standings.points')}</th>
+        <th>#</th><th>${t('standings.team')}</th><th>${t('standings.played')}</th><th>${t('standings.won')}</th><th>${t('standings.drawn')}</th><th>${t('standings.lost')}</th>
+        <th>${t('standings.gf')}</th><th>${t('standings.ga')}</th><th>${t('standings.diff')}</th><th>${t('standings.points')}</th>
       </tr></thead><tbody>`;
 
     s.forEach((t, i) => {
@@ -2526,14 +2526,14 @@ function renderMarket() {
       <div style="font-size:11px;color:var(--muted)">${t('extra.marketUpdated')}</div>
     </div>
     <table><thead><tr>
-      <th onclick="_mktSortClick('name')"   style="cursor:pointer">' + t('roster.title') + ' ${_sortArrow('name')}</th>
-      <th onclick="_mktSortClick('hand')"   style="cursor:pointer">' + t('roster.sortHand') + ' ${_sortArrow('hand')}</th>
+      <th onclick="_mktSortClick('name')"   style="cursor:pointer">${t('roster.title')} ${_sortArrow('name')}</th>
+      <th onclick="_mktSortClick('hand')"   style="cursor:pointer">${t('roster.sortHand')} ${_sortArrow('hand')}</th>
       <th>${t('market.fromTeam')}</th>
-      <th onclick="_mktSortClick('role')"   style="cursor:pointer">' + t('roster.sortRole') + ' ${_sortArrow('role')}</th>
+      <th onclick="_mktSortClick('role')"   style="cursor:pointer">${t('roster.sortRole')} ${_sortArrow('role')}</th>
       <th onclick="_mktSortClick('ovr')"    style="cursor:pointer">OVR ${_sortArrow('ovr')}</th>
-      <th onclick="_mktSortClick('value')"  style="cursor:pointer">' + t('extra.marketValue') + ' ${_sortArrow('value')}</th>
-      <th onclick="_mktSortClick('salary')" style="cursor:pointer">' + t('extra.wage') + ' ${_sortArrow('salary')}</th>
-      <th onclick="_mktSortClick('days')"   style="cursor:pointer">' + t('extra.expires') + ' ${_sortArrow('days')}</th>
+      <th onclick="_mktSortClick('value')"  style="cursor:pointer">${t('extra.marketValue')} ${_sortArrow('value')}</th>
+      <th onclick="_mktSortClick('salary')" style="cursor:pointer">${t('extra.wage')} ${_sortArrow('salary')}</th>
+      <th onclick="_mktSortClick('days')"   style="cursor:pointer">${t('extra.expires')} ${_sortArrow('days')}</th>
       <th></th>
     </tr></thead><tbody>`;
 

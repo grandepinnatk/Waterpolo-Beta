@@ -131,6 +131,7 @@ const LANG_IT = {
     sortGoals:      'Gol',
     sortAssists:    'Assist',
     sortValue:      'Valore',
+    value:          'Valore',
     overall:        'Overall',
     potential:      'Potenziale',
     fitness:        'Forma',

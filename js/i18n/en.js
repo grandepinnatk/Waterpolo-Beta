@@ -125,6 +125,7 @@ const LANG_EN = {
     sortGoals:      'Goals',
     sortAssists:    'Assists',
     sortValue:      'Value',
+    value:          'MktValue',
     overall:        'Overall',
     potential:      'Potential',
     fitness:        'Fitness',
