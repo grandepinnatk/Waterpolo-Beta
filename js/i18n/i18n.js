@@ -65,7 +65,32 @@ const I18N = (() => {
   function setLang(lang) {
     if (!SUPPORTED.includes(lang)) return;
     localStorage.setItem(STORAGE_KEY, lang);
-    // Il reload della pagina applica la lingua (più semplice di una re-render completa)
+
+    // Salva lo stato UI corrente in sessionStorage prima del reload
+    // così dopo il reload si torna alla stessa schermata (non alla lobby)
+    try {
+      const screens = ['sc-game', 'sc-lineup', 'sc-match'];
+      let activeScreen = 'sc-welcome';
+      for (const id of screens) {
+        const el = document.getElementById(id);
+        if (el && el.style.display !== 'none' && el.style.display !== '') {
+          activeScreen = id;
+          break;
+        }
+      }
+      // Salva schermata attiva
+      sessionStorage.setItem('wp_resume_screen', activeScreen);
+
+      // Se siamo in gioco, salva anche il tab attivo
+      if (activeScreen === 'sc-game') {
+        const activeBtn = document.querySelector('.bs-nav-btn.active');
+        if (activeBtn) {
+          const match = (activeBtn.getAttribute('onclick') || '').match(/'([^']+)'/);
+          if (match) sessionStorage.setItem('wp_resume_tab', match[1]);
+        }
+      }
+    } catch(e) {}
+
     location.reload();
   }
 

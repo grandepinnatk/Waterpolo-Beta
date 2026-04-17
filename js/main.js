@@ -1347,6 +1347,39 @@ function applyTheme(name) {
 
 document.addEventListener('DOMContentLoaded', () => {
   buildWelcomeScreen();
+
+  // ── Ripristino stato UI dopo cambio lingua ──────────────────────────
+  // Se setLang() ha salvato una schermata in sessionStorage, torna lì
+  try {
+    const resumeScreen = sessionStorage.getItem('wp_resume_screen');
+    const resumeTab    = sessionStorage.getItem('wp_resume_tab');
+
+    if (resumeScreen && resumeScreen !== 'sc-welcome') {
+      // Pulisci subito per non riapplicare ai reload successivi
+      sessionStorage.removeItem('wp_resume_screen');
+      sessionStorage.removeItem('wp_resume_tab');
+
+      // Prova a caricare l'ultimo slot usato e torna in gioco
+      const lastSlot = parseInt(localStorage.getItem('wp_last_slot') || '-1', 10);
+      if (lastSlot >= 0) {
+        const payload = loadFromSlot(lastSlot);
+        if (payload) {
+          G = applyLoadedSave(payload);
+          if (typeof _normalizeRosters   === 'function') _normalizeRosters(G);
+          if (typeof _refreshAllPlayerValues === 'function') _refreshAllPlayerValues();
+          G._currentSlot = lastSlot;
+          showScreen('sc-game');
+          updateHeader();
+          requestAnimationFrame(() => showTab(resumeTab || 'dash'));
+          return; // non mostrare la lobby
+        }
+      }
+    } else {
+      // Reload normale o primo avvio: pulisci comunque
+      sessionStorage.removeItem('wp_resume_screen');
+      sessionStorage.removeItem('wp_resume_tab');
+    }
+  } catch(e) {}
 });
 
 // ── Torna alla welcome (con aggiornamento slot) ─

@@ -162,6 +162,7 @@ function loadSlot(slotIndex) {
   if (typeof _normalizeRosters === 'function') _normalizeRosters(G);
   if (typeof _refreshAllPlayerValues === 'function') _refreshAllPlayerValues();
   G._currentSlot = slotIndex;
+  localStorage.setItem('wp_last_slot', slotIndex);
   showScreen('sc-game');
   updateHeader();
   // requestAnimationFrame garantisce che sc-game sia visibile prima del render
@@ -170,6 +171,7 @@ function loadSlot(slotIndex) {
 
 // Avvia nuova carriera in uno slot specifico
 function startNewGameInSlot(slotIndex) {
+  localStorage.setItem('wp_last_slot', slotIndex);
   _pendingNewGameSlot = slotIndex;
   _doStartNewGame(slotIndex);
 }
