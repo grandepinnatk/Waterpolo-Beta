@@ -1375,7 +1375,7 @@ function showPlayerModal(i) {
   ov.id = 'player-modal-' + i;
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px)';
   ov.innerHTML = `
-    <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 20px;max-width:380px;width:92%;max-height:92vh;overflow-y:auto">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 20px;max-width:475px;width:92%;max-height:92vh;overflow-y:auto">
       <!-- Header -->
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <div>
@@ -3664,7 +3664,7 @@ function _showSimResultPopup(data) {
     + '</div>'
 
     // Bottone chiudi
-    + '<button onclick="document.getElementById(\'sim-result-popup\').remove()" '
+    + '<button onclick="_closeSimResultPopupAndNext()" '
     + 'style="width:100%;padding:12px;background:' + accentColor + '22;border:1.5px solid ' + accentColor + '55;'
     + 'border-radius:10px;color:' + accentColor + ';font-weight:800;font-size:14px;cursor:pointer;'
     + 'transition:background .15s" '
@@ -3675,7 +3675,7 @@ function _showSimResultPopup(data) {
     + '</div>'
     + '</div>';
 
-  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+  ov.onclick = function(e) { if (e.target === ov) _closeSimResultPopupAndNext(); };
   document.body.appendChild(ov);
 
   // Coriandoli per la vittoria
@@ -3683,25 +3683,15 @@ function _showSimResultPopup(data) {
 }
 window._showSimResultPopup = _showSimResultPopup;
 
-// ── Chiudi popup risultato e mostra eventuale popup nazionale ─────────
-function _closeSimResultAndShowNational() {
+// ── Chiudi popup risultato e avanza nella coda ───────────────────────
+function _closeSimResultPopupAndNext() {
   var popup = document.getElementById('sim-result-popup');
   if (popup) popup.remove();
-  // Se c'è un popup nazionale in attesa, mostrarlo solo se abilitato nella config
-  if (G._pendingNationalPopup && G._pendingNationalPopup.length > 0) {
-    var _natCfg = typeof getConfig === 'function' ? getConfig() : { newsPopup: {} };
-    if (_natCfg.newsPopup && _natCfg.newsPopup['national'] !== false) {
-      var _toShow = G._pendingNationalPopup;
-      G._pendingNationalPopup = null;
-      setTimeout(function() {
-        if (typeof _showNationalPopup === 'function') _showNationalPopup(_toShow);
-      }, 200);
-    } else {
-      G._pendingNationalPopup = null; // scarta silenziosamente
-    }
-  }
+  setTimeout(function() {
+    if (typeof _nextPopupInQueue === 'function') _nextPopupInQueue();
+  }, 200);
 }
-window._closeSimResultAndShowNational = _closeSimResultAndShowNational;
+window._closeSimResultPopupAndNext = _closeSimResultPopupAndNext;
 
 
 function _simResultConfetti() {
