@@ -327,6 +327,12 @@ function openConfigPanel() {
     + 'background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--muted);cursor:pointer">'
     + t('config.none') + '</button>'
     + '</div>'
+    + '<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">'
+    + '<button onclick="resetConfig()" '
+    + 'style="width:100%;padding:7px;font-size:11px;font-weight:700;border-radius:6px;'
+    + 'background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.3);color:#e74c3c;cursor:pointer">'
+    + '↺ Reset</button>'
+    + '</div>'
     + '</div>';
 
   ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
@@ -359,3 +365,13 @@ function _updateConfigBox() {
   var lbl = document.getElementById('config-top-label');
   if (lbl) lbl.textContent = t('config.title');
 }
+
+// ── Reset configurazione ──────────────────────────────────────────────
+function resetConfig() {
+  localStorage.removeItem(CFG_KEY);
+  // Riapri il pannello con i default
+  var ov = document.getElementById('config-panel-overlay');
+  if (ov) ov.remove();
+  openConfigPanel();
+}
+window.resetConfig = resetConfig;

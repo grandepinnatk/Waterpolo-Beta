@@ -332,6 +332,9 @@ window.showMatchDetailPopup = showMatchDetailPopup;
 // DASHBOARD
 // ════════════════════════════════════════════
 function renderDash() {
+  // Reset cache notizie ad ogni render (gli indici devono ricominciare da 0)
+  window._newsCache = [];
+
   // Rileva tema corrente
   var _isDark    = document.body.classList.contains('theme-dark');
   var _isLight   = document.body.classList.contains('theme-light');

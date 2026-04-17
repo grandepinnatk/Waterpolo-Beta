@@ -2125,7 +2125,7 @@ function _decrementContracts() {
     if (p.contractYears !== undefined && p.contractYears > 0) {
       p.contractYears--;
       if (p.contractYears === 0) {
-        G.msgs.push('📋 Contratto scaduto: ' + p.name + ' — non rinnovato, va sul mercato a costo zero.');
+        G.msgs.push('📋 ' + t('roster.expiring') + ': ' + p.name + ' — ' + t('extra.freeAgent'));
         // Mette il giocatore sul mercato a costo zero
         const fp = { ...p, value: 0, _fromExpiry: true };
         delete fp._tid; delete fp._tname;
