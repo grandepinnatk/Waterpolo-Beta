@@ -3504,3 +3504,154 @@ function renderCredits() {
     </div>
   `;
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// POPUP RISULTATO PARTITA SIMULATA
+// ══════════════════════════════════════════════════════════════════════
+function _showSimResultPopup(data) {
+  var existing = document.getElementById('sim-result-popup');
+  if (existing) existing.remove();
+
+  var isWin  = data.myScore > data.opScore;
+  var isDraw = data.myScore === data.opScore;
+  var isLoss = data.myScore < data.opScore;
+
+  var accentColor = isWin ? '#2ecc71' : isDraw ? '#f0a030' : '#e74c3c';
+  var resultLabel = isWin ? t('match.result.win') : isDraw ? t('match.result.draw') : t('match.result.loss');
+  var resultEmoji = isWin ? '🏆' : isDraw ? '🤝' : '💧';
+
+  // Tabellino marcatori
+  function _scorerRows(scorers, isMyTeam) {
+    if (!scorers || !scorers.length) return '<div style="font-size:12px;color:var(--muted);padding:4px 0">—</div>';
+    return scorers.map(function(s) {
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)">'
+        + '<span style="font-size:12px;color:' + (isMyTeam ? 'var(--text)' : 'var(--muted)') + '">' + s.name + '</span>'
+        + '<span style="font-size:12px;font-weight:700">'
+        + (s.goals > 0 ? '⚽ ×' + s.goals : '')
+        + (s.assists > 0 ? ' 🤝 ×' + s.assists : '')
+        + '</span>'
+        + '</div>';
+    }).join('');
+  }
+
+  var myName  = G.myTeam ? G.myTeam.name : '—';
+  var oppName = data.opp ? data.opp.name : '—';
+
+  var ov = document.createElement('div');
+  ov.id = 'sim-result-popup';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;z-index:700;backdrop-filter:blur(8px)';
+
+  ov.innerHTML = '<div id="sim-result-card" style="background:var(--panel);border:2px solid ' + accentColor + '44;border-radius:18px;'
+    + 'padding:28px;max-width:460px;width:92%;position:relative;'
+    + 'box-shadow:0 0 60px ' + accentColor + '22,0 8px 40px rgba(0,0,0,.6)">'
+
+    // Canvas coriandoli (solo vittoria)
+    + (isWin ? '<canvas id="sim-confetti" style="position:absolute;inset:0;width:100%;height:100%;border-radius:18px;pointer-events:none;z-index:0"></canvas>' : '')
+
+    // Contenuto
+    + '<div style="position:relative;z-index:1">'
+
+    // Giornata
+    + '<div style="text-align:center;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px">'
+    + t('common.round') + ' ' + data.round + '</div>'
+
+    // Risultato grande
+    + '<div style="text-align:center;margin-bottom:20px">'
+    + '<div style="font-size:42px;margin-bottom:6px">' + resultEmoji + '</div>'
+    + '<div style="font-size:28px;font-weight:900;color:' + accentColor + ';text-shadow:0 0 20px ' + accentColor + '60;margin-bottom:8px">'
+    + resultLabel.toUpperCase()
+    + '</div>'
+    // Squadre e punteggio
+    + '<div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:4px">'
+    + '<span style="font-size:14px;font-weight:700;color:var(--text);text-align:right;flex:1">' + myName + '</span>'
+    + '<span style="font-size:32px;font-weight:900;color:' + accentColor + ';min-width:80px;text-align:center">'
+    + data.myScore + ' — ' + data.opScore
+    + '</span>'
+    + '<span style="font-size:14px;font-weight:700;color:var(--muted);text-align:left;flex:1">' + oppName + '</span>'
+    + '</div>'
+    // Premio
+    + (data.reward ? '<div style="font-size:12px;color:var(--green);font-weight:700;margin-top:6px">+' + formatMoney(data.reward) + '</div>' : '')
+    + '</div>'
+
+    // Tabellino
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">'
+    // Marcatori mia squadra
+    + '<div>'
+    + '<div style="font-size:10px;font-weight:700;color:' + accentColor + ';text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">'
+    + myName
+    + '</div>'
+    + _scorerRows(data.myScorers, true)
+    + '</div>'
+    // Marcatori avversari
+    + '<div>'
+    + '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">'
+    + oppName
+    + '</div>'
+    + _scorerRows(data.oppScorers, false)
+    + '</div>'
+    + '</div>'
+
+    // Bottone chiudi
+    + '<button onclick="document.getElementById(\'sim-result-popup\').remove()" '
+    + 'style="width:100%;padding:12px;background:' + accentColor + '22;border:1.5px solid ' + accentColor + '55;'
+    + 'border-radius:10px;color:' + accentColor + ';font-weight:800;font-size:14px;cursor:pointer;'
+    + 'transition:background .15s" '
+    + 'onmouseover="this.style.background=\'' + accentColor + '33\'" '
+    + 'onmouseout="this.style.background=\'' + accentColor + '22\'">'
+    + t('common.close')
+    + '</button>'
+    + '</div>'
+    + '</div>';
+
+  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+
+  // Coriandoli per la vittoria
+  if (isWin) _simResultConfetti();
+}
+window._showSimResultPopup = _showSimResultPopup;
+
+function _simResultConfetti() {
+  var canvas = document.getElementById('sim-confetti');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  canvas.width  = canvas.offsetWidth  || 460;
+  canvas.height = canvas.offsetHeight || 520;
+
+  var colors = ['#2ecc71','#00c2ff','#f0c040','#e74c3c','#a855f7','#ff8c42','#69f0ae'];
+  var pieces = Array.from({ length: 90 }, function() {
+    return {
+      x: Math.random() * canvas.width,
+      y: -20 - Math.random() * canvas.height * .4,
+      vx: (Math.random() - .5) * 2.5,
+      vy: 2 + Math.random() * 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      w: 5 + Math.random() * 7,
+      h: 3 + Math.random() * 4,
+      rot: Math.random() * 360,
+      vr: (Math.random() - .5) * 8,
+    };
+  });
+
+  var frame;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    var alive = false;
+    pieces.forEach(function(p) {
+      if (p.y > canvas.height + 20) return;
+      alive = true;
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.vy += .04;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot * Math.PI / 180);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = Math.max(0, 1 - p.y / (canvas.height * 1.2));
+      ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+      ctx.restore();
+    });
+    if (alive) frame = requestAnimationFrame(draw);
+  }
+  draw();
+  // Ferma dopo 3.5 sec
+  setTimeout(function() { if (frame) cancelAnimationFrame(frame); }, 3500);
+}

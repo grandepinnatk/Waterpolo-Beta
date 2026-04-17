@@ -329,6 +329,7 @@ function simNextRound() {
   // Simula TUTTE le partite della giornata, inclusa quella della mia squadra
   const roundMatches = G.schedule.filter(m => m.round === r && !m.played);
   console.log('[SIM] Partite da simulare:', roundMatches.length);
+  var _myMatchResult = null; // dati partita mia squadra per popup risultato
   roundMatches.forEach(m => {
     const hT = G.teams.find(tm => tm.id === m.home);
     const aT = G.teams.find(tm => tm.id === m.away);
@@ -390,6 +391,13 @@ function simNextRound() {
       }
       G.msgs.push(`G${r}: ${G.myTeam.name} ${res} vs ${opp.name} (${myScore}-${opScore})` +
                   (reward ? ` +${formatMoney(reward)}` : ''));
+      // Salva dati per popup risultato
+      _myMatchResult = {
+        round: r, ih, myScore, opScore, res, reward,
+        opp, details: m.details,
+        myScorers: (m.details ? (ih ? m.details.home : m.details.away) : []) || [],
+        oppScorers: (m.details ? (ih ? m.details.away : m.details.home) : []) || [],
+      };
       console.log('[SIM] Mia partita: ' + G.myTeam.name + ' ' + myScore + '-' + opScore + ' ' + opp.name +
                   ' | ' + (ih ? 'Casa' : 'Trasferta') + ' | Premio: +' + (reward||0) + '€');
       if (m.details) {
@@ -493,6 +501,10 @@ function simNextRound() {
   }
 
   updateHeader(); autoSave(); renderDash();
+  // Popup risultato partita simulata
+  if (_myMatchResult) {
+    setTimeout(() => _showSimResultPopup(_myMatchResult), 150);
+  }
   // Popup convocazione nazionale
   if (G._pendingNationalPopup && G._pendingNationalPopup.length > 0) {
     const _toShow = G._pendingNationalPopup;
