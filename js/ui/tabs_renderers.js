@@ -415,16 +415,26 @@ function renderDash() {
 
   // ── Categoria notizia ──
   function msgTag(txt) {
-    if (/infortun|injur|injury|exhausted|out of energy/i.test(txt))              return [t('nav.training').toUpperCase(),'#e74c3c'];
-    if (/contratto|rinnov|scadenz|resciss|contract|renew|expir|terminat/i.test(txt)) return [t('roster.contract').toUpperCase(),'#9c27b0'];
-    if (/mercato|offerta|acquist|svinc|vend|market|transfer|signed|sold|offer/i.test(txt)) return [t('nav.market').toUpperCase(),'#ff8c42'];
-    if (/giornata|giocato|pareggi|vince|perde|gol|assist|parate|matchday|wins|loses|draws|goals|assists|saves/i.test(txt)) return [t('common.result').toUpperCase(),'#1565c0'];
-    if (/ingaggi|budget|bonus|penale|finanz|salary|wages|finance|balance/i.test(txt)) return [t('nav.finance').toUpperCase(),'#2e7d32'];
-    if (/allenament|tactic|stella|training|stars/i.test(txt))       return [t('nav.training').toUpperCase(),'#00838f'];
-    if (/guarit|recover|infortun.*torn/i.test(txt))          return [t('goals.inProgress').toUpperCase(),'#2e7d32'];
-    if (/playoff|playout|retrocessione|scudetto|relegat|survived|champion/i.test(txt)) return [t('nav.playoff').toUpperCase(),'#c62828'];
-    if (/nazional|convocato|nazionale|national|callup|called up/i.test(txt)) return [t('national.badge'),'#1565c0'];
-    return [t('dash.news').toUpperCase(),'#455a64'];
+    // Stesso ordine di NEWS_CATEGORIES in tabs.js — le specifiche prima delle generiche
+    if (/infortun|injur|injury|exhausted|out of energy|🚑/i.test(txt))
+      return [t('nav.training').toUpperCase(), '#e74c3c'];
+    if (/guarit|recover|torna disponibile|available again/i.test(txt))
+      return [t('goals.inProgress').toUpperCase(), '#27ae60'];
+    if (/nazional|convocazione|nazionale|national|call.up|called up|internazional/i.test(txt))
+      return [t('national.badge'), '#1565c0'];
+    if (/playoff|playout|retrocessione|scudetto|relegat|survived|champion|semifinal|finale scudetto/i.test(txt))
+      return [t('nav.playoff').toUpperCase(), '#c62828'];
+    if (/allenamento|allenament|sessione|training:|athletic|conditioning|goalkeeper training|technical training|endurance training|rest.*recovery|attack training|defence training|tactical session|giocatori migliorati|players improved/i.test(txt))
+      return [t('nav.training').toUpperCase(), '#00838f'];
+    if (/contratto|rinnov|scadenz|resciss|contract|renew|expir|terminat|rescind|proposta.*rinnovo|renewal/i.test(txt))
+      return [t('roster.contract').toUpperCase(), '#9c27b0'];
+    if (/mercato|offerta|acquist|svinc|vend|market|transfer|signed|sold|offer|ceduto|🛒|💼/i.test(txt))
+      return [t('nav.market').toUpperCase(), '#ff8c42'];
+    if (/ingaggi|budget|bonus|penale|finanz|salary|wages|finance|balance|💸|spettatori|incasso|monte/i.test(txt))
+      return [t('nav.finance').toUpperCase(), '#2e7d32'];
+    if (/giocato|pareggi|vince|perde|matchday|wins|loses|draws/i.test(txt) || /^G\d+:/.test(txt))
+      return [t('common.result').toUpperCase(), '#1565c0'];
+    return [t('dash.news').toUpperCase(), '#455a64'];
   }
 
   // ── Focus giocatore: miglior morale nella rosa ──
@@ -766,15 +776,18 @@ function renderDash() {
 
       // Click handler basato sulla config
       var rowClick;
-      if (isResult && mIdx >= 0 && _popupOn) {
+      if (!_popupOn) {
+        // Popup disabilitato per questa categoria
+        rowClick = ' style="cursor:default"';
+      } else if (isResult && mIdx >= 0) {
+        // Risultato con partita trovata → popup dettaglio partita
         rowClick = ' onclick="showMatchDetailPopup(' + mIdx + ')" style="cursor:pointer"';
-      } else if (_popupOn) {
+      } else {
+        // Tutte le altre notizie con popup abilitato → popup testo generico
         if (!window._newsCache) window._newsCache = [];
         var nIdx = window._newsCache.length;
         window._newsCache.push({ text: m, color: tagColor, label: tagLabel });
         rowClick = ' onclick="showNewsPopupIdx(' + nIdx + ')" style="cursor:pointer"';
-      } else {
-        rowClick = ' style="cursor:default"';
       }
 
       h += '<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 14px;'        + 'border-bottom:1px solid rgba(255,255,255,.04);transition:background .12s"'        + rowClick        + (_popupOn ? ' onmouseover="this.style.background=\'rgba(255,255,255,.03)\'" onmouseout="this.style.background=\'transparent\'"' : '')        + '>'        + '<span style="flex-shrink:0;margin-top:1px;font-size:9px;font-weight:800;padding:2px 5px;border-radius:4px;'        + 'background:' + tagColor + '33;color:' + tagColor + ';border:1px solid ' + tagColor + '55;letter-spacing:.3px;white-space:nowrap">'        + tagLabel + '</span>'        + '<span style="font-size:12px;color:' + _wText + ';line-height:1.45">' + _linkTeamNames(m) + '</span>'        + '</div>';

@@ -162,29 +162,78 @@ const CFG_KEY = 'wp_config';
 
 // Categorie notizie — id, chiave i18n, regex di rilevamento, colore
 const NEWS_CATEGORIES = [
-  { id: 'injuries',  labelKey: 'nav.training',       regex: /infortun|injur|injury|exhausted|out of energy/i,                     color: '#e74c3c' },
-  { id: 'contract',  labelKey: 'roster.contract',    regex: /contratto|rinnov|scadenz|resciss|contract|renew|expir|terminat/i,    color: '#9c27b0' },
-  { id: 'market',    labelKey: 'nav.market',         regex: /mercato|offerta|acquist|svinc|vend|market|transfer|signed|sold|offer/i, color: '#ff8c42' },
-  { id: 'result',    labelKey: 'common.result',      regex: /giornata|giocato|pareggi|vince|perde|gol|assist|parate|matchday|wins|loses|draws|goals|assists|saves/i, color: '#1565c0' },
-  { id: 'finance',   labelKey: 'nav.finance',        regex: /ingaggi|budget|bonus|penale|finanz|salary|wages|finance|balance/i,   color: '#2e7d32' },
-  { id: 'training',  labelKey: 'nav.training',       regex: /allenament|tactic|stella|training|stars/i,                          color: '#00838f' },
-  { id: 'recovery',  labelKey: 'goals.inProgress',   regex: /guarit|recover|infortun.*torn/i,                                    color: '#2e7d32' },
-  { id: 'playoff',   labelKey: 'nav.playoff',        regex: /playoff|playout|retrocessione|scudetto|relegat|survived|champion/i, color: '#c62828' },
-  { id: 'national',  labelKey: 'national.badge',     regex: /nazional|convocato|nazionale|national|callup|called up/i,           color: '#1565c0' },
-  { id: 'news',      labelKey: 'dash.news',          regex: null, /* default */                                                   color: '#455a64' },
+  // Ordine importante: le regex più specifiche vanno PRIMA di quelle generiche
+
+  // 1. Infortuni — prima di result perché "infortunato" può contenere numeri
+  { id: 'injuries',  labelKey: 'nav.training',
+    regex: /infortun|injur|injury|exhausted|out of energy|🚑/i,
+    color: '#e74c3c' },
+
+  // 2. Recupero — prima di injuries per match più specifico
+  { id: 'recovery',  labelKey: 'goals.inProgress',
+    regex: /guarit|recover|torna disponibile|available again/i,
+    color: '#27ae60' },
+
+  // 3. Nazionale — prima di result (contiene nomi giocatori con gol/assist)
+  { id: 'national',  labelKey: 'national.badge',
+    regex: /nazional|convocazione|nazionale|national|call.up|called up|internazional/i,
+    color: '#1565c0' },
+
+  // 4. Playoff — prima di result
+  { id: 'playoff',   labelKey: 'nav.playoff',
+    regex: /playoff|playout|retrocessione|scudetto|relegat|survived|champion|semifinal|finale scudetto/i,
+    color: '#c62828' },
+
+  // 5. Allenamento — PRIMA di result (i testi "X players improved" matcherebbero result)
+  { id: 'training',  labelKey: 'nav.training',
+    regex: /allenamento|allenament|sessione|training:|athletic|conditioning|goalkeeper training|technical training|endurance training|rest.*recovery|attack training|defence training|tactical session|giocatori migliorati|players improved/i,
+    color: '#00838f' },
+
+  // 6. Contratto
+  { id: 'contract',  labelKey: 'roster.contract',
+    regex: /contratto|rinnov|scadenz|resciss|contract|renew|expir|terminat|rescind|proposta.*rinnovo|renewal/i,
+    color: '#9c27b0' },
+
+  // 7. Mercato
+  { id: 'market',    labelKey: 'nav.market',
+    regex: /mercato|offerta|acquist|svinc|vend|market|transfer|signed|sold|offer|ceduto|🛒|💼/i,
+    color: '#ff8c42' },
+
+  // 8. Finanza
+  { id: 'finance',   labelKey: 'nav.finance',
+    regex: /ingaggi|budget|bonus|penale|finanz|salary|wages|finance|balance|💸|spettatori|incasso|monte/i,
+    color: '#2e7d32' },
+
+  // 9. Risultato — ultima tra le categorie specifiche (regex generica con gol/assist)
+  { id: 'result',    labelKey: 'common.result',
+    regex: /^G\d+:|giocato|pareggi|vince|perde|matchday|wins|loses|draws/i,
+    color: '#1565c0' },
+
+  // 10. Notizia generica — default catch-all
+  { id: 'news',      labelKey: 'dash.news',
+    regex: null,
+    color: '#455a64' },
 ];
 
 // Legge la configurazione salvata (o default: tutte attive tranne finance)
 function getConfig() {
+  var cfg = null;
   try {
     const raw = localStorage.getItem(CFG_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) cfg = JSON.parse(raw);
   } catch(e) {}
-  // Default: tutte popup-attive eccetto stipendi (finance)
-  const cfg = { newsPopup: {} };
+
+  // Default o migrazione: assicura che tutte le categorie siano presenti
+  if (!cfg) cfg = { newsPopup: {} };
+  if (!cfg.newsPopup) cfg.newsPopup = {};
+
+  // Aggiunge eventuali categorie mancanti (nuove o mai impostate) con default true
   NEWS_CATEGORIES.forEach(function(cat) {
-    cfg.newsPopup[cat.id] = cat.id !== 'finance';
+    if (cfg.newsPopup[cat.id] === undefined) {
+      cfg.newsPopup[cat.id] = true;
+    }
   });
+
   return cfg;
 }
 
