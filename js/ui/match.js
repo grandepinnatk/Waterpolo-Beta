@@ -310,13 +310,13 @@ function refreshMatchUI() {
         </thead>
         <tbody>`;
 
-    for (let t = 0; t < 4; t++) {
-      const isCurrent = (t + 1) === ms.period && !ms.finished;
-      const isPast    = (t + 1) < ms.period || ms.finished;
+    for (let tp = 0; tp < 4; tp++) {
+      const isCurrent = (tp + 1) === ms.period && !ms.finished;
+      const isPast    = (tp + 1) < ms.period || ms.finished;
       const isFuture  = !isCurrent && !isPast;
 
-      const homeGoals = isMyHome ? ps[t].my  : ps[t].opp;
-      const awayGoals = isMyHome ? ps[t].opp : ps[t].my;
+      const homeGoals = isMyHome ? ps[tp].my  : ps[tp].opp;
+      const awayGoals = isMyHome ? ps[tp].opp : ps[tp].my;
 
       const rowBg = isCurrent ? 'background:rgba(0,194,255,.07)' : '';
       const valStyle = isFuture

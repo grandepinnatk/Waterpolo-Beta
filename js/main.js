@@ -275,7 +275,7 @@ function _assignSimulatedRatings(roster, goalsConceded, matchDetails, scorerKey)
 function _replenishRoster(teamId) {
   const MIN_ROSTER = 13;
   if (teamId === G.myId) return;
-  const team   = G.teams.find(t => t.id === teamId);
+  const team   = G.teams.find(tm => tm.id === teamId);
   if (!team) return;
   const roster = G.rosters[teamId];
   if (!roster) return;
@@ -330,8 +330,8 @@ function simNextRound() {
   const roundMatches = G.schedule.filter(m => m.round === r && !m.played);
   console.log('[SIM] Partite da simulare:', roundMatches.length);
   roundMatches.forEach(m => {
-    const hT = G.teams.find(t => t.id === m.home);
-    const aT = G.teams.find(t => t.id === m.away);
+    const hT = G.teams.find(tm => tm.id === m.home);
+    const aT = G.teams.find(tm => tm.id === m.away);
     // Calcola spettatori per la partita (solo se c'è lo stadio)
     var _isHomeGame = m.home === G.myId;
     var _homeBoost  = 0;
@@ -349,7 +349,7 @@ function simNextRound() {
     updateStandings(G.stand, m.home, m.away, m.score);
     // Aggiorna budget squadre CPU (incasso simulato partita casa)
     if (m.home !== G.myId) {
-      var _hTeam = G.teams.find(function(t){ return t.id === m.home; });
+      var _hTeam = G.teams.find(function(tm){ return tm.id === m.home; });
       if (_hTeam) {
         var _cpuRev = Math.round((_hTeam.budget || 500000) * 0.003 * (0.8 + Math.random() * 0.4));
         _hTeam.budget = (_hTeam.budget || 0) + _cpuRev;
@@ -378,7 +378,7 @@ function simNextRound() {
     // Se è la partita della mia squadra, registra risultato e premi
     if (m.home === G.myId || m.away === G.myId) {
       const ih      = m.home === G.myId;
-      const opp     = G.teams.find(t => t.id === (ih ? m.away : m.home));
+      const opp     = G.teams.find(tm => tm.id === (ih ? m.away : m.home));
       const myScore = ih ? m.score.home : m.score.away;
       const opScore = ih ? m.score.away : m.score.home;
       const res     = myScore > opScore ? 'VINCE' : myScore < opScore ? 'perde' : 'pareggia';
@@ -421,10 +421,10 @@ function simNextRound() {
   // Ogni 3 giornate le squadre avversarie valutano acquisti se sotto organico
   const _curRnd = typeof currentRound === 'function' ? currentRound() : 0;
   if (_curRnd % 3 === 0) {
-    G.teams.forEach(t => {
-      if (t.id === G.myId) return;
-      const _roster = G.rosters[t.id] || [];
-      if (_roster.length < 13) _replenishRoster(t.id);
+    G.teams.forEach(tm => {
+      if (tm.id === G.myId) return;
+      const _roster = G.rosters[tm.id] || [];
+      if (_roster.length < 13) _replenishRoster(tm.id);
     });
   }
 
@@ -518,8 +518,8 @@ function initPostSeason() {
   if (G.phase !== 'regular') return;
   const s = getSortedStandings(G.stand);
 
-  G.poTeams  = s.slice(0, 4).map(t => t.id);   // 1°-4°: playoff
-  G.ploTeams = s.slice(10, 13).map(t => t.id);  // 11°-13°: playout
+  G.poTeams  = s.slice(0, 4).map(tm => tm.id);   // 1°-4°: playoff
+  G.ploTeams = s.slice(10, 13).map(tm => tm.id);  // 11°-13°: playout
   G.relegated = s[13].id;                        // 14°: retrocessa diretta
   G.phase    = 'playoff';
 
@@ -537,8 +537,8 @@ function initPostSeason() {
     done: false, relegated: null,
   };
 
-  const relName = G.teams.find(t => t.id === G.relegated)?.name || '—';
-  G.msgs.push(t('nav.playoff') + ': ' + G.poTeams.map(id => G.teams.find(t => t.id === id)?.name).join(', '));
+  const relName = G.teams.find(tm => tm.id === G.relegated)?.name || '—';
+  G.msgs.push(t('nav.playoff') + ': ' + G.poTeams.map(id => G.teams.find(tm => tm.id === id)?.name).join(', '));
   G.msgs.push(t('seasonEnd.relegated', {team: relName}));
   updateHeader(); autoSave();
 }
@@ -777,10 +777,10 @@ function _updateStadiumConstruction() {
     if (!sec.construction) return;
     sec.construction.daysLeft = (parseInt(sec.construction.daysLeft) || 1) - 1;
     if (sec.construction.daysLeft <= 0) {
-      var t = sec.construction.type;
-      if (t === 'level')  sec.level = (sec.level || 0) + 1;
-      else if (t === 'bar')  sec.bar  = true;
-      else if (t === 'shop') sec.shop = true;
+      var ctype = sec.construction.type;
+      if (ctype === 'level')  sec.level = (sec.level || 0) + 1;
+      else if (ctype === 'bar')  sec.bar  = true;
+      else if (ctype === 'shop') sec.shop = true;
       G.msgs.push('✅ ' + sec.construction.label + ' — ' + t('stadium.capacity') + ': ' + stadiumCapacity().toLocaleString() + '.');
       sec.construction = null;
     }
@@ -858,8 +858,8 @@ function _splitIntoPeriods(totalHome, totalAway) {
 function simPOMatch(type, idx) {
   const pb = G.poBracket;
   const m  = type === 'sf' ? pb.sf[idx] : pb.final;
-  const hT = G.teams.find(t => t.id === m.home);
-  const aT = G.teams.find(t => t.id === m.away);
+  const hT = G.teams.find(tm => tm.id === m.home);
+  const aT = G.teams.find(tm => tm.id === m.away);
   const sc = simulateResult(hT, aT, 0, G.rosters);
   // Parziali per 4 tempi
   if (!m.scores) m.scores = [];
@@ -898,7 +898,7 @@ function simPOMatch(type, idx) {
     if (pb.sf.every(s => s.winner)) { pb.final.home = pb.sf[0].winner; pb.final.away = pb.sf[1].winner; }
   } else {
     pb.done = true;
-    const wname = G.teams.find(t => t.id === m.winner)?.name;
+    const wname = G.teams.find(tm => tm.id === m.winner)?.name;
     if (m.winner === G.myId) {
       G.playoffResult = 'champion';
       G.msgs.push(t('seasonEnd.champion', {team: G.myTeam.name}));
@@ -908,7 +908,7 @@ function simPOMatch(type, idx) {
     champRoster.forEach(function(p) {
       if (p && p.salary) p.salary = Math.round(p.salary * 1.20);
     });
-    const champTeam = G.teams.find(t => t.id === m.winner);
+    const champTeam = G.teams.find(tm => tm.id === m.winner);
     if (champTeam) {
       const msg = (m.winner === G.myId)
         ? '💰 Scudetto! Gli ingaggi di tutta la rosa aumentano del 20%.'
@@ -930,8 +930,8 @@ function simPLMatch(key) {
       m.home = (plb.m1.home === m1w) ? plb.m1.away : plb.m1.home; // perdente
     }
   }
-  const hT   = G.teams.find(t => t.id === m.home);
-  const aT   = G.teams.find(t => t.id === m.away);
+  const hT   = G.teams.find(tm => tm.id === m.home);
+  const aT   = G.teams.find(tm => tm.id === m.away);
   const sc  = simulateResult(hT, aT, 0, G.rosters);
   // Parziali per 4 tempi
   if (!m.scores) m.scores = [];
@@ -959,7 +959,7 @@ function simPLMatch(key) {
       // Ancora pari → rigori
       const ps = _simPenaltyShootout(m.home, m.away);
       winner = ps.winner;
-      const wName = G.teams.find(t => t.id === winner)?.name || '?';
+      const wName = G.teams.find(tm => tm.id === winner)?.name || '?';
       G.msgs.push('🎯 ' + t('lineup.penaltyOrder') + ' ' + t('playoff.playout').toLowerCase() + ': ' + (hT?.name||'?') + ' ' + ps.hGoals + '-' + ps.aGoals + ' ' + (aT?.name||'?') + '. ' + t('playoff.saves') + ' ' + wName + '.');
     }
   }
@@ -969,7 +969,7 @@ function simPLMatch(key) {
     // Il PERDENTE dell'11° vs 13° va alla finale rischio retrocessione
     // Il VINCITORE si salva direttamente
     plb.m2.home = loser;
-    const savedName = G.teams.find(t => t.id === winner)?.name || '?';
+    const savedName = G.teams.find(tm => tm.id === winner)?.name || '?';
     if (winner === G.myId) {
       G.playoffResult = 'survived';
       G.msgs.push(t('seasonEnd.survived'));
@@ -981,7 +981,7 @@ function simPLMatch(key) {
     plb.relegated = loser; plb.done = true;
     if (loser === G.myId) { G.playoffResult = 'relegated'; G.msgs.push(t('seasonEnd.relegated', {team: G.myTeam.name})); }
     else if (winner === G.myId) { G.playoffResult = 'survived'; G.msgs.push(t('seasonEnd.survived')); }
-    else G.msgs.push(G.teams.find(t => t.id === loser)?.name + ' — ' + t('playoff.relegated'));
+    else G.msgs.push(G.teams.find(tm => tm.id === loser)?.name + ' — ' + t('playoff.relegated'));
   }
   autoSave(); renderPlayoff();
 }
@@ -1002,7 +1002,7 @@ function startPOMatch(type, idx) {
   }
 
   const ih  = m.home === G.myId;
-  const opp = G.teams.find(t => t.id === (ih ? m.away : m.home));
+  const opp = G.teams.find(tm => tm.id === (ih ? m.away : m.home));
   openLineup(m, ih, opp, type, m);
 }
 
@@ -1187,7 +1187,7 @@ function _recalcTiers() {
   });
 
   // Ricalcola obiettivi per la nostra squadra in base al nuovo tier
-  G.myTeam.tier = G.teams.find(t => t.id === G.myId)?.tier || G.myTeam.tier;
+  G.myTeam.tier = G.teams.find(tm => tm.id === G.myId)?.tier || G.myTeam.tier;
 }
 
 function startNewSeason() {
@@ -1260,7 +1260,7 @@ function startNewSeason() {
   G.schedule = generateSchedule(G.teams);
   G.stand    = initStandings(G.teams);
   // Inizializza budget simulato delle squadre avversarie per il mercato
-  G.teams.forEach(t => { if (!t._budget || t.id === G.myId) t._budget = t.str * 40000; });
+  G.teams.forEach(tm => { if (!tm._budget || tm.id === G.myId) tm._budget = tm.str * 40000; });
 
   // ── Nuovi obiettivi basati sul tier aggiornato ──
   G.objectives = initObjectives(G.myTeam.tier || 'B');
@@ -1521,10 +1521,10 @@ function _fillMarketPool(targetSize) {
   // Raccoglie giocatori disponibili da tutte le squadre avversarie
   // Distribuisce per fascia: ~30% fascia bassa (OVR 50-64), ~40% media (65-79), ~30% alta (80+)
   const all = [];
-  G.teams.forEach(t => {
-    if (t.id === G.myId) return;
-    G.rosters[t.id].forEach(p => {
-      if (p.overall >= 50) all.push({ ...p, _tid: t.id, _tname: t.name });
+  G.teams.forEach(tm => {
+    if (tm.id === G.myId) return;
+    G.rosters[tm.id].forEach(p => {
+      if (p.overall >= 50) all.push({ ...p, _tid: tm.id, _tname: tm.name });
     });
   });
 
@@ -1724,7 +1724,7 @@ function generateTransferOffers() {
     const offer     = Math.round((offerMin + Math.random() * (offerMax - offerMin)) / 1000) * 1000;
 
     // Scegli squadra offerente casuale (non la nostra)
-    const buyers = G.teams.filter(t => t.id !== G.myId);
+    const buyers = G.teams.filter(tm => tm.id !== G.myId);
     const buyer  = pick(buyers);
 
     // Salva l'offerta nell'entry — sostituisce offerta precedente della stessa squadra

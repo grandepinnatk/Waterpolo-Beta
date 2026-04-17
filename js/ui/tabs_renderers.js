@@ -3,7 +3,7 @@
 // showTeamRosterPopup(teamId) apre un modale con la rosa completa
 // ════════════════════════════════════════════
 function showTeamRosterPopup(teamId) {
-  const team   = G.teams.find(t => t.id === teamId);
+  const team   = G.teams.find(tm => tm.id === teamId);
   if (!team) return;
   const roster = G.rosters[teamId] || [];
   const rl     = { POR:t('roles.POR'), DIF:t('roles.DIF'), CEN:'Centromediano', ATT:t('roles.ATT'), CB:t('roles.CB') };
@@ -85,15 +85,15 @@ window.showTeamRosterPopup = showTeamRosterPopup;
 function _linkTeamNames(text) {
   if (!G || !G.teams) return text;
   let result = text;
-  G.teams.forEach(t => {
-    if (!t.name || t.name.length < 3) return;
+  G.teams.forEach(tm => {
+    if (!tm.name || tm.name.length < 3) return;
     // Escape caratteri speciali nel nome per regex
-    const escaped = t.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escaped = tm.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const re = new RegExp('(' + escaped + ')', 'g');
     result = result.replace(re,
-      `<span onclick="showTeamRosterPopup('${t.id}')" ` +
+      `<span onclick="showTeamRosterPopup('${tm.id}')" ` +
       `style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;color:inherit" ` +
-      `title="Vedi rosa ${t.name}">$1</span>`
+      `title="${tm.name}">$1</span>`
     );
   });
   return result;
@@ -213,8 +213,8 @@ function showMatchDetailPopup(matchIdx) {
   const m  = G.schedule[matchIdx];
   if (!m || !m.played || !m.score) return;
 
-  const hT = G.teams.find(t => t.id === m.home);
-  const aT = G.teams.find(t => t.id === m.away);
+  const hT = G.teams.find(tm => tm.id === m.home);
+  const aT = G.teams.find(tm => tm.id === m.away);
   const d  = m.details || null;
 
   const existing = document.getElementById('match-detail-popup');
@@ -1613,13 +1613,13 @@ function renderTrain() {
       + 'letter-spacing:.7px;margin-bottom:10px">&#128203; Storico Allenamenti</div>'
       + '<div style="display:flex;flex-direction:column;gap:3px">';
 
-    G.trainHistory.slice(-8).reverse().forEach(function(t) {
+    G.trainHistory.slice(-8).reverse().forEach(function(th) {
       h += '<div style="display:grid;grid-template-columns:28px 1fr 1fr auto;gap:8px;align-items:center;'
         + 'padding:6px 10px;background:rgba(255,255,255,.025);border-radius:6px;font-size:11px">'
-        + '<div style="font-weight:700;color:rgba(255,255,255,.28)">#' + t.n + '</div>'
-        + '<div style="color:rgba(255,255,255,.7);font-weight:600">' + t.name + '</div>'
-        + '<div style="color:rgba(0,194,255,.65)">' + t.eff + '</div>'
-        + '<div style="color:rgba(240,192,64,.65);text-align:right">' + (t.cost ? formatMoney(t.cost) : '—') + '</div>'
+        + '<div style="font-weight:700;color:rgba(255,255,255,.28)">#' + th.n + '</div>'
+        + '<div style="color:rgba(255,255,255,.7);font-weight:600">' + th.name + '</div>'
+        + '<div style="color:rgba(0,194,255,.65)">' + th.eff + '</div>'
+        + '<div style="color:rgba(240,192,64,.65);text-align:right">' + (th.cost ? formatMoney(th.cost) : '—') + '</div>'
         + '</div>';
     });
 
@@ -2038,19 +2038,19 @@ function _buildStandContent(activeTab) {
     // Raccoglie tutti i giocatori di tutte le squadre con almeno 1 gol
     // Raccoglie gol di TUTTI i giocatori di tutte le squadre (incluse NPC)
     const allScorers = [];
-    G.teams.forEach(t => {
-      const roster = G.rosters[t.id] || [];
+    G.teams.forEach(tm => {
+      const roster = G.rosters[tm.id] || [];
       roster.forEach(p => {
         if ((p.goals || 0) > 0) {
           allScorers.push({
             name:     _shortPlayerName ? _shortPlayerName(p) : p.name,
-            team:     t.name,
-            teamAbbr: t.abbr,
-            teamId:   t.id,
+            team:     tm.name,
+            teamAbbr: tm.abbr,
+            teamId:   tm.id,
             role:     p.role,
             goals:    p.goals  || 0,
             assists:  p.assists || 0,
-            isMe:     t.id === G.myId,
+            isMe:     tm.id === G.myId,
           });
         }
       });
@@ -2418,10 +2418,10 @@ function _sortArrow(key) {
 function renderMarket() {
   // ── Giocatori IN ENTRATA (da altre squadre) ──
   const avail = [];
-  G.teams.forEach(t => {
-    if (t.id === G.myId) return;
-    G.rosters[t.id].forEach(p => {
-      if (p.overall > 55 && Math.random() > 0.55) avail.push({ ...p, _tid: t.id, _tname: t.name });
+  G.teams.forEach(tm => {
+    if (tm.id === G.myId) return;
+    G.rosters[tm.id].forEach(p => {
+      if (p.overall > 55 && Math.random() > 0.55) avail.push({ ...p, _tid: tm.id, _tname: tm.name });
     });
   });
   avail.sort((a, b) => b.overall - a.overall);
@@ -3095,44 +3095,62 @@ function renderStadium() {
   h += capCardHtml;
   var fillPct = Math.round((rev.fill || 0) * 100);
   h += statCard('👥', 'Stima spettatori · ' + fillPct + '% pieni', rev.paying.toLocaleString(I18N.getLang() === 'en' ? 'en-GB' : 'it-IT'), '#69f0ae');
-  h += statCard('🎫', 'Biglietto', rev.revenue > 0 ? (G.stadium.ticketPrice || 15) + '€' : (G.stadium.ticketPrice || 15) + '€', '#f0c040');
-  h += statCard('💰', 'Incasso stimato', formatMoney(rev.revenue), '#ff8c42');
+  h += statCard('🎫', t('stadium.ticketPrice'), (G.stadium.ticketPrice || 15) + '€', '#f0c040');
+  h += statCard('💰', t('extra.budgetAvail'), formatMoney(rev.revenue), '#ff8c42');
   h += '</div>';
 
   // ── Prezzo biglietto ──
   var tRange    = rev.ticketRange || { min: 1, max: 20 };
   var tPrice    = G.stadium.ticketPrice || 15;
   var tMtype    = rev.matchType || 'regular';
-  var mtLabel   = tMtype === 'final' ? '🏆 Finale' : tMtype === 'playoff' ? '⚡ Playoff/Playout' : '⚽ Campionato';
+  var mtLabel   = tMtype === 'final'   ? '🏆 ' + t('playoff.final')
+                : tMtype === 'playoff' ? '⚡ ' + t('nav.playoff')
+                : '⚽ ' + t('header.phase.regular');
   var tooHigh   = tPrice > tRange.max;
   var tooLow    = tPrice < tRange.min;
   var priceWarn = tooHigh
-    ? '⚠️ Prezzo troppo alto: gli spettatori calano (-' + Math.round(Math.min(60, (tPrice - tRange.max) * 1.5)) + '% riempimento)'
-    : tooLow ? '💡 Puoi alzare il prezzo senza perdere spettatori' : '✅ Prezzo ottimale per questo evento';
-  var warnCol   = tooHigh ? '#f0c040' : tooLow ? '#69f0ae' : '#69f0ae';
+    ? '⚠️ ' + t('extra.priceTooLow') + ' (-' + Math.round(Math.min(60, (tPrice - tRange.max) * 1.5)) + '%)'
+    : tooLow ? '💡 ' + t('goals.inProgress') : '✅ ' + t('goals.inProgress');
+  var warnCol   = tooHigh ? '#f0c040' : '#69f0ae';
+
   h += '<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);'
     + 'border-radius:10px;padding:12px 16px;margin-bottom:16px">'
-    + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">'
+
+    // Header label + tipo evento
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
     + '<span style="font-size:16px">🎫</span>'
-    + '<span style="font-size:13px;color:rgba(255,255,255,.6);font-weight:600">Prezzo biglietto:</span>'
+    + '<span style="font-size:13px;color:rgba(255,255,255,.6);font-weight:600">' + t('stadium.ticketPrice') + '</span>'
+    + '<span style="margin-left:auto;font-size:11px;color:rgba(255,255,255,.3)">' + mtLabel + '</span>'
+    + '</div>'
+
+    // Riga −  [input]  +  [Conferma]
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+    + '<button onclick="_ticketStep(-1)"'
+    + ' style="width:36px;height:36px;font-size:20px;font-weight:700;border-radius:8px;'
+    + 'background:var(--panel2);border:1px solid var(--border);color:var(--text);cursor:pointer;'
+    + 'display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1">−</button>'
     + '<input type="number" id="ticket-price-inp" min="1" max="150" value="' + tPrice + '"'
-    + ' onchange="setTicketPrice(this.value)"'
-    + ' style="width:75px;height:32px;border-radius:8px;border:1.5px solid rgba(0,194,255,.4);'
-    + 'background:rgba(0,194,255,.08);color:#00c2ff;font-size:15px;font-weight:800;text-align:center;padding:0 8px">'
-    + '<button onclick="setTicketPrice(document.getElementById(&quot;ticket-price-inp&quot;).value)"'
-    + ' style="padding:7px 18px;font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;'
+    + ' oninput="_updateTicketHint()"'
+    + ' style="flex:1;height:36px;border-radius:8px;border:1.5px solid rgba(0,194,255,.4);'
+    + 'background:rgba(0,194,255,.08);color:#00c2ff;font-size:16px;font-weight:800;text-align:center;padding:0 8px">'
+    + '<button onclick="_ticketStep(1)"'
+    + ' style="width:36px;height:36px;font-size:20px;font-weight:700;border-radius:8px;'
+    + 'background:var(--panel2);border:1px solid var(--border);color:var(--text);cursor:pointer;'
+    + 'display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1">+</button>'
+    + '<button onclick="setTicketPrice(document.getElementById(\'ticket-price-inp\').value)"'
+    + ' style="padding:0 18px;height:36px;font-size:12px;font-weight:800;letter-spacing:.5px;'
     + 'border-radius:8px;background:linear-gradient(135deg,#00838f,#005f69);border:none;color:#fff;cursor:pointer">'
-    + 'Imposta</button>'
-    + '<span style="font-size:11px;color:rgba(255,255,255,.3)">' + mtLabel + '</span>'
+    + t('common.confirm') + '</button>'
     + '</div>'
-    + '<div style="display:flex;align-items:center;justify-content:space-between">'
+
+    // Range ottimale + avviso
+    + '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px">'
     + '<div style="font-size:11px;color:rgba(255,255,255,.4)">'
-    + 'Range ottimale per questo evento: <strong style="color:rgba(255,255,255,.7)">' + tRange.min + '€ – ' + tRange.max + '€</strong>'
+    + t('common.result') + ': <strong style="color:rgba(255,255,255,.7)">' + tRange.min + '€ – ' + tRange.max + '€</strong>'
     + '</div>'
-    + '<div style="font-size:11px;font-weight:600;color:' + warnCol + '">' + priceWarn + '</div>'
+    + '<div id="ticket-hint" style="font-size:11px;font-weight:600;color:' + warnCol + '">' + priceWarn + '</div>'
     + '</div>'
     + '</div>';
-
   // ── Pianta SVG ──
   h += _renderStadiumMap();
 
@@ -3390,6 +3408,36 @@ function _sectionCard(key) {
   h += '</div>';
   return h;
 }
+
+
+// ── Funzioni prezzo biglietto ─────────────────────────────────────────
+function _ticketStep(dir) {
+  var inp = document.getElementById('ticket-price-inp');
+  if (!inp) return;
+  var step = 1;
+  var val  = Math.max(1, Math.min(150, (parseInt(inp.value) || 15) + dir * step));
+  inp.value = val;
+  _updateTicketHint();
+}
+window._ticketStep = _ticketStep;
+
+function _updateTicketHint() {
+  var inp  = document.getElementById('ticket-price-inp');
+  var hint = document.getElementById('ticket-hint');
+  if (!inp || !hint || !G || !G.stadium) return;
+  var val = parseInt(inp.value) || 15;
+  var rev = typeof calcStadiumRevenue === 'function' ? calcStadiumRevenue() : {};
+  var range = (rev && rev.ticketRange) || { min: 1, max: 20 };
+  var tooHigh = val > range.max;
+  var tooLow  = val < range.min;
+  var col = tooHigh ? '#f0c040' : '#69f0ae';
+  var msg = tooHigh
+    ? '⚠️ ' + t('extra.priceTooLow') + ' (-' + Math.round(Math.min(60, (val - range.max) * 1.5)) + '%)'
+    : tooLow ? '💡 ' + t('goals.inProgress') : '✅ ' + t('goals.inProgress');
+  hint.textContent = msg;
+  hint.style.color = col;
+}
+window._updateTicketHint = _updateTicketHint;
 
 function renderCredits() {
   // Legge la versione attuale dal footer della pagina (aggiornato ad ogni release)
