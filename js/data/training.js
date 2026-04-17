@@ -64,7 +64,7 @@ const TRAINING_TYPES = [
     desc:    t('training_data.gk.desc'),
     icon:    '🥅',
     cost:    10000,
-    eff:     { gk:5 },
+    eff:     { def:3, str:2, tec:1, res:1 },
     fatigue: 4,
   },
   {

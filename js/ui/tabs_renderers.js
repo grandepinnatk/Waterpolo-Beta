@@ -1867,6 +1867,8 @@ function doTrain(i) {
 
   roster.forEach(p => {
     if (!p || p.injured) return;  // infortunati: nessun effetto allenamento
+    if (tr.id === 'gk'      && p.role !== 'POR') return;  // allenamento portieri: solo POR
+    if (tr.id === 'defense'  && p.role === 'POR') return;  // allenamento difesa: esclude POR
     if (tr.eff.fitness) p.fitness = cap(p.fitness + rnd(1, tr.eff.fitness));
     if (tr.eff.morale)  p.morale  = cap(p.morale  + rnd(1, tr.eff.morale));
     // Attributi tecnici: progressione ridotta del 50% — ogni punto viene applicato solo con probabilità 50%

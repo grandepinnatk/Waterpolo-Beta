@@ -247,14 +247,22 @@ Dopo ogni giornata simulata, i messaggi generati vengono classificati per catego
 
 ### Efficacia allenamenti per ruolo
 
-| Allenamento | Costo | ATT | DIF | CEN | CB | POR |
-|-------------|-------|-----|-----|-----|----|-----|
-| Attacco (`att+4, vel+2`) | 12k | **+19** | +8 | +13 | +15 | +6 |
-| Difesa (`def+4, str+2`) | 12k | +6 | **+19** | +12 | +10 | **+17** |
-| Tattica (`att+2, def+2, vel+1, str+1`) | 12k | +15 | +16 | **+15** | +15 | +14 |
-| Resistenza (`res+4, str+2`) | 13k | +8 | +9 | +8 | +8 | +11 |
-| Tecnica (`tec+5, vel+1`) | 14k | +9 | +6 | +9 | +9 | +8 |
-| Preparazione (`tutti +1`) | 15k | +11 | +12 | +11 | +11 | +11 |
+> **Progressione attributi tecnici:** ogni punto di guadagno ha il 50% di probabilità di essere applicato, dimezzando la crescita media rispetto al valore nominale.
+
+| Allenamento | Costo | Effetti | Ruoli coinvolti | ΔOVR medio per sessione |
+|-------------|-------|---------|-----------------|------------------------|
+| 💪 Preparazione Atletica | 15k | fitness+8, att+1, def+1, spe+1, str+1, res+1 | Tutti | ~8 uniforme |
+| 🎯 Attacco | 12k | att+4, spe+2 | ATT, CB, CEN, DIF, POR | **ATT +19**, CB +15, CEN +13, DIF +8, POR +6 |
+| 🛡️ Difesa | 12k | def+4, str+2 | ATT, CB, CEN, DIF *(esclude POR)* | **DIF +19**, CEN +13, CB +11, ATT +7 |
+| 📋 Tattica | 12k | att+2, def+2, spe+1, str+1 | Tutti | ~11 uniforme |
+| 🥅 Allenamento Portieri | 10k | def+3, str+2, tec+1, res+1 | **Solo POR** | POR ~15 |
+| 🤽 Tecnica | 14k | tec+5, spe+1 | Tutti | ~8 uniforme |
+| 🏖️ Riposo e Recupero | 0 | fitness+12, morale+8 | Tutti | 0 (nessun attributo tecnico) |
+| 🏊 Resistenza | 13k | res+4, str+2, fitness+3 | Tutti | ~7 uniforme |
+
+**Regole di esclusione ruolo:**
+- `gk` (Allenamento Portieri) → applicato **esclusivamente ai POR**; i giocatori di movimento vengono saltati
+- `defense` (Allenamento Difesa) → applicato a tutti **eccetto i POR**; per i portieri usare l'allenamento dedicato
 
 ### Stamina e tattica
 
