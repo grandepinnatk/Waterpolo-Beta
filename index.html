@@ -176,12 +176,6 @@
             <option value="it">🇮🇹 Italiano</option>
             <option value="en">🇬🇧 English</option>
           </select>
-          <script>
-            (function(){
-              var s = document.getElementById('lang-select');
-              if (s) s.value = I18N.getSavedLang();
-            })();
-          </script>
         </div>
 
         <div class="welcome-section-title" id="wc-choose-team">Scegli la tua squadra</div>
@@ -544,6 +538,9 @@
     var lang = I18N.getSavedLang();
     var dict = lang === 'en' ? LANG_EN : LANG_IT;
     I18N.load(lang, dict);
+    // Sincronizza il select lingua nella lobby
+    var sel = document.getElementById('lang-select');
+    if (sel) sel.value = lang;
     // Inizializza box lingua nella topbar
     var flagMap = { it: '🇮🇹', en: '🇬🇧' };
     var lbl     = { it: 'IT',   en: 'EN'  };
