@@ -1869,14 +1869,16 @@ function doTrain(i) {
     if (!p || p.injured) return;  // infortunati: nessun effetto allenamento
     if (tr.eff.fitness) p.fitness = cap(p.fitness + rnd(1, tr.eff.fitness));
     if (tr.eff.morale)  p.morale  = cap(p.morale  + rnd(1, tr.eff.morale));
-    if (tr.eff.att)     p.stats.att = cap(p.stats.att + rnd(0, tr.eff.att));
-    if (tr.eff.def)     p.stats.def = cap(p.stats.def + rnd(0, tr.eff.def));
-    if (tr.eff.spe)     p.stats.spe = cap(p.stats.spe + rnd(0, tr.eff.spe));
-    if (tr.eff.str)     p.stats.str = cap(p.stats.str + rnd(0, tr.eff.str));
-    if (tr.eff.res)     p.stats.res = cap((p.stats.res || 50) + rnd(0, tr.eff.res));
-    if (tr.eff.tec) {
+    // Attributi tecnici: progressione ridotta del 50% — ogni punto viene applicato solo con probabilità 50%
+    if (tr.eff.att)  { let g=0; for(let _=0;_<rnd(0,tr.eff.att);_++) if(Math.random()<0.5) g++; p.stats.att = cap(p.stats.att + g); }
+    if (tr.eff.def)  { let g=0; for(let _=0;_<rnd(0,tr.eff.def);_++) if(Math.random()<0.5) g++; p.stats.def = cap(p.stats.def + g); }
+    if (tr.eff.spe)  { let g=0; for(let _=0;_<rnd(0,tr.eff.spe);_++) if(Math.random()<0.5) g++; p.stats.spe = cap(p.stats.spe + g); }
+    if (tr.eff.str)  { let g=0; for(let _=0;_<rnd(0,tr.eff.str);_++) if(Math.random()<0.5) g++; p.stats.str = cap(p.stats.str + g); }
+    if (tr.eff.res)  { let g=0; for(let _=0;_<rnd(0,tr.eff.res);_++) if(Math.random()<0.5) g++; p.stats.res = cap((p.stats.res || 50) + g); }
+    if (tr.eff.tec)  {
       const ceiling = p.maxTec !== undefined ? p.maxTec : 99;
-      p.stats.tec   = Math.min(ceiling, cap(p.stats.tec + rnd(0, tr.eff.tec)));
+      let g=0; for(let _=0;_<rnd(0,tr.eff.tec);_++) if(Math.random()<0.5) g++;
+      p.stats.tec = Math.min(ceiling, cap(p.stats.tec + g));
     }
     p.fitness = Math.round(cap(p.fitness - (tr.fatigue || 0) + rnd(-2, 2)));
     // Ricalcola overall dagli attributi aggiornati (formula pesata per ruolo)
