@@ -735,34 +735,49 @@ function renderDash() {
     h += '<div style="padding:16px;font-size:12px;color:' + _wMuted + ';text-align:center">Nessuna notizia ancora.</div>';
   } else {
     pageItems.forEach(function(m) {
-      var tag = msgTag(m);
-      var isResult = tag[0] === 'RISULTATO';
-      // Cerca l'indice della partita corrispondente per le notizie risultato
+      var tag      = msgTag(m);
+      var tagLabel = tag[0];
+      var tagColor = tag[1];
+
+      // Trova categoria dalla config popup
+      var _cfg  = typeof getConfig === 'function' ? getConfig() : { newsPopup: {} };
+      var _cats = typeof NEWS_CATEGORIES !== 'undefined' ? NEWS_CATEGORIES : [];
+      var _cat  = null;
+      for (var _ci = 0; _ci < _cats.length; _ci++) {
+        if (_cats[_ci].regex && _cats[_ci].regex.test(m)) { _cat = _cats[_ci]; break; }
+      }
+      if (!_cat && _cats.length) _cat = _cats[_cats.length - 1];
+      var _catId   = _cat ? _cat.id : 'news';
+      var _popupOn = _cfg.newsPopup[_catId] !== false;
+
+      // Cerca indice partita per risultati
       var mIdx = -1;
+      var isResult = /risultato|result|wins|loses|draws|vince|perde|pareggi/i.test(tagLabel);
       if (isResult && G.schedule) {
-        var rnd = null;
-        var rndMatch = m.match(/G(\d+):/);
-        if (rndMatch) rnd = parseInt(rndMatch[1]);
-        if (rnd !== null) {
-          var found = G.schedule.findIndex(function(s) {
-            return s.round === rnd && s.played && (s.home === G.myId || s.away === G.myId);
+        var _rndM = m.match(/G(\d+):/);
+        var _rnd  = _rndM ? parseInt(_rndM[1]) : null;
+        if (_rnd !== null) {
+          var _found = G.schedule.findIndex(function(s) {
+            return s.round === _rnd && s.played && (s.home === G.myId || s.away === G.myId);
           });
-          if (found >= 0) mIdx = found;
+          if (_found >= 0) mIdx = _found;
         }
       }
-      var rowClick = (isResult && mIdx >= 0)
-        ? ' onclick="showMatchDetailPopup(' + mIdx + ')" style="cursor:pointer"'
-        : ' style="cursor:default"';
-      h += '<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 14px;'
-        + 'border-bottom:1px solid rgba(255,255,255,.04);transition:background .12s"'
-        + rowClick
-        + ' onmouseover="this.style.background=\'rgba(255,255,255,.03)\'"'
-        + ' onmouseout="this.style.background=\'transparent\'">'
-        + '<span style="flex-shrink:0;margin-top:1px;font-size:9px;font-weight:800;padding:2px 5px;border-radius:4px;'
-        + 'background:' + tag[1] + '33;color:' + tag[1] + ';border:1px solid ' + tag[1] + '55;letter-spacing:.3px;white-space:nowrap">'
-        + tag[0] + '</span>'
-        + '<span style="font-size:12px;color:' + _wText + ';line-height:1.45">' + _linkTeamNames(m) + '</span>'
-        + '</div>';
+
+      // Click handler basato sulla config
+      var rowClick;
+      if (isResult && mIdx >= 0 && _popupOn) {
+        rowClick = ' onclick="showMatchDetailPopup(' + mIdx + ')" style="cursor:pointer"';
+      } else if (_popupOn) {
+        if (!window._newsCache) window._newsCache = [];
+        var nIdx = window._newsCache.length;
+        window._newsCache.push({ text: m, color: tagColor, label: tagLabel });
+        rowClick = ' onclick="showNewsPopupIdx(' + nIdx + ')" style="cursor:pointer"';
+      } else {
+        rowClick = ' style="cursor:default"';
+      }
+
+      h += '<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 14px;'        + 'border-bottom:1px solid rgba(255,255,255,.04);transition:background .12s"'        + rowClick        + (_popupOn ? ' onmouseover="this.style.background=\'rgba(255,255,255,.03)\'" onmouseout="this.style.background=\'transparent\'"' : '')        + '>'        + '<span style="flex-shrink:0;margin-top:1px;font-size:9px;font-weight:800;padding:2px 5px;border-radius:4px;'        + 'background:' + tagColor + '33;color:' + tagColor + ';border:1px solid ' + tagColor + '55;letter-spacing:.3px;white-space:nowrap">'        + tagLabel + '</span>'        + '<span style="font-size:12px;color:' + _wText + ';line-height:1.45">' + _linkTeamNames(m) + '</span>'        + '</div>';
     });
   }
   h += '</div></div>';
@@ -847,6 +862,57 @@ function _rosaSortArrow(key) {
 // ════════════════════════════════════════════
 // ROSA
 // ════════════════════════════════════════════
+
+// ── Popup notizia generica ────────────────────────────────────────────────
+function showNewsPopupIdx(idx) {
+  var item = window._newsCache && window._newsCache[idx];
+  if (!item) return;
+  showNewsPopup(item.text, item.color, item.label);
+}
+window.showNewsPopupIdx = showNewsPopupIdx;
+
+function showNewsPopup(text, color, label) {
+  var existing = document.getElementById('news-popup-overlay');
+  if (existing) existing.remove();
+
+  var ov = document.createElement('div');
+  ov.id = 'news-popup-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:600;backdrop-filter:blur(6px)';
+
+  ov.innerHTML = `
+    <div style="background:var(--panel);border:1px solid ${color}44;border-radius:16px;
+                padding:24px 28px;max-width:420px;width:92%;position:relative;
+                box-shadow:0 8px 40px rgba(0,0,0,.5),0 0 0 1px ${color}22">
+      <!-- Badge + close -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <span style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:5px;
+                     background:${color}22;color:${color};border:1px solid ${color}44;
+                     letter-spacing:.4px">${label}</span>
+        <button onclick="document.getElementById('news-popup-overlay').remove()"
+                style="background:none;border:none;font-size:20px;cursor:pointer;
+                       color:var(--muted);line-height:1;padding:0">✕</button>
+      </div>
+      <!-- Testo notizia -->
+      <div style="font-size:14px;color:var(--text);line-height:1.7;word-break:break-word">
+        ${text.split('\n').join('<br>')}
+      </div>
+      <!-- Bottone chiudi -->
+      <button onclick="document.getElementById('news-popup-overlay').remove()"
+              style="width:100%;margin-top:20px;padding:10px;
+                     background:${color}22;border:1px solid ${color}44;
+                     border-radius:8px;color:${color};font-weight:700;
+                     font-size:13px;cursor:pointer;transition:background .15s"
+              onmouseover="this.style.background='${color}33'"
+              onmouseout="this.style.background='${color}22'">
+        ${t('common.close')}
+      </button>
+    </div>`;
+
+  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+}
+window.showNewsPopup = showNewsPopup;
+
 function renderRosa() {
   const roster = G.rosters[G.myId];
   const tlSet  = new Set((G.transferList || []).map(function(e) { return e.rosterIdx; }));
@@ -2290,7 +2356,7 @@ function renderMarket() {
         <span style="font-size:11px;font-weight:400;color:var(--muted)">(scadono alla prossima giornata)</span>
       </div>
       <table><thead><tr>
-        <th>${t('roster.title')}</th><th>Da</th><th>' + t('roster.sortRole') + '</th><th>OVR</th><th>Prezzo offerta</th><th>${t('extra.expires')}</th><th></th>
+        <th>${t('roster.title')}</th><th>${t('market.fromTeam')}</th><th>' + t('roster.sortRole') + '</th><th>OVR</th><th>Prezzo offerta</th><th>${t('extra.expires')}</th><th></th>
       </tr></thead><tbody>`;
     pending.forEach((pp, i) => {
       const p = pp.player;
@@ -2319,15 +2385,15 @@ function renderMarket() {
   // Sezione USCITE
   h += `<div class="card" style="margin-bottom:12px">
     <div style="font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:8px">
-      <span style="color:var(--gold)">💰 Giocatori in uscita</span>
-      <span style="font-size:11px;color:var(--muted)">(${selling.length} sul mercato — vai su <strong>Rosa</strong> per aggiungerne)</span>
+      <span style="color:var(--gold)">💰 ${t('market.myList')}</span>
+      <span style="font-size:11px;color:var(--muted)">(${selling.length} ${t('market.available').toLowerCase()} — ${t('nav.rosa')})</span>
     </div>`;
 
   if (!selling.length) {
-    h += `<div style="color:var(--muted);font-size:13px;padding:8px 0">Nessun giocatore in lista di trasferimento. Clicca su un giocatore nella scheda Rosa per metterlo in vendita.</div>`;
+    h += `<div style="color:var(--muted);font-size:13px;padding:8px 0">${t('market.noPlayers')} — ${t('nav.rosa')}</div>`;
   } else {
     h += `<table><thead><tr>
-      <th>${t('roster.title')}</th><th>${t('roster.sortRole')}</th><th>OVR</th><th>Prezzo richiesto</th><th>Offerte</th><th></th>
+      <th>${t('roster.title')}</th><th>${t('roster.sortRole')}</th><th>OVR</th><th>${t('roster.askingPrice')}</th><th>${t('market.offers')}</th><th></th>
     </tr></thead><tbody>`;
     selling.forEach(({ entry, p, rosterIdx }) => {
       const offerCount  = entry.offers ? entry.offers.length : 0;
@@ -2340,10 +2406,10 @@ function renderMarket() {
         <td style="font-weight:700">${p.overall}</td>
         <td style="font-size:12px">${formatMoney(entry.askingPrice)}</td>
         <td><span style="font-size:12px;color:${hasGoodOffer?'var(--green)':offerCount>0?'var(--gold)':'var(--muted)'}">
-          ${offerCount > 0 ? offerCount + ' offerta/e' + (hasGoodOffer ? ' ✓' : '') : '—'}
+          ${offerCount > 0 ? offerCount + ' ' + t('market.offers').toLowerCase() + (hasGoodOffer ? ' ✓' : '') : '—'}
         </span></td>
         <td style="display:flex;gap:4px">
-          <button class="btn sm primary" onclick="showPlayerModal(${rosterIdx})">Dettagli</button>
+          <button class="btn sm primary" onclick="showPlayerModal(${rosterIdx})">${t('common.details')}</button>
           <button class="btn sm" onclick="removeFromMarket(${rosterIdx});renderMarket()">✕</button>
         </td>
       </tr>`;
@@ -2361,18 +2427,18 @@ function renderMarket() {
 
   h += `<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div style="font-weight:600;color:var(--blue)">🔍 Giocatori disponibili sul mercato</div>
+      <div style="font-weight:600;color:var(--blue)">🔍 ${t('market.available')}</div>
       <div style="font-size:11px;color:var(--muted)">${t('extra.marketUpdated')}</div>
     </div>
     <table><thead><tr>
-      <th onclick="_mktSortClick('name')"   style="cursor:pointer">Giocatore ${_sortArrow('name')}</th>
-      <th onclick="_mktSortClick('hand')"   style="cursor:pointer">Mano ${_sortArrow('hand')}</th>
-      <th>Da</th>
-      <th onclick="_mktSortClick('role')"   style="cursor:pointer">Ruolo ${_sortArrow('role')}</th>
+      <th onclick="_mktSortClick('name')"   style="cursor:pointer">${t('roster.title')} ${_sortArrow('name')}</th>
+      <th onclick="_mktSortClick('hand')"   style="cursor:pointer">${t('roster.sortHand')} ${_sortArrow('hand')}</th>
+      <th>${t('market.fromTeam')}</th>
+      <th onclick="_mktSortClick('role')"   style="cursor:pointer">${t('roster.sortRole')} ${_sortArrow('role')}</th>
       <th onclick="_mktSortClick('ovr')"    style="cursor:pointer">OVR ${_sortArrow('ovr')}</th>
-      <th onclick="_mktSortClick('value')"  style="cursor:pointer">Valore ${_sortArrow('value')}</th>
-      <th onclick="_mktSortClick('salary')" style="cursor:pointer">Ingaggio ${_sortArrow('salary')}</th>
-      <th onclick="_mktSortClick('days')"   style="cursor:pointer">Scade ${_sortArrow('days')}</th>
+      <th onclick="_mktSortClick('value')"  style="cursor:pointer">${t('roster.value')} ${_sortArrow('value')}</th>
+      <th onclick="_mktSortClick('salary')" style="cursor:pointer">${t('extra.wage')} ${_sortArrow('salary')}</th>
+      <th onclick="_mktSortClick('days')"   style="cursor:pointer">${t('extra.expires')} ${_sortArrow('days')}</th>
       <th></th>
     </tr></thead><tbody>`;
 
@@ -2407,14 +2473,14 @@ function renderMarket() {
     const ok  = G.budget >= p.value;
     const has = entry.pendingOffer !== null;
     const res = entry.offerResult;
-    const daysLbl = entry.daysLeft === 1 ? '⚠️ ultima G' : entry.daysLeft + ' G';
+    const daysLbl = entry.daysLeft === 1 ? '⚠️ ' + t('market.expires', {n:1}) : entry.daysLeft + ' G';
     const dayColor = entry.daysLeft === 1 ? 'var(--red)' : entry.daysLeft <= 2 ? 'var(--gold)' : 'var(--muted)';
 
     let offerBadge = '';
     if (res === 'accepted') {
       offerBadge = `<span style="font-size:10px;color:var(--green);font-weight:700">${t('market.offerAccepted')}</span>`;
     } else if (has) {
-      offerBadge = `<span style="font-size:10px;color:var(--gold)">⏳ In attesa</span>`;
+      offerBadge = `<span style="font-size:10px;color:var(--gold)">⏳ ${t('market.offerSent')}</span>`;
     }
 
     h += `<tr class="trhov" onclick="showMarketPlayerModal(${i})">
@@ -2424,7 +2490,7 @@ function renderMarket() {
       </td>
       <td><span class="badge ${p.hand==='AMB'?'C':p.hand==='L'?'L':'R'}">${p.hand}</span></td>
       <td style="font-size:12px">${p._fromRescission || p._fromExpiry || !p._tid
-        ? '<span style="color:#7b2fbe;font-weight:700;font-size:11px">Svincolato</span>'
+        ? '<span style="color:#7b2fbe;font-weight:700;font-size:11px">' + t('market.noOffers').split(' ')[0] + '</span>'
         : '<span onclick="showTeamRosterPopup(\''+p._tid+'\')" style="cursor:pointer;color:var(--muted);text-decoration:underline dotted;text-underline-offset:3px" title="Vedi rosa">'+p._tname+'</span>'
       }</td>
       <td><span class="badge ${p.role==='POR'?'S':p.role==='CB'?'B':p.role==='DIF'?'A':'C'}">${p.role}</span>${p.secondRole ? ` <span class="badge ${p.secondRole==='POR'?'S':p.secondRole==='CB'?'B':p.secondRole==='DIF'?'A':'C'}">${p.secondRole}</span>` : ''}</td>
@@ -2434,13 +2500,13 @@ function renderMarket() {
       <td style="font-size:11px;color:${dayColor};font-weight:600">${daysLbl}</td>
       <td onclick="event.stopPropagation()" style="display:flex;gap:4px;flex-wrap:wrap">
         ${res === 'accepted'
-          ? `<button class="btn sm primary" onclick="buyPlayerFromPool(${i})">Conferma</button>`
+          ? `<button class="btn sm primary" onclick="buyPlayerFromPool(${i})">${t('market.buyBtn')}</button>`
           : ok
-            ? `<button class="btn sm primary" onclick="buyPlayerFromPool(${i})">Acquista</button>`
+            ? `<button class="btn sm primary" onclick="buyPlayerFromPool(${i})">${t('market.buyBtn')}</button>`
             : ''
         }
         ${!has && res !== 'accepted'
-          ? `<button class="btn sm warn" onclick="openOfferPopup(${i})">Offerta</button>`
+          ? `<button class="btn sm warn" onclick="openOfferPopup(${i})">${t('market.offerBtn')}</button>`
           : ''
         }
       </td>
@@ -2448,7 +2514,7 @@ function renderMarket() {
   });
 
   if (!pool.length) {
-    h += `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:16px">Nessun giocatore disponibile — gioca una partita per aggiornare il mercato</td></tr>`;
+    h += `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:16px">${t('market.noPlayers')}</td></tr>`;
   }
 
   h += `</tbody></table>`;
@@ -2460,7 +2526,7 @@ function renderMarket() {
     h += `<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 0;border-top:1px solid var(--border);margin-top:4px">
       <button onclick="_mktPage=Math.max(0,_mktPage-1);renderMarket()"
               style="background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:3px 12px;color:var(--muted);font-size:13px;${prevDis}">‹</button>
-      <span style="font-size:12px;color:var(--muted)">Pag. ${mktSafePage + 1} / ${mktTotalPages} <span style="font-size:11px">(${sortedPool.length} giocatori)</span></span>
+      <span style="font-size:12px;color:var(--muted)">${t('welcome.round', {n: mktSafePage+1})} / ${mktTotalPages} (${sortedPool.length})</span>
       <button onclick="_mktPage=Math.min(${mktTotalPages-1},_mktPage+1);renderMarket()"
               style="background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:3px 12px;color:var(--muted);font-size:13px;${nextDis}">›</button>
     </div>`;
@@ -2497,7 +2563,7 @@ function buyPlayerFromPool(i) {
   _replenishRoster(p._tid);
   // Rimuovi dal pool
   G.marketPool.splice(i, 1);
-  G.msgs.push('✅ Acquistato ' + p.name + ' da ' + p._tname + ' per ' + formatMoney(price) + '. Morale alto!');
+  G.msgs.push('✅ ' + t('market.playerBought', {name: p.name, price: formatMoney(price)}));
   updateHeader(); autoSave(); renderMarket();
 }
 
@@ -2533,7 +2599,7 @@ function openOfferPopup(i) {
         <span style="font-weight:700;color:var(--blue)">${formatMoney(G.budget)}</span>
       </div>
 
-      <div style="margin-bottom:6px;font-size:12px;color:var(--muted);font-weight:600">Importo offerta</div>
+      <div style="margin-bottom:6px;font-size:12px;color:var(--muted);font-weight:600">${t('market.makeOffer')}</div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <button onclick="_offerStep(-1,${i})" style="background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:16px;color:var(--text)">−</button>
         <input type="number" id="offer-amount" value="${Math.round(p.value * 0.85)}"
@@ -2544,11 +2610,11 @@ function openOfferPopup(i) {
       <div id="offer-hint" style="font-size:11px;color:var(--muted);margin-bottom:16px;min-height:16px"></div>
 
       <div style="display:flex;gap:8px">
-        <button class="btn primary" style="flex:1" onclick="submitOffer(${i})">Invia Offerta</button>
+        <button class="btn primary" style="flex:1" onclick="submitOffer(${i})">${t('market.offerSent')}</button>
         <button class="btn" onclick="document.getElementById('offer-popup').remove()">Annulla</button>
       </div>
       <div style="margin-top:10px;font-size:10px;color:var(--muted);text-align:center">
-        La risposta arriverà nella prossima giornata
+        ${t('extra.willReplyNext')}
       </div>
     </div>`;
 
@@ -2584,10 +2650,10 @@ function _updateOfferHint(i) {
   const amount = parseInt(inp.value) || 0;
   const pct    = amount / p.value;
   let txt = '', color = 'var(--muted)';
-  if (pct >= 1.0)      { txt = '✓ Offerta superiore al valore — alta probabilità di accettazione'; color = 'var(--green)'; }
-  else if (pct >= 0.90){ txt = 'Offerta vicina al valore — buona probabilità'; color = 'var(--green)'; }
-  else if (pct >= 0.75){ txt = 'Offerta discreta — probabilità moderata'; color = 'var(--gold)'; }
-  else if (pct >= 0.50){ txt = 'Offerta bassa — probabilità ridotta'; color = 'var(--red)'; }
+  if (pct >= 1.0)      { txt = t('market.offerAccepted') + ' ✓'; color = 'var(--green)'; }
+  else if (pct >= 0.90){ txt = t('market.offerPopup.meets'); color = 'var(--green)'; }
+  else if (pct >= 0.75){ txt = t('market.offerPopup.meets'); color = 'var(--gold)'; }
+  else if (pct >= 0.50){ txt = t('extra.offerTooLow'); color = 'var(--red)'; }
   else                 { txt = t('extra.offerTooLow'); color = 'var(--red)'; }
   hint.textContent = txt; hint.style.color = color;
 }
@@ -2599,11 +2665,11 @@ function submitOffer(i) {
   const inp   = document.getElementById('offer-amount');
   const amount = parseInt(inp?.value) || 0;
   if (amount <= 0 || G.budget < amount) {
-    alert('Budget insufficiente per questa offerta.'); return;
+    alert(t('market.notEnoughBudget')); return;
   }
   entry.pendingOffer = { amount, roundMade: currentRound ? currentRound() : 0 };
   entry.offerResult  = null;
-  G.msgs.push('📨 Offerta di ' + formatMoney(amount) + ' inviata per ' + p.name + ' (' + p._tname + '). Risposta alla prossima giornata.');
+  G.msgs.push('📨 ' + t('market.makeOffer') + ': ' + p.name + ' — ' + formatMoney(amount) + '. ' + t('extra.willReplyNext'));
   document.getElementById('offer-popup')?.remove();
   autoSave(); renderMarket();
 }

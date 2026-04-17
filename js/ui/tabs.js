@@ -70,6 +70,7 @@ function _updateNavLabels() {
   });
   const saveEl = document.getElementById('topbar-save-lbl');
   if (saveEl) saveEl.textContent = t('common.save');
+  _updateConfigBox();
 }
 
 // ── Mostra/nasconde le schermate principali ────
@@ -150,4 +151,154 @@ function _cycleLang() {
   const current = I18N.getLang();
   const next    = current === 'it' ? 'en' : 'it';
   I18N.setLang(next);   // salva in localStorage e fa reload
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// PANNELLO CONFIGURAZIONE
+// ══════════════════════════════════════════════════════════════════════
+
+// Chiavi localStorage per le preferenze
+const CFG_KEY = 'wp_config';
+
+// Categorie notizie — id, chiave i18n, regex di rilevamento, colore
+const NEWS_CATEGORIES = [
+  { id: 'injuries',  labelKey: 'nav.training',       regex: /infortun|injur|injury|exhausted|out of energy/i,                     color: '#e74c3c' },
+  { id: 'contract',  labelKey: 'roster.contract',    regex: /contratto|rinnov|scadenz|resciss|contract|renew|expir|terminat/i,    color: '#9c27b0' },
+  { id: 'market',    labelKey: 'nav.market',         regex: /mercato|offerta|acquist|svinc|vend|market|transfer|signed|sold|offer/i, color: '#ff8c42' },
+  { id: 'result',    labelKey: 'common.result',      regex: /giornata|giocato|pareggi|vince|perde|gol|assist|parate|matchday|wins|loses|draws|goals|assists|saves/i, color: '#1565c0' },
+  { id: 'finance',   labelKey: 'nav.finance',        regex: /ingaggi|budget|bonus|penale|finanz|salary|wages|finance|balance/i,   color: '#2e7d32' },
+  { id: 'training',  labelKey: 'nav.training',       regex: /allenament|tactic|stella|training|stars/i,                          color: '#00838f' },
+  { id: 'recovery',  labelKey: 'goals.inProgress',   regex: /guarit|recover|infortun.*torn/i,                                    color: '#2e7d32' },
+  { id: 'playoff',   labelKey: 'nav.playoff',        regex: /playoff|playout|retrocessione|scudetto|relegat|survived|champion/i, color: '#c62828' },
+  { id: 'national',  labelKey: 'national.badge',     regex: /nazional|convocato|nazionale|national|callup|called up/i,           color: '#1565c0' },
+  { id: 'news',      labelKey: 'dash.news',          regex: null, /* default */                                                   color: '#455a64' },
+];
+
+// Legge la configurazione salvata (o default: tutte attive tranne finance)
+function getConfig() {
+  try {
+    const raw = localStorage.getItem(CFG_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  // Default: tutte popup-attive eccetto stipendi (finance)
+  const cfg = { newsPopup: {} };
+  NEWS_CATEGORIES.forEach(function(cat) {
+    cfg.newsPopup[cat.id] = cat.id !== 'finance';
+  });
+  return cfg;
+}
+
+function saveConfig(cfg) {
+  try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch(e) {}
+}
+
+// Esponi globalmente per tabs_renderers.js
+window.getConfig = getConfig;
+window.NEWS_CATEGORIES = NEWS_CATEGORIES;
+
+// ── Apri il pannello ──────────────────────────────────────────────────
+function openConfigPanel() {
+  var existing = document.getElementById('config-panel-overlay');
+  if (existing) { existing.remove(); return; }
+
+  var cfg = getConfig();
+  var ov  = document.createElement('div');
+  ov.id   = 'config-panel-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:flex-start;justify-content:flex-end;z-index:800;backdrop-filter:blur(4px);padding-top:58px;padding-right:8px';
+
+  // Costruisci righe categorie
+  var rows = NEWS_CATEGORIES.map(function(cat) {
+    var label = t(cat.labelKey);
+    // Usa label specifica per categorie con la stessa chiave ma id diverso
+    // Assegna label specifiche per categoria
+    var labelMap = {
+      injuries: 'INJ / ' + t('injuries.out', {weeks:''}).split(' ')[0],
+      contract: t('roster.contract'),
+      market:   t('nav.market'),
+      result:   t('common.result'),
+      finance:  t('nav.finance'),
+      training: t('nav.training'),
+      recovery: '✅ ' + t('goals.inProgress'),
+      playoff:  t('nav.playoff'),
+      national: t('national.badge') + ' ' + t('national.italiana').split(' ')[1],
+      news:     t('dash.news'),
+    };
+    if (labelMap[cat.id]) label = labelMap[cat.id];
+    var checked = cfg.newsPopup[cat.id] !== false;
+    return '<label style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;user-select:none">'
+      + '<input type="checkbox" id="cfg-news-' + cat.id + '" ' + (checked ? 'checked' : '') + ' '
+      + 'onchange="toggleNewsConfig(\'' + cat.id + '\',this.checked)"'
+      + ' style="width:16px;height:16px;accent-color:' + cat.color + ';cursor:pointer">'
+      + '<span style="display:inline-block;font-size:9px;font-weight:800;padding:2px 6px;border-radius:4px;'
+      + 'background:' + cat.color + '22;color:' + cat.color + ';border:1px solid ' + cat.color + '44;'
+      + 'letter-spacing:.3px;min-width:60px;text-align:center;flex-shrink:0">' + label.toUpperCase() + '</span>'
+      + '</label>';
+  }).join('');
+
+  ov.innerHTML = '<div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;'
+    + 'padding:20px;width:300px;max-height:calc(100vh - 70px);overflow-y:auto;'
+    + 'box-shadow:0 8px 40px rgba(0,0,0,.5)">'
+
+    // Header
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">'
+    + '<div style="display:flex;align-items:center;gap:8px">'
+    + '<span style="font-size:20px">⚙️</span>'
+    + '<span style="font-weight:800;font-size:15px;color:var(--text)">' + t('config.title') + '</span>'
+    + '</div>'
+    + '<button onclick="document.getElementById(\'config-panel-overlay\').remove()" '
+    + 'style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted)">✕</button>'
+    + '</div>'
+
+    // Sezione Notifiche
+    + '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;'
+    + 'letter-spacing:.6px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">'
+    + '🔔 ' + t('config.notifTitle')
+    + '</div>'
+    + '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">'
+    + t('config.notifDesc')
+    + '</div>'
+    + rows
+
+    // Seleziona tutto / nessuno
+    + '<div style="display:flex;gap:8px;margin-top:12px">'
+    + '<button onclick="setAllNewsConfig(true)" '
+    + 'style="flex:1;padding:6px;font-size:11px;font-weight:700;border-radius:6px;'
+    + 'background:rgba(0,194,255,.1);border:1px solid rgba(0,194,255,.3);color:var(--blue);cursor:pointer">'
+    + t('common.all') + '</button>'
+    + '<button onclick="setAllNewsConfig(false)" '
+    + 'style="flex:1;padding:6px;font-size:11px;font-weight:700;border-radius:6px;'
+    + 'background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--muted);cursor:pointer">'
+    + t('config.none') + '</button>'
+    + '</div>'
+    + '</div>';
+
+  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+}
+window.openConfigPanel = openConfigPanel;
+
+// ── Toggle singola categoria ──────────────────────────────────────────
+function toggleNewsConfig(catId, enabled) {
+  var cfg = getConfig();
+  cfg.newsPopup[catId] = enabled;
+  saveConfig(cfg);
+}
+window.toggleNewsConfig = toggleNewsConfig;
+
+// ── Seleziona tutto / nessuno ─────────────────────────────────────────
+function setAllNewsConfig(enabled) {
+  var cfg = getConfig();
+  NEWS_CATEGORIES.forEach(function(cat) {
+    cfg.newsPopup[cat.id] = enabled;
+    var el = document.getElementById('cfg-news-' + cat.id);
+    if (el) el.checked = enabled;
+  });
+  saveConfig(cfg);
+}
+window.setAllNewsConfig = setAllNewsConfig;
+
+// ── Aggiorna label Config nella topbar ───────────────────────────────
+function _updateConfigBox() {
+  var lbl = document.getElementById('config-top-label');
+  if (lbl) lbl.textContent = t('config.title');
 }

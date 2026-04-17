@@ -256,6 +256,9 @@ const LANG_IT = {
     offers:         'Offerte ricevute',
     offerAccepted:   'Accettata',
     marketUpdated:   'Lista aggiornata ogni giornata',
+    buyBtn:         'Acquista',
+    offerBtn:       'Offerta',
+    fromTeam:        'Da',
     noOffers:       'Nessuna offerta',
     noPlayers:      'Nessun giocatore disponibile',
     makeOffer:      'Fai un\'offerta',
@@ -667,6 +670,14 @@ const LANG_IT = {
     ledgerWages:        'ingaggi',
     wagesRound:         'Monte ingaggi G',
     youthWage:          'Ingaggio giovane',
+  },
+
+  // ── Configurazione ───────────────────────────────────────────────────
+  config: {
+    title:      'Impostazioni',
+    notifTitle: 'Notifiche popup',
+    notifDesc:  'Seleziona quali notizie aprono un popup',
+    none:       'Nessuna',
   },
 
 };

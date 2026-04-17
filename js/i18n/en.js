@@ -244,6 +244,9 @@ const LANG_EN = {
     offers:         'Offers received',
     offerAccepted:   'Accepted',
     marketUpdated:   'List updated every matchday',
+    buyBtn:         'Buy',
+    offerBtn:       'Bid',
+    fromTeam:        'From',
     noOffers:       'No offers',
     noPlayers:      'No players available',
     makeOffer:      'Make an offer',
@@ -634,6 +637,14 @@ const LANG_EN = {
     ledgerWages:         'Salary',
     wagesRound:          'Total Salary Amount MD',
     youthWage:           'Youth Salary',
+  },
+
+  // ── Configurazione ───────────────────────────────────────────────────
+  config: {
+    title:      'Settings',
+    notifTitle: 'Popup notifications',
+    notifDesc:  'Select which news items open a popup',
+    none:       'None',
   },
 
 };
