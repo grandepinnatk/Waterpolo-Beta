@@ -60,6 +60,7 @@ function _updateNavLabels() {
     'nav-playoff':  'nav.playoff',
     'nav-market':   'nav.market',
     'nav-finance':  'nav.finance',
+    'nav-history':  'nav.history',
     'nav-stadium':  'nav.stadium',
     'nav-credits':  'nav.credits',
     'nav-logout':   'nav.logout',

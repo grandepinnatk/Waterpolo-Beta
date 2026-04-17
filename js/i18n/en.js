@@ -52,6 +52,7 @@ const LANG_EN = {
     market:     'Transfer Market',
     finance:    'Finance',
     stadium:    'Stadium',
+    history:    'History',
     credits:    'Credits',
     logout:     'Logout',
     endSeason:  'End Season',
@@ -645,6 +646,26 @@ const LANG_EN = {
     notifTitle: 'Popup notifications',
     notifDesc:  'Select which news items open a popup',
     none:       'None',
+  },
+
+  // ── Finance extra keys ────────────────────────────────────────────
+  finance_extra: {
+    description: 'Description',
+    currentBudget: 'Current budget',
+    prizeIncome: 'Victories and Prizes income',
+    sellIncome: 'Players Selling income',
+    buyOutcome: 'Players acquisition outcome',
+    totalWagesPaid: 'Total Salary amount paid',
+    wageTitle: 'Total Salary amount',
+    wageAnnual: 'Yearly (Total Squad)',
+    wagePerDay: 'Per matchday',
+    rosterSize: 'Number of players',
+    wageInfo: 'Wages are automatically deducted at the end of each matchday during the regular season. They vary: increase with purchases, decrease with sales.',
+    wageInfoFinal: 'Final phase in progress: wages are no longer deducted during playoffs/play-out.',
+    txHistory: 'Transaction History',
+    noTransactions: 'No transactions recorded yet.',
+    importo: 'Amount',
+    econTitle: 'Club Financial Status',
   },
 
 };

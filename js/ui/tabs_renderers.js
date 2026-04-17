@@ -2006,8 +2006,8 @@ function _buildStandContent(activeTab) {
     h += `<div class="card">
       <div style="font-weight:700;color:var(--blue);margin-bottom:10px">${t('nav.standings')} Serie A1 — 2025/26</div>
       <table><thead><tr>
-        <th>#</th><th>${t('standings.team')}</th><th>G</th><th>${t('standings.won')}</th><th>${t('standings.drawn')}</th><th>${t('standings.lost')}</th>
-        <th>${t('standings.gf')}</th><th>${t('standings.ga')}</th><th>${t('standings.diff')}</th><th>${t('standings.points')}</th>
+        <th>#</th><th>${t('standings.team')}</th><th>G</th><th>' + t('standings.won') + '</th><th>${t('standings.drawn')}</th><th>${t('standings.lost')}</th>
+        <th>${t('standings.gf')}</th><th>' + t('standings.ga') + '</th><th>${t('standings.diff')}</th><th>${t('standings.points')}</th>
       </tr></thead><tbody>`;
 
     s.forEach((t, i) => {
@@ -2066,7 +2066,7 @@ function _buildStandContent(activeTab) {
       </div>`;
     } else {
       h += `<table><thead><tr>
-        <th>#</th><th>${t('roster.title')}</th><th>${t('standings.team')}</th><th>${t('roster.sortRole')}</th><th style="text-align:center">⚽</th><th style="text-align:center">${t('common.assists')}</th>
+        <th>#</th><th>${t('roster.title')}</th><th>' + t('standings.team') + '</th><th>${t('roster.sortRole')}</th><th style="text-align:center">⚽</th><th style="text-align:center">${t('common.assists')}</th>
       </tr></thead><tbody>`;
 
       allScorers.forEach((p, i) => {
@@ -2451,7 +2451,7 @@ function renderMarket() {
         <span style="font-size:11px;font-weight:400;color:var(--muted)">(scadono alla prossima giornata)</span>
       </div>
       <table><thead><tr>
-        <th>${t('roster.title')}</th><th>${t('market.fromTeam')}</th><th>' + t('roster.sortRole') + '</th><th>OVR</th><th>Prezzo offerta</th><th>${t('extra.expires')}</th><th></th>
+        <th>${t('roster.title')}</th><th>' + t('market.fromTeam') + '</th><th>'+ t('roster.sortRole') + '</th><th>OVR</th><th>Prezzo offerta</th><th>${t('extra.expires')}</th><th></th>
       </tr></thead><tbody>`;
     pending.forEach((pp, i) => {
       const p = pp.player;
@@ -2488,7 +2488,7 @@ function renderMarket() {
     h += `<div style="color:var(--muted);font-size:13px;padding:8px 0">${t('market.noPlayers')} — ${t('nav.rosa')}</div>`;
   } else {
     h += `<table><thead><tr>
-      <th>${t('roster.title')}</th><th>${t('roster.sortRole')}</th><th>OVR</th><th>${t('roster.askingPrice')}</th><th>${t('market.offers')}</th><th></th>
+      <th>${t('roster.title')}</th><th>' + t('roster.sortRole') + '</th><th>OVR</th><th>${t('roster.askingPrice')}</th><th>${t('market.offers')}</th><th></th>
     </tr></thead><tbody>`;
     selling.forEach(({ entry, p, rosterIdx }) => {
       const offerCount  = entry.offers ? entry.offers.length : 0;
@@ -2526,14 +2526,14 @@ function renderMarket() {
       <div style="font-size:11px;color:var(--muted)">${t('extra.marketUpdated')}</div>
     </div>
     <table><thead><tr>
-      <th onclick="_mktSortClick('name')"   style="cursor:pointer">${t('roster.title')} ${_sortArrow('name')}</th>
-      <th onclick="_mktSortClick('hand')"   style="cursor:pointer">${t('roster.sortHand')} ${_sortArrow('hand')}</th>
+      <th onclick="_mktSortClick('name')"   style="cursor:pointer">' + t('roster.title') + ' ${_sortArrow('name')}</th>
+      <th onclick="_mktSortClick('hand')"   style="cursor:pointer">' + t('roster.sortHand') + ' ${_sortArrow('hand')}</th>
       <th>${t('market.fromTeam')}</th>
-      <th onclick="_mktSortClick('role')"   style="cursor:pointer">${t('roster.sortRole')} ${_sortArrow('role')}</th>
+      <th onclick="_mktSortClick('role')"   style="cursor:pointer">' + t('roster.sortRole') + ' ${_sortArrow('role')}</th>
       <th onclick="_mktSortClick('ovr')"    style="cursor:pointer">OVR ${_sortArrow('ovr')}</th>
-      <th onclick="_mktSortClick('value')"  style="cursor:pointer">${t('extra.marketValue')} ${_sortArrow('value')}</th>
-      <th onclick="_mktSortClick('salary')" style="cursor:pointer">${t('extra.wage')} ${_sortArrow('salary')}</th>
-      <th onclick="_mktSortClick('days')"   style="cursor:pointer">${t('extra.expires')} ${_sortArrow('days')}</th>
+      <th onclick="_mktSortClick('value')"  style="cursor:pointer">' + t('extra.marketValue') + ' ${_sortArrow('value')}</th>
+      <th onclick="_mktSortClick('salary')" style="cursor:pointer">' + t('extra.wage') + ' ${_sortArrow('salary')}</th>
+      <th onclick="_mktSortClick('days')"   style="cursor:pointer">' + t('extra.expires') + ' ${_sortArrow('days')}</th>
       <th></th>
     </tr></thead><tbody>`;
 
@@ -2817,12 +2817,12 @@ function renderFinance() {
   let h = `
   <!-- ── RIEPILOGO STATO ECONOMICO ── -->
   <div class="card" style="margin-bottom:12px">
-    <div class="slbl" style="margin-top:0">💰 Stato Economico del Club</div>
+    <div class="slbl" style="margin-top:0">${t('finance_extra.econTitle')}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;font-size:13px">
 
       <!-- Budget attuale -->
       <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(30,58,92,.3)">
-        <span style="color:var(--muted)">Budget attuale</span>
+        <span style="color:var(--muted)">${t('finance_extra.currentBudget')}</span>
         <span style="font-weight:700;color:var(--blue)">${formatMoney(G.budget)}</span>
       </div>
       <!-- Saldo netto -->
@@ -2833,23 +2833,23 @@ function renderFinance() {
 
       <!-- Introiti da vittorie e premi -->
       <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(30,58,92,.3)">
-        <span style="color:var(--muted)">🏆 Introiti vittorie e premi</span>
+        <span style="color:var(--muted)">${t('finance_extra.prizeIncome')}</span>
         <span style="color:var(--green);font-weight:700">+${formatMoney(totalPrize)}</span>
       </div>
       <!-- Vendita giocatori -->
       <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(30,58,92,.3)">
-        <span style="color:var(--muted)">💰 Introiti vendita giocatori</span>
+        <span style="color:var(--muted)">${t('finance_extra.sellIncome')}</span>
         <span style="color:${totalSell > 0 ? 'var(--green)' : 'var(--muted)'};font-weight:700">${totalSell > 0 ? '+' + formatMoney(totalSell) : '—'}</span>
       </div>
 
       <!-- Acquisto giocatori -->
       <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(30,58,92,.3)">
-        <span style="color:var(--muted)">🛒 Uscite acquisto giocatori</span>
+        <span style="color:var(--muted)">${t('finance_extra.buyOutcome')}</span>
         <span style="color:${totalBuy < 0 ? 'var(--red)' : 'var(--muted)'};font-weight:700">${totalBuy < 0 ? '−' + formatMoney(Math.abs(totalBuy)) : '—'}</span>
       </div>
       <!-- Monte ingaggi versato -->
       <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(30,58,92,.3)">
-        <span style="color:var(--muted)">💸 Monte ingaggi versato</span>
+        <span style="color:var(--muted)">${t('finance_extra.totalWagesPaid')}</span>
         <span style="color:${totalWages < 0 ? 'var(--red)' : 'var(--muted)'};font-weight:700">${totalWages < 0 ? '−' + formatMoney(Math.abs(totalWages)) : '—'}</span>
       </div>
 
@@ -2858,40 +2858,40 @@ function renderFinance() {
 
   <!-- ── MONTE INGAGGI ── -->
   <div class="card" style="margin-bottom:12px">
-    <div class="slbl" style="margin-top:0">💸 Monte Ingaggi</div>
+    <div class="slbl" style="margin-top:0">${t('finance_extra.wageTitle')}</div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;text-align:center">
       <div style="background:var(--panel2);border-radius:10px;padding:12px">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Annuale (totale rosa)</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">${t('finance_extra.wageAnnual')}</div>
         <div style="font-size:16px;font-weight:700;color:var(--text)">${formatMoney(wageBillAnn)}</div>
       </div>
       <div style="background:var(--panel2);border-radius:10px;padding:12px">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Per giornata (÷${REGULAR_SEASON_ROUNDS || 26})</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">${t('finance_extra.wagePerDay')} (÷${REGULAR_SEASON_ROUNDS || 26})</div>
         <div style="font-size:16px;font-weight:700;color:var(--red)">−${formatMoney(wageBillDay)}</div>
       </div>
       <div style="background:var(--panel2);border-radius:10px;padding:12px">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Giocatori in rosa</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">${t('finance_extra.rosterSize')}</div>
         <div style="font-size:16px;font-weight:700;color:var(--text)">${roster.length}</div>
       </div>
     </div>
 
     <div style="font-size:12px;padding:8px 12px;border-radius:8px;background:${inFinal ? 'rgba(240,192,64,.08)' : 'rgba(255,255,255,.04)'};border:1px solid ${inFinal ? 'rgba(240,192,64,.3)' : 'var(--border)'}">
       ${inFinal
-        ? '⚠️ <strong>Fase finale in corso</strong>: il monte ingaggi non viene più dedotto nelle fasi playoff/playout.'
-        : `ℹ️ Il monte ingaggi viene dedotto <strong>automaticamente al termine di ogni giornata</strong> della regular season (${roundsPlayed}/${REGULAR_SEASON_ROUNDS || 26} giornate giocate). È variabile: aumenta con gli acquisti, diminuisce con le cessioni.`}
+        ? t('finance_extra.wageInfoFinal')
+        : `ℹ️ ${t('finance_extra.wageInfo')} (${roundsPlayed}/${REGULAR_SEASON_ROUNDS || 26})`}
     </div>
   </div>
 
   <!-- ── STORICO TRANSAZIONI ── -->
   <div class="card">
-    <div class="slbl" style="margin-top:0">🧾 Storico Transazioni</div>
+    <div class="slbl" style="margin-top:0">${t('finance_extra.txHistory')}</div>
     ${recent.length === 0
-      ? '<div style="font-size:13px;color:var(--muted);padding:8px 0">Nessuna transazione ancora registrata.</div>'
+      ? '<div style="font-size:13px;color:var(--muted);padding:8px 0">' + t('finance_extra.noTransactions') + '</div>'
       : `<table style="width:100%;font-size:12px">
           <thead><tr style="border-bottom:1px solid var(--border)">
-            <th style="text-align:left;color:var(--muted);font-weight:600;padding-bottom:6px">${t('extra.description')}</th>
+            <th style="text-align:left;color:var(--muted);font-weight:600;padding-bottom:6px">${t('finance_extra.description')}</th>
             <th style="text-align:center;color:var(--muted);font-weight:600;padding-bottom:6px;width:40px">G.</th>
-            <th style="text-align:right;color:var(--muted);font-weight:600;padding-bottom:6px;width:110px">Importo</th>
+            <th style="text-align:right;color:var(--muted);font-weight:600;padding-bottom:6px;width:110px">${t('finance_extra.importo')}</th>
           </tr></thead>
           <tbody>
             ${recent.map(e => `
@@ -2950,7 +2950,7 @@ function renderHistory() {
 
   // ── Record del club ─────────────────────────────────────────────────
   h += `<div class="card" style="margin-bottom:14px">
-    <div class="slbl" style="margin-top:0">🏅 Record del Club</div>
+    <div class="slbl" style="margin-top:0">${t('history.clubRecords')}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">`;
 
   function _recordCard(icon, label, p, val, suffix) {
@@ -2964,32 +2964,32 @@ function renderHistory() {
 
   h += _recordCard('⚽', t('history.mostGoals'), topGoals,   _statVal(topGoals, 'careerGoals', 'goals'), t('common.goals').toLowerCase());
   h += _recordCard('🤝', t('history.mostAssists'), topAssists, _statVal(topAssists, 'careerAssists', 'assists'), t('common.assists').toLowerCase());
-  h += _recordCard('📅', t('history.mostApps'), topApps, topApps ? (topApps.careerApps || 0) : 0, t(t('roster.apps')).toLowerCase());
+  h += _recordCard('📅', t('history.mostApps'), topApps, topApps ? (topApps.careerApps || 0) : 0, t('roster.apps').toLowerCase());
 
   h += '</div></div>';
 
   // ── Record Storici del Club ─────────────────────────────────────────
   if (history.length > 0) {
-    h += '<div class="card" style="margin-bottom:14px"><div class="slbl" style="margin-top:0">🏅 Record Storici</div>' +
+    h += '<div class="card" style="margin-bottom:14px"><div class="slbl" style="margin-top:0">' + t('history.historicBest') + '</div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">';
 
     // Miglior stagione
     if (bestSeason) {
-      h += '<div class="sc"><div class="sc-l">🏆 Miglior stagione</div>' +
-        '<div style="font-size:13px;font-weight:700;color:var(--gold);margin-top:4px">Stagione ' + bestSeason.season + '</div>' +
-        '<div style="font-size:16px;font-weight:800;color:var(--blue)">' + bestSeason.pts + ' <span style="font-size:11px;color:var(--muted)">punti</span></div>' +
+      h += '<div class="sc"><div class="sc-l">🏆 ' + t('history.bestSeason') + '</div>' +
+        '<div style="font-size:13px;font-weight:700;color:var(--gold);margin-top:4px">' + t('common.season') + ' ' + bestSeason.season + '</div>' +
+        '<div style="font-size:16px;font-weight:800;color:var(--blue)">' + bestSeason.pts + ' <span style="font-size:11px;color:var(--muted)">' + t('standings.points').toLowerCase() + '</span></div>' +
         '<div style="font-size:11px;color:var(--muted)">' + bestSeason.pos + '° posto · ' + bestSeason.w + 'V/' + bestSeason.d + 'P/' + bestSeason.l + 'S</div>' +
         '</div>';
     }
     // Miglior piazzamento
     if (bestPos) {
-      h += '<div class="sc"><div class="sc-l">📍 Miglior piazzamento</div>' +
-        '<div style="font-size:13px;font-weight:700;color:var(--green);margin-top:4px">Stagione ' + bestPos.season + '</div>' +
-        '<div style="font-size:22px;font-weight:900;color:var(--blue)">' + bestPos.pos + '° <span style="font-size:11px;color:var(--muted)">posto</span></div>' +
+      h += '<div class="sc"><div class="sc-l">📍 ' + t('history.bestPosition') + '</div>' +
+        '<div style="font-size:13px;font-weight:700;color:var(--green);margin-top:4px">' + t('common.season') + ' ' + bestPos.season + '</div>' +
+        '<div style="font-size:22px;font-weight:900;color:var(--blue)">' + bestPos.pos + '° <span style="font-size:11px;color:var(--muted)">' + t('extra.position').toLowerCase() + '</span></div>' +
         '</div>';
     }
     // Vittorie consecutive
-    h += '<div class="sc"><div class="sc-l">🔥 Max vittorie cons.</div>' +
+    h += '<div class="sc"><div class="sc-l">🔥 ' + t('history.winStreak') + '</div>' +
       '<div style="font-size:22px;font-weight:900;color:var(--green);margin-top:4px">' + maxStreak + '</div>' +
       '</div>';
 
@@ -2998,21 +2998,21 @@ function renderHistory() {
 
   // ── Storico stagioni ────────────────────────────────────────────────
   h += `<div class="card">
-    <div class="slbl" style="margin-top:0">📋 Storico Stagioni</div>`;
+    <div class="slbl" style="margin-top:0">${t('history.title')}</div>`;
 
   if (!history.length) {
-    h += '<div style="color:var(--muted);font-size:13px;padding:8px 0">Nessuna stagione completata — i dati appariranno dopo la prima stagione conclusa.</div>';
+    h += '<div style="color:var(--muted);font-size:13px;padding:8px 0">' + t('common.loading') + '</div>';
   } else {
     h += `<table><thead><tr>
       <th style="text-align:center">N.</th>
-      <th>Fascia</th>
-      <th>Pos.</th>
+      <th>${t('history.tier')}</th>
+      <th>${t('history.position')}</th>
       <th>${t('standings.points')}</th>
       <th>${t('dash.winRate')}</th>
-      <th>GF/GA</th>
-      <th>Playoff/Playout</th>
+      <th>${t('history.gfga')}</th>
+      <th>${t('history.playoff')}</th>
       <th>${t('extra.topScorer')}</th>
-      <th>Assistman</th>
+      <th>${t('history.topAssist')}</th>
     </tr></thead><tbody>`;
 
     history.slice().reverse().forEach(s => {

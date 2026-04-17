@@ -54,6 +54,7 @@ const LANG_IT = {
     market:     'Mercato',
     finance:    'Finanza',
     stadium:    'Stadio',
+    history:    'Storico',
     credits:    'Credits',
     logout:     'Logout',
     endSeason:  'Fine Stagione',
@@ -678,6 +679,26 @@ const LANG_IT = {
     notifTitle: 'Notifiche popup',
     notifDesc:  'Seleziona quali notizie aprono un popup',
     none:       'Nessuna',
+  },
+
+  // ── Finance extra keys ────────────────────────────────────────────
+  finance_extra: {
+    description: 'Descrizione',
+    currentBudget: 'Budget attuale',
+    prizeIncome: 'Introiti vittorie e premi',
+    sellIncome: 'Introiti vendita giocatori',
+    buyOutcome: 'Uscite acquisto giocatori',
+    totalWagesPaid: 'Monte ingaggi versato',
+    wageTitle: 'Monte Ingaggi',
+    wageAnnual: 'Annuale (totale rosa)',
+    wagePerDay: 'Per giornata',
+    rosterSize: 'Giocatori in rosa',
+    wageInfo: 'Il monte ingaggi viene dedotto automaticamente al termine di ogni giornata della regular season. È variabile: aumenta con gli acquisti, diminuisce con le cessioni.',
+    wageInfoFinal: 'Fase finale in corso: il monte ingaggi non viene più dedotto nelle fasi playoff/playout.',
+    txHistory: 'Storico Transazioni',
+    noTransactions: 'Nessuna transazione ancora registrata.',
+    importo: 'Importo',
+    econTitle: 'Stato Economico del Club',
   },
 
 };
