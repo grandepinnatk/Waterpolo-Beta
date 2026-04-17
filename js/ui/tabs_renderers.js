@@ -1457,17 +1457,17 @@ function _buildSellSection(i) {
 
   if (entry) {
     // Già in vendita
-    let html = `<div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:8px">In vendita — prezzo richiesto: ${formatMoney(entry.askingPrice)}</div>`;
+    let html = `<div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:8px">${t('market.myList')} — ${t('roster.askingPrice')} ${formatMoney(entry.askingPrice)}</div>`;
     if (offers.length) {
-      html += `<div class="slbl" style="margin-top:0;margin-bottom:6px">Offerte ricevute</div>`;
+      html += `<div class="slbl" style="margin-top:0;margin-bottom:6px">${t('market.offers')}</div>`;
       offers.forEach((o, oi) => {
         const accepted = o.amount >= entry.askingPrice;
         html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
           <div style="flex:1;font-size:12px"><strong>${o.teamName}</strong>: ${formatMoney(o.amount)}
             <span style="color:${accepted?'var(--green)':'var(--red)'}"> (${Math.round(o.amount/entry.askingPrice*100)}%)</span>
           </div>
-          <button class="btn sm success" onclick="acceptOffer(${i},${oi});this.closest('[style*=fixed]').remove();renderRosa();">' + t('market.offerPopup.accept') + '</button>
-          <button class="btn sm" onclick="rejectOffer(${i},${oi});document.getElementById('modal-sell-section-${i}').innerHTML=_buildSellSection(${i})">' + t('market.offerPopup.reject') + '</button>
+          <button class="btn sm success" onclick="acceptOffer(${i},${oi});this.closest('[style*=fixed]').remove();renderRosa();">${t('market.offerPopup.accept')}</button>
+          <button class="btn sm" onclick="rejectOffer(${i},${oi});document.getElementById('modal-sell-section-${i}').innerHTML=_buildSellSection(${i})">${t('market.offerPopup.reject')}</button>
         </div>`;
       });
     } else {

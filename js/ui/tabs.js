@@ -216,6 +216,8 @@ const NEWS_CATEGORIES = [
 ];
 
 // Legge la configurazione salvata (o default: tutte attive tranne finance)
+const CFG_VERSION = 2; // Incrementa se si aggiungono categorie o si cambiano i default
+
 function getConfig() {
   var cfg = null;
   try {
@@ -223,11 +225,17 @@ function getConfig() {
     if (raw) cfg = JSON.parse(raw);
   } catch(e) {}
 
-  // Default o migrazione: assicura che tutte le categorie siano presenti
-  if (!cfg) cfg = { newsPopup: {} };
-  if (!cfg.newsPopup) cfg.newsPopup = {};
+  // Se manca o è una versione vecchia: riparte da zero con tutti i default true
+  if (!cfg || !cfg.newsPopup || cfg._v !== CFG_VERSION) {
+    cfg = { _v: CFG_VERSION, newsPopup: {} };
+    NEWS_CATEGORIES.forEach(function(cat) {
+      cfg.newsPopup[cat.id] = true;
+    });
+    saveConfig(cfg);
+    return cfg;
+  }
 
-  // Aggiunge eventuali categorie mancanti (nuove o mai impostate) con default true
+  // Aggiunge eventuali categorie mancanti con default true (senza toccare le esistenti)
   NEWS_CATEGORIES.forEach(function(cat) {
     if (cfg.newsPopup[cat.id] === undefined) {
       cfg.newsPopup[cat.id] = true;
