@@ -175,6 +175,35 @@ G = {
 - Giocatori convocati (`_national`) non disponibili per la partita successiva
 - Badge NAZ visibile in rosa e convocazioni
 
+### Sistema notifiche popup
+
+Dopo ogni giornata simulata, i messaggi generati vengono classificati per categoria e mostrati come popup sequenziali nell'ordine seguente:
+
+| # | Categoria | catId | Tipo popup | Disabilitabile |
+|---|-----------|-------|------------|----------------|
+| 1 | Risultato | `result` | Strutturato (punteggio, marcatori, premi) | ✅ |
+| 2 | Infortuni | `injuries` | Lista messaggi infortuni della giornata | ✅ |
+| 3 | Recupero | `recovery` | Lista giocatori rientrati dalla lesione | ✅ |
+| 4 | Nazionale | `national` | Strutturato (giocatori convocati, flag) | ✅ |
+| 5 | Contratto | `contract` | Lista rinnovi accettati/rifiutati | ✅ |
+| 6 | Mercato | `market` | Offerte strutturate o lista messaggi | ✅ |
+| 7 | Finanza | `finance` | Lista transazioni (ingaggi, incassi) | ✅ |
+| 8 | Playoff | `playoff` | Lista avanzamenti/retrocessioni | ✅ |
+| 9 | Notizie | `news` | Lista notizie generiche residue | ✅ |
+
+> L'allenamento (`training`) ha un popup dedicato che si apre immediatamente dopo il click su "Allena" — non fa parte della coda post-giornata.
+
+**Regola di sequenza:** ogni popup, alla chiusura, chiama `_nextPopupInQueue()` che processa il successivo elemento della coda. Se una categoria è disabilitata nelle impostazioni (⚙️ Config → Notifiche popup), viene saltata senza interrompere la sequenza.
+
+**Configurazione:** il pannello ⚙️ Config nella topbar consente di abilitare/disabilitare ogni categoria individualmente. Le preferenze vengono salvate in `localStorage['wp_config']` con versioning (`CFG_VERSION`) per gestire reset automatici tra aggiornamenti.
+
+**Implementazione:**
+- Coda: `G._popupQueue` — array di `{ catId, data?, msgs? }` costruito in `simNextRound()`
+- Dispatcher: `_nextPopupInQueue()` in `main.js`
+- Popup strutturati: `_showSimResultPopup()`, `_showNationalPopup()`, `_showOfferPopupQueue()`
+- Popup testo: `_showMsgCategoryPopup(catId, msgs)` in `tabs_renderers.js`
+
+
 ### Morale
 - Aggiornato dopo partite, hat-trick, panchina, infortuni, mercato
 - Alert morale critico (<30) nelle notizie

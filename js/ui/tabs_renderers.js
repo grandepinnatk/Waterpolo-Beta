@@ -929,6 +929,78 @@ function showNewsPopup(text, color, label) {
 }
 window.showNewsPopup = showNewsPopup;
 
+// ── Popup generico multi-messaggio per categoria ──────────────────────
+// Usato dalla coda popup per injuries, recovery, contract, finance, playoff, news, market testuale
+function _showMsgCategoryPopup(catId, msgs) {
+  var existing = document.getElementById('msgcat-popup');
+  if (existing) existing.remove();
+
+  // Trova colore e label dalla categoria
+  var cats  = typeof NEWS_CATEGORIES !== 'undefined' ? NEWS_CATEGORIES : [];
+  var cat   = cats.find(function(c) { return c.id === catId; });
+  var color = cat ? cat.color : '#455a64';
+
+  // Label badge — stessa logica di msgTag
+  var label = (function() {
+    if (catId === 'injuries')  return t('nav.training').toUpperCase();
+    if (catId === 'recovery')  return t('goals.inProgress').toUpperCase();
+    if (catId === 'national')  return t('national.titleShort').toUpperCase();
+    if (catId === 'playoff')   return t('nav.playoff').toUpperCase();
+    if (catId === 'contract')  return t('roster.contract').toUpperCase();
+    if (catId === 'market')    return t('nav.market').toUpperCase();
+    if (catId === 'finance')   return t('nav.finance').toUpperCase();
+    if (catId === 'training')  return t('nav.training').toUpperCase();
+    if (catId === 'news')      return t('dash.news').toUpperCase();
+    return catId.toUpperCase();
+  })();
+
+  var rows = msgs.map(function(m) {
+    return '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;color:var(--text);line-height:1.5">'
+      + m.split('\n').join('<br>')
+      + '</div>';
+  }).join('');
+
+  var ov = document.createElement('div');
+  ov.id = 'msgcat-popup';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:700;backdrop-filter:blur(6px)';
+
+  ov.innerHTML = '<div style="background:var(--panel);border:1px solid ' + color + '44;border-radius:16px;'
+    + 'padding:24px 28px;max-width:440px;width:92%;max-height:80vh;overflow-y:auto;'
+    + 'box-shadow:0 8px 40px rgba(0,0,0,.5)">'
+
+    // Header badge + chiudi
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">'
+    + '<span style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:5px;'
+    + 'background:' + color + '22;color:' + color + ';border:1px solid ' + color + '44;letter-spacing:.4px">'
+    + label + '</span>'
+    + '<button onclick="_closeMsgCatPopupAndNext()" '
+    + 'style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);line-height:1;padding:0">✕</button>'
+    + '</div>'
+
+    // Lista messaggi
+    + '<div style="margin-bottom:16px">' + rows + '</div>'
+
+    // Bottone chiudi
+    + '<button onclick="_closeMsgCatPopupAndNext()" '
+    + 'style="width:100%;padding:10px;background:' + color + '22;border:1px solid ' + color + '44;'
+    + 'border-radius:8px;color:' + color + ';font-weight:700;font-size:13px;cursor:pointer">'
+    + t('common.close') + '</button>'
+    + '</div>';
+
+  ov.onclick = function(e) { if (e.target === ov) _closeMsgCatPopupAndNext(); };
+  document.body.appendChild(ov);
+}
+window._showMsgCategoryPopup = _showMsgCategoryPopup;
+
+function _closeMsgCatPopupAndNext() {
+  var popup = document.getElementById('msgcat-popup');
+  if (popup) popup.remove();
+  setTimeout(function() {
+    if (typeof _nextPopupInQueue === 'function') _nextPopupInQueue();
+  }, 200);
+}
+window._closeMsgCatPopupAndNext = _closeMsgCatPopupAndNext;
+
 function renderRosa() {
   const roster = G.rosters[G.myId];
   const tlSet  = new Set((G.transferList || []).map(function(e) { return e.rosterIdx; }));
@@ -3610,6 +3682,27 @@ function _showSimResultPopup(data) {
   if (isWin) _simResultConfetti();
 }
 window._showSimResultPopup = _showSimResultPopup;
+
+// ── Chiudi popup risultato e mostra eventuale popup nazionale ─────────
+function _closeSimResultAndShowNational() {
+  var popup = document.getElementById('sim-result-popup');
+  if (popup) popup.remove();
+  // Se c'è un popup nazionale in attesa, mostrarlo solo se abilitato nella config
+  if (G._pendingNationalPopup && G._pendingNationalPopup.length > 0) {
+    var _natCfg = typeof getConfig === 'function' ? getConfig() : { newsPopup: {} };
+    if (_natCfg.newsPopup && _natCfg.newsPopup['national'] !== false) {
+      var _toShow = G._pendingNationalPopup;
+      G._pendingNationalPopup = null;
+      setTimeout(function() {
+        if (typeof _showNationalPopup === 'function') _showNationalPopup(_toShow);
+      }, 200);
+    } else {
+      G._pendingNationalPopup = null; // scarta silenziosamente
+    }
+  }
+}
+window._closeSimResultAndShowNational = _closeSimResultAndShowNational;
+
 
 function _simResultConfetti() {
   var canvas = document.getElementById('sim-confetti');

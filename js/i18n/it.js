@@ -514,6 +514,7 @@ const LANG_IT = {
     others:      'Altre nazionali',
     great:       'Ottimo! 💪',
     badge:       'NAZ',
+    titleShort:  'Nazionale',
     caps:        '{{n}} caps',
   },
 

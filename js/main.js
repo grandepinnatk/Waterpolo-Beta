@@ -315,6 +315,9 @@ function simNextRound() {
   const r = nextMyRound();
   if (!r) { G.msgs.push(t('dash.noMatches')); renderDash(); return; }
 
+  // Snapshot dei msgs prima della simulazione — useremo la diff per i popup
+  const _msgsBefore = G.msgs.length;
+
   console.group('%c[SIM] Giornata ' + r, 'color:#00c2ff;font-weight:bold');
   console.log('[SIM] Squadra:', G.myTeam?.name, '| Fase:', G.phase, '| Budget:', G.budget);
 
@@ -501,23 +504,119 @@ function simNextRound() {
   }
 
   updateHeader(); autoSave(); renderDash();
-  // Popup risultato partita simulata
+
+  // ── Coda popup sequenziale ────────────────────────────────────────────
+  // Raccoglie tutti i messaggi NUOVI generati in questa giornata e li raggruppa
+  // per categoria. Ogni categoria ottiene il suo popup nell'ordine definito.
+  G._popupQueue = [];
+
+  // Messaggi nuovi generati durante questa simulazione
+  const _newMsgs = G.msgs.slice(_msgsBefore);
+
+  // Funzione: raggruppa i nuovi msg per categoria usando NEWS_CATEGORIES
+  function _msgsOfCat(catId) {
+    const cats = typeof NEWS_CATEGORIES !== 'undefined' ? NEWS_CATEGORIES : [];
+    const cat  = cats.find(c => c.id === catId);
+    if (!cat || !cat.regex) return [];
+    return _newMsgs.filter(m => cat.regex.test(m));
+  }
+
+  // Ordine coda: result, injuries, recovery, national, contract, market, finance, training, playoff, news
+  // Per result e national usiamo i dati strutturati se disponibili, altrimenti il testo
+
   if (_myMatchResult) {
-    setTimeout(() => _showSimResultPopup(_myMatchResult), 150);
+    G._popupQueue.push({ catId: 'result', data: _myMatchResult });
   }
-  // Popup convocazione nazionale
+
+  // injuries
+  const _injMsgs = _msgsOfCat('injuries');
+  if (_injMsgs.length) G._popupQueue.push({ catId: 'injuries', msgs: _injMsgs });
+
+  // recovery
+  const _recMsgs = _msgsOfCat('recovery');
+  if (_recMsgs.length) G._popupQueue.push({ catId: 'recovery', msgs: _recMsgs });
+
+  // national (usa dati strutturati se disponibili)
   if (G._pendingNationalPopup && G._pendingNationalPopup.length > 0) {
-    const _toShow = G._pendingNationalPopup;
+    G._popupQueue.push({ catId: 'national', data: G._pendingNationalPopup });
     G._pendingNationalPopup = null;
-    setTimeout(() => _showNationalPopup(_toShow), 300);
+  } else {
+    const _natMsgs = _msgsOfCat('national');
+    if (_natMsgs.length) G._popupQueue.push({ catId: 'national', msgs: _natMsgs });
   }
-  // Popup offerte di mercato (sequenziali)
+
+  // contract
+  const _conMsgs = _msgsOfCat('contract');
+  if (_conMsgs.length) G._popupQueue.push({ catId: 'contract', msgs: _conMsgs });
+
+  // market (offerte strutturate + msg generici)
   if (G._pendingOfferPopups && G._pendingOfferPopups.length > 0) {
-    const _offers = G._pendingOfferPopups;
+    G._popupQueue.push({ catId: 'market', data: G._pendingOfferPopups });
     G._pendingOfferPopups = [];
-    setTimeout(() => _showOfferPopupQueue(_offers, 0), 500);
+  } else {
+    const _mktMsgs = _msgsOfCat('market');
+    if (_mktMsgs.length) G._popupQueue.push({ catId: 'market', msgs: _mktMsgs });
   }
+
+  // finance
+  const _finMsgs = _msgsOfCat('finance');
+  if (_finMsgs.length) G._popupQueue.push({ catId: 'finance', msgs: _finMsgs });
+
+  // training (allenamento già gestito da popup dedicato, non serve qui)
+
+  // playoff
+  const _poMsgs = _msgsOfCat('playoff');
+  if (_poMsgs.length) G._popupQueue.push({ catId: 'playoff', msgs: _poMsgs });
+
+  // news generiche
+  const _newsMsgs = _newMsgs.filter(m => {
+    const cats = typeof NEWS_CATEGORIES !== 'undefined' ? NEWS_CATEGORIES : [];
+    return !cats.slice(0, -1).some(c => c.regex && c.regex.test(m));
+  });
+  if (_newsMsgs.length) G._popupQueue.push({ catId: 'news', msgs: _newsMsgs });
+
+  setTimeout(() => _nextPopupInQueue(), 150);
 }
+
+// ── Gestione coda popup sequenziale ──────────────────────────────────
+// Mostra il prossimo popup nella coda G._popupQueue rispettando la config
+// notifiche. Ogni popup, quando viene chiuso, chiama _nextPopupInQueue().
+function _nextPopupInQueue() {
+  if (!G._popupQueue || !G._popupQueue.length) return;
+
+  var cfg  = typeof getConfig === 'function' ? getConfig() : { newsPopup: {} };
+  var item = G._popupQueue.shift();
+
+  // Salta se categoria disabilitata
+  if (cfg.newsPopup && cfg.newsPopup[item.catId] === false) {
+    setTimeout(_nextPopupInQueue, 0);
+    return;
+  }
+
+  // Popup con dati strutturati
+  if (item.catId === 'result' && item.data) {
+    if (typeof _showSimResultPopup === 'function') _showSimResultPopup(item.data);
+    return;
+  }
+  if (item.catId === 'national' && item.data) {
+    if (typeof _showNationalPopup === 'function') _showNationalPopup(item.data);
+    return;
+  }
+  if (item.catId === 'market' && item.data) {
+    if (typeof _showOfferPopupQueue === 'function') _showOfferPopupQueue(item.data, 0);
+    return;
+  }
+
+  // Popup con lista messaggi testuali — popup generico multi-messaggio
+  if (item.msgs && item.msgs.length) {
+    if (typeof _showMsgCategoryPopup === 'function') _showMsgCategoryPopup(item.catId, item.msgs);
+    return;
+  }
+
+  // Nessun contenuto: salta
+  setTimeout(_nextPopupInQueue, 0);
+}
+window._nextPopupInQueue = _nextPopupInQueue;
 
 function simEntireSeason() {
   simulateAllRemaining(G.schedule, G.stand, G.teams, G.myId, G.rosters);
@@ -2545,7 +2644,7 @@ function _showNationalPopup(called) {
       </div>
       ${itaPlayers.length ? `<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${t('national.italiana')}</div>${itaPlayers.map(makeRow).join('')}` : ''}
       ${othPlayers.length ? `<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 6px">${t('national.others')}</div>${othPlayers.map(makeRow).join('')}` : ''}
-      <button onclick="document.getElementById('national-popup').remove()" style="width:100%;margin-top:18px;padding:10px;background:var(--blue);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:14px;cursor:pointer">
+      <button onclick="document.getElementById('national-popup').remove();setTimeout(function(){if(typeof _nextPopupInQueue==='function')_nextPopupInQueue();},200);" style="width:100%;margin-top:18px;padding:10px;background:var(--blue);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:14px;cursor:pointer">
         Ottimo! 💪
       </button>
     </div>`;
@@ -2593,7 +2692,13 @@ function _showNationalPopup(called) {
 // ═══════════════════════════════════════════════════════
 
 function _showOfferPopupQueue(offers, idx) {
-  if (!offers || idx >= offers.length) return;
+  if (!offers || idx >= offers.length) {
+    // Fine coda offerte: avanza al prossimo popup nella coda principale
+    setTimeout(function() {
+      if (typeof _nextPopupInQueue === 'function') _nextPopupInQueue();
+    }, 200);
+    return;
+  }
   const o = offers[idx];
   const isGood = o.meetsPrice;
 

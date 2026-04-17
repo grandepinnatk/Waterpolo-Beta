@@ -278,7 +278,7 @@ function openConfigPanel() {
       training: t('nav.training'),
       recovery: '✅ ' + t('goals.inProgress'),
       playoff:  t('nav.playoff'),
-      national: t('national.badge') + ' ' + t('national.italiana').split(' ')[1],
+      national: t('national.titleShort'),
       news:     t('dash.news'),
     };
     if (labelMap[cat.id]) label = labelMap[cat.id];

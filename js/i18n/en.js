@@ -491,6 +491,7 @@ const LANG_EN = {
     others:      'Other national teams',
     great:       'Great! 💪',
     badge:       'NAT',
+    titleShort:  'National',
     caps:        '{{n}} caps',
   },
 
