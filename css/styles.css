@@ -954,7 +954,7 @@ tr:last-child td { border-bottom: none; }
   overflow-x: hidden;
   padding:    14px 16px;
 }
-.bs-content > div { max-width: 860px; }
+.bs-content > div { max-width: 946px; }
 
 /* ── Compatibilità: .content per le schermate non-game ── */
 .content { padding: 14px; max-width: 920px; margin: 0 auto; }

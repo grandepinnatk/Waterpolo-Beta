@@ -1146,7 +1146,7 @@ function renderRosa() {
     + _hdr(t('common.goals'), 'goals', 'center')
     + _hdr('Ass', 'assists', 'center')
     + '<div style="color:rgba(240,192,64,.5)">Voti</div>'
-    + _hdr(t(t('roster.value')), 'value', '')
+    + _hdr(t('roster.value'), 'value', '')
     + '</div>';
 
   // ── Righe giocatori ──
@@ -1321,7 +1321,7 @@ function showPlayerModal(i) {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:12px">
         <div class="irow" style="margin:0"><span class="ilbl">${t('roster.overall')}</span><span style="font-size:16px;font-weight:700;color:var(--blue)">${p.overall}</span></div>
         <div class="irow" style="margin:0"><span class="ilbl">${t('roster.potential')}</span><span>${p.potential||'—'}</span></div>
-        <div class="irow" style="margin:0"><span class="ilbl">${t(t('roster.value'))}</span><span style="font-size:12px">${formatMoney(p.value)}</span></div>
+        <div class="irow" style="margin:0"><span class="ilbl">${t('roster.value')}</span><span style="font-size:12px">${formatMoney(p.value)}</span></div>
         <div class="irow" style="margin:0"><span class="ilbl">${t('common.salary')}</span><span style="font-size:12px">${formatMoney(p.salary)}/a</span></div>
         <div class="irow" style="margin:0"><span class="ilbl">${t('roster.fitness')}</span><span style="color:${p.fitness>70?'var(--green)':'var(--gold)'}">${p.fitness}%</span></div>
         <div class="irow" style="margin:0"><span class="ilbl">${t('roster.morale')}</span><span>${p.morale}%</span></div>
@@ -1419,7 +1419,7 @@ function showMarketPlayerModal(i) {
       </div>
       <div class="irow"><span class="ilbl">${t('roster.overall')}</span>    <span style="font-size:18px;font-weight:700;color:var(--blue)">${p.overall}</span></div>
       <div class="irow"><span class="ilbl">${t('roster.potential')}</span> <span>${p.potential}</span></div>
-      <div class="irow"><span class="ilbl">${t(t('roster.value'))}</span>     <span>${formatMoney(p.value)}</span></div>
+      <div class="irow"><span class="ilbl">${t('roster.value')}</span>     <span>${formatMoney(p.value)}</span></div>
       <div class="irow"><span class="ilbl">${t('common.salary')}</span>  <span>${formatMoney(p.salary)}/anno</span></div>
       <div class="irow"><span class="ilbl">${t('roster.fitness')}</span>    <span style="color:${p.fitness > 70 ? 'var(--green)' : 'var(--gold)'}">${p.fitness}%</span></div>
       <div class="irow"><span class="ilbl">${t('roster.morale')}</span>     <span style="color:${mc}">${p.morale}%</span></div>
@@ -2531,7 +2531,7 @@ function renderMarket() {
       <th>${t('market.fromTeam')}</th>
       <th onclick="_mktSortClick('role')"   style="cursor:pointer">${t('roster.sortRole')} ${_sortArrow('role')}</th>
       <th onclick="_mktSortClick('ovr')"    style="cursor:pointer">OVR ${_sortArrow('ovr')}</th>
-      <th onclick="_mktSortClick('value')"  style="cursor:pointer">${t('roster.value')} ${_sortArrow('value')}</th>
+      <th onclick="_mktSortClick('value')"  style="cursor:pointer">${t('extra.marketValue')} ${_sortArrow('value')}</th>
       <th onclick="_mktSortClick('salary')" style="cursor:pointer">${t('extra.wage')} ${_sortArrow('salary')}</th>
       <th onclick="_mktSortClick('days')"   style="cursor:pointer">${t('extra.expires')} ${_sortArrow('days')}</th>
       <th></th>
