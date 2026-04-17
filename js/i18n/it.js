@@ -168,6 +168,7 @@ const LANG_IT = {
     noHistory:      'Nessuna sessione completata',
     confirmTitle:   'Conferma allenamento',
     confirmBtn:     '✓ Conferma allenamento',
+    applyBtn:       'Allena ora',
     cost:           'Costo',
     stars:          'stelle',
     effects:        'Effetti',

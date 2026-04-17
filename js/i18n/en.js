@@ -161,6 +161,7 @@ const LANG_EN = {
     noHistory:      'No sessions completed',
     confirmTitle:   'Confirm training',
     confirmBtn:     '✓ Confirm training',
+    applyBtn:       'Train now',
     cost:           'Cost',
     stars:          'stars',
     effects:        'Effects',

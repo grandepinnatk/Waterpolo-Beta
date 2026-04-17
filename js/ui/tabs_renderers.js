@@ -1450,14 +1450,14 @@ function renderTrain() {
 
   // Status bar
   h += '<div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">'
-    + statBox('🔁', 'Sessioni', G.trainWeeks, '#7cb9ff')
-    + statBox('💪', 'Forma media', avgFit + '%', avgFit > 70 ? '#69f0ae' : '#f0c040')
-    + statBox('📊', 'OVR media', avgOvr, avgOvr >= 75 ? '#00c2ff' : avgOvr >= 60 ? '#69f0ae' : '#f0c040')
-    + statBox('⭐', 'Stelle', stars, '#ffe566')
+    + statBox('🔁', t('training.weeksDone'), G.trainWeeks, '#7cb9ff')
+    + statBox('💪', t('roster.fitness') + ' ' + t('common.all').toLowerCase(), avgFit + '%', avgFit > 70 ? '#69f0ae' : '#f0c040')
+    + statBox('📊', t('roster.sortOvr') + ' ' + t('common.all').toLowerCase(), avgOvr, avgOvr >= 75 ? '#00c2ff' : avgOvr >= 60 ? '#69f0ae' : '#f0c040')
+    + statBox('⭐', t('header.stars'), stars, '#ffe566')
     + '</div>';
 
   h += '<div style="font-size:11px;color:rgba(255,255,255,.28);margin-bottom:14px;text-align:center">'
-    + 'Ogni giornata ricevi <strong style="color:rgba(255,215,0,.55)" class="train-star-label">+4 stelle</strong>. Spendile per allenare la rosa.'
+    + t('training.starsAvail') + ': <strong style="color:rgba(255,215,0,.55)" class="train-star-label">+4</strong> / ' + t('common.round').toLowerCase() + '.'
     + '</div>';
 
   // Griglia schede allenamento
@@ -1502,16 +1502,16 @@ function renderTrain() {
       + '<div style="display:flex;align-items:center;gap:5px">'
       + '<span style="font-size:14px">⭐</span>'
       + '<span class="train-star-label" style="font-size:13px;font-weight:800;color:' + (!okStars ? '#e74c3c' : '#ffe566') + '">'
-      + starCost + ' ' + (starCost === 1 ? 'stella' : t('training.stars')) + '</span>'
+      + starCost + ' ' + t('training.stars') + '</span>'
       + '</div>'
       + '<div style="font-size:12px;font-weight:600;color:' + (tr.cost === 0 ? '#69f0ae' : !okBudget ? '#e74c3c' : 'rgba(255,255,255,.48)') + '">'
-      + (tr.cost ? formatMoney(tr.cost) : '🆓 Gratuito') + '</div>'
+      + (tr.cost ? formatMoney(tr.cost) : '🆓 ' + t('common.unlimited')) + '</div>'
       + '</div>';
 
     // Pulsante
     var btnBg  = ok ? 'linear-gradient(135deg,#ff8c42,#e65100)' : 'rgba(255,255,255,.06)';
     var btnCol = ok ? '#fff' : 'rgba(255,255,255,.22)';
-    var btnLbl = ok ? '&#9654; Applica Allenamento' : (!okStars ? '&#11088; Stelle insufficienti' : '&#128184; Budget insufficiente');
+    var btnLbl = ok ? '&#9654; ' + t('training.applyBtn') : (!okStars ? '&#11088; ' + t('stars.notEnough') : '&#128184; ' + t('market.notEnoughBudget'));
     h += '<button style="width:100%;padding:9px;font-size:12px;font-weight:800;border-radius:8px;'
       + 'background:' + btnBg + ';border:none;color:' + btnCol + ';'
       + 'cursor:' + (ok ? 'pointer' : 'not-allowed') + ';'
@@ -1618,17 +1618,17 @@ function openTrainPopup(i) {
   let effHTML = '';
   if (eff.fitness)  effHTML += effRow(t('roster.fitness'),          1, eff.fitness,  'var(--green)');
   if (eff.morale)   effHTML += effRow(t('roster.morale'),           1, eff.morale,   'var(--green)');
-  if (eff.att)      effHTML += effRow('ATT (attacco)',     0, eff.att,      'var(--blue)');
-  if (eff.def)      effHTML += effRow('DIF (difesa)',      0, eff.def,      'var(--blue)');
+  if (eff.att)      effHTML += effRow(t('attrs.att_full'), 0, eff.att,      'var(--blue)');
+  if (eff.def)      effHTML += effRow(t('attrs.def_full'), 0, eff.def,      'var(--blue)');
   if (eff.spe)      effHTML += effRow(t('extra.speedAttr'),    0, eff.spe,      'var(--blue)');
-  if (eff.str)      effHTML += effRow('FOR (forza)',       0, eff.str,      'var(--blue)');
-  if (eff.tec)      effHTML += effRow('TEC (tecnica)',     0, eff.tec,      'var(--blue)');
-  if (eff.res)      effHTML += effRow('RES (resistenza)',   0, eff.res,      'var(--blue)');
-  if (eff.gk)       effHTML += effRow('OVR Portieri',      2, 2,            'var(--blue)');
-  if (tr.fatigue)   effHTML += effRow('Forma (fatica)',  fatigueSign ? -(tr.fatigue) : Math.abs(tr.fatigue),
+  if (eff.str)      effHTML += effRow(t('attrs.str_full'), 0, eff.str,      'var(--blue)');
+  if (eff.tec)      effHTML += effRow(t('attrs.tec_full'), 0, eff.tec,      'var(--blue)');
+  if (eff.res)      effHTML += effRow(t('attrs.res_full'), 0, eff.res,      'var(--blue)');
+  if (eff.gk)       effHTML += effRow(t('roles.POR') + ' OVR', 2, 2,        'var(--blue)');
+  if (tr.fatigue)   effHTML += effRow(t('roster.fitness') + ' (' + t('training.fatigue').toLowerCase() + ')',  fatigueSign ? -(tr.fatigue) : Math.abs(tr.fatigue),
                                                            fatigueSign ? -(tr.fatigue) : Math.abs(tr.fatigue),
                                                            fatigueSign ? 'var(--red)' : 'var(--green)');
-  effHTML += effRow('OVR (miglioramento)', 0, '+1 (12% prob)', 'var(--gold)');
+  effHTML += effRow('OVR (' + t('goals.inProgress').toLowerCase() + ')', 0, '+1 (12% prob)', 'var(--gold)');
 
   const ov = document.createElement('div');
   ov.id = 'train-popup';
@@ -1655,20 +1655,20 @@ function openTrainPopup(i) {
                     border-radius:8px;padding:10px;text-align:center">
           <div style="font-size:20px">⭐</div>
           <div style="font-size:16px;font-weight:800;color:var(--gold)">${starCost}</div>
-          <div style="font-size:10px;color:var(--muted)">${starCost===1?'stella':t('training.stars')} (hai ${stars})</div>
+          <div style="font-size:10px;color:var(--muted)">${t('training.stars')} (${t('training.starsAvail')}: ${stars})</div>
         </div>
         <div style="flex:1;background:rgba(240,192,64,.08);border:1px solid rgba(240,192,64,.3);
                     border-radius:8px;padding:10px;text-align:center">
           <div style="font-size:20px">💰</div>
-          <div style="font-size:14px;font-weight:800;color:var(--gold)">${tr.cost ? formatMoney(tr.cost) : 'Gratuito'}</div>
-          <div style="font-size:10px;color:var(--muted)">costo</div>
+          <div style="font-size:14px;font-weight:800;color:var(--gold)">${tr.cost ? formatMoney(tr.cost) : t('common.unlimited')}</div>
+          <div style="font-size:10px;color:var(--muted)">${t('training.cost')}</div>
         </div>
       </div>
 
       <!-- Effetti attesi -->
       <div style="margin-bottom:16px">
         <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
-                    letter-spacing:.5px;margin-bottom:8px">Effetti attesi (intera rosa)</div>
+                    letter-spacing:.5px;margin-bottom:8px">${t('training.effects')} (${t('roster.title').toLowerCase()})</div>
         ${effHTML}
       </div>
 
@@ -1678,12 +1678,12 @@ function openTrainPopup(i) {
                 style="flex:1;padding:11px;font-size:13px;font-weight:800;border-radius:8px;
                        border:2px solid var(--blue);background:linear-gradient(135deg,#0a5ca8,#0844a0);
                        color:#fff;cursor:pointer">
-          ${t('training.confirmBtn')}
+          ${t('training.applyBtn')}
         </button>
         <button onclick="document.getElementById('train-popup').remove()"
                 style="padding:11px 18px;font-size:13px;font-weight:700;border-radius:8px;
                        border:2px solid var(--border);background:var(--panel2);color:var(--muted);cursor:pointer">
-          Annulla
+          ${t('common.cancel')}
         </button>
       </div>
     </div>`;
@@ -1731,9 +1731,12 @@ function doTrain(i) {
     p.overall = Math.min(potCap, newOvr);
   });
 
-  const effDesc = tr.eff ? Object.entries(tr.eff).map(([k, v]) => '+' + v + ' ' + k).join(', ') : '';
+  const attrMap = { fitness: t('roster.fitness'), morale: t('roster.morale'),
+      att: t('attrs.att'), def: t('attrs.def'), spe: t('attrs.spe'),
+      str: t('attrs.str'), tec: t('attrs.tec'), res: t('attrs.res'), gk: 'GK' };
+    const effDesc = tr.eff ? Object.entries(tr.eff).map(([k, v]) => '+' + v + ' ' + (attrMap[k] || k)).join(', ') : '';
   G.trainHistory.push({ n: G.trainWeeks, name: tr.name, eff: effDesc, cost: tr.cost });
-  G.msgs.push('Allenamento: ' + tr.name + '. ' + improved + ' giocatori migliorati.');
+  G.msgs.push(t('training.sessionDone', {name: tr.name}) + ' ' + t('training.improved', {n: improved}));
   G._selTrain = null;
   updateHeader(); autoSave(); renderTrain();
 }
@@ -1832,8 +1835,8 @@ function _showStandTab(tab) {
 function _buildStandContent(activeTab) {
   // ── Tab nav ──
   let h = `<div style="display:flex;gap:6px;margin-bottom:12px">
-    <button class="btn${activeTab === 'classifica' ? ' primary' : ' sm'}" onclick="_showStandTab('classifica')" style="font-size:13px">' + '🏆 ' + t('nav.standings') + '</button>
-    <button class="btn${activeTab === 'marcatori'  ? ' primary' : ' sm'}" onclick="_showStandTab('marcatori')"  style="font-size:13px">⚽ ' + t('extra.topScorer') + '</button>
+    <button class="btn${activeTab === 'classifica' ? ' primary' : ' sm'}" onclick="_showStandTab('classifica')" style="font-size:13px">🏆 ${t('nav.standings')}</button>
+    <button class="btn${activeTab === 'marcatori'  ? ' primary' : ' sm'}" onclick="_showStandTab('marcatori')"  style="font-size:13px">⚽ ${t('extra.topScorer')}</button>
   </div>`;
 
   if (activeTab === 'classifica') {
@@ -1842,8 +1845,8 @@ function _buildStandContent(activeTab) {
     h += `<div class="card">
       <div style="font-weight:700;color:var(--blue);margin-bottom:10px">${t('nav.standings')} Serie A1 — 2025/26</div>
       <table><thead><tr>
-        <th>#</th><th>${t('standings.team')}</th><th>G</th><th>' + t('standings.won') + '</th><th>' + t('standings.drawn') + '</th><th>${t('standings.lost')}</th>
-        <th>${t('standings.gf')}</th><th>' + t('standings.ga') + '</th><th>' + t('standings.diff') + '</th><th>${t('standings.points')}</th>
+        <th>#</th><th>${t('standings.team')}</th><th>G</th><th>${t('standings.won')}</th><th>${t('standings.drawn')}</th><th>${t('standings.lost')}</th>
+        <th>${t('standings.gf')}</th><th>${t('standings.ga')}</th><th>${t('standings.diff')}</th><th>${t('standings.points')}</th>
       </tr></thead><tbody>`;
 
     s.forEach((t, i) => {
@@ -1863,9 +1866,9 @@ function _buildStandContent(activeTab) {
 
     h += `</tbody></table>
       <div style="margin-top:10px;font-size:11px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap">
-        <span><span style="display:inline-block;width:10px;height:10px;background:rgba(0,194,255,.2);border-radius:2px;margin-right:4px"></span>Playoff (1-4)</span>
-        <span><span style="display:inline-block;width:10px;height:10px;background:rgba(240,192,64,.2);border-radius:2px;margin-right:4px"></span>Play-out (11-13)</span>
-        <span><span style="display:inline-block;width:10px;height:10px;background:rgba(231,76,60,.2);border-radius:2px;margin-right:4px"></span>Retrocessa (14)</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:rgba(0,194,255,.2);border-radius:2px;margin-right:4px"></span>${t('standings.playoff')} (1-4)</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:rgba(240,192,64,.2);border-radius:2px;margin-right:4px"></span>${t('standings.playout')} (11-13)</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:rgba(231,76,60,.2);border-radius:2px;margin-right:4px"></span>${t('standings.relegated')} (14)</span>
       </div>
     </div>`;
 
@@ -1898,11 +1901,11 @@ function _buildStandContent(activeTab) {
 
     if (!allScorers.length) {
       h += `<div style="color:var(--muted);padding:16px;text-align:center;font-size:13px">
-        Nessun gol segnato ancora in questa stagione
+        ${t('common.goals')} — ${t('common.unknown')}
       </div>`;
     } else {
       h += `<table><thead><tr>
-        <th>#</th><th>${t('roster.title')}</th><th>' + t('standings.team') + '</th><th>${t('roster.sortRole')}</th><th style="text-align:center">⚽</th><th style="text-align:center">Ass.</th>
+        <th>#</th><th>${t('roster.title')}</th><th>${t('standings.team')}</th><th>${t('roster.sortRole')}</th><th style="text-align:center">⚽</th><th style="text-align:center">${t('common.assists')}</th>
       </tr></thead><tbody>`;
 
       allScorers.forEach((p, i) => {
