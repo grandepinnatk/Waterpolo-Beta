@@ -1788,6 +1788,7 @@ function doTrain(i) {
   G._lastTrainRound = (typeof currentRound === 'function') ? currentRound() : 0;
   const roster = G.rosters[G.myId];
   let improved = 0;
+  const improvedPlayers = [];
 
   roster.forEach(p => {
     if (!p || p.injured) return;  // infortunati: nessun effetto allenamento
@@ -1805,20 +1806,98 @@ function doTrain(i) {
     p.fitness = Math.round(cap(p.fitness - (tr.fatigue || 0) + rnd(-2, 2)));
     // Ricalcola overall dagli attributi aggiornati (formula pesata per ruolo)
     const potCap = (p.potential !== undefined && p.potential > 0) ? p.potential : 99;
+    const oldOvr = p.overall;
     const newOvr = _calcOverallFromStats(p);
-    if (newOvr > p.overall) improved++;
+    if (newOvr > oldOvr) {
+      improved++;
+      improvedPlayers.push({ name: p.name, role: p.role, age: p.age, oldOvr: oldOvr, newOvr: Math.min(potCap, newOvr) });
+    }
     p.overall = Math.min(potCap, newOvr);
   });
 
   const attrMap = { fitness: t('roster.fitness'), morale: t('roster.morale'),
       att: t('attrs.att'), def: t('attrs.def'), spe: t('attrs.spe'),
       str: t('attrs.str'), tec: t('attrs.tec'), res: t('attrs.res'), gk: 'GK' };
-    const effDesc = tr.eff ? Object.entries(tr.eff).map(([k, v]) => '+' + v + ' ' + (attrMap[k] || k)).join(', ') : '';
+  const effDesc = tr.eff ? Object.entries(tr.eff).map(([k, v]) => '+' + v + ' ' + (attrMap[k] || k)).join(', ') : '';
   G.trainHistory.push({ n: G.trainWeeks, name: tr.name, eff: effDesc, cost: tr.cost });
   G.msgs.push(t('training.sessionDone', {name: tr.name}) + ' ' + t('training.improved', {n: improved}));
   G._selTrain = null;
   updateHeader(); autoSave(); renderTrain();
+
+  // Mostra popup riepilogo allenamento con lista giocatori migliorati
+  _showTrainResultPopup(tr, improved, improvedPlayers);
 }
+
+// ── Popup risultato allenamento ───────────────────────────────────────
+function _showTrainResultPopup(tr, improved, improvedPlayers) {
+  var existing = document.getElementById('train-result-popup');
+  if (existing) existing.remove();
+
+  var rows = improvedPlayers.map(function(p) {
+    return '<div style="display:flex;align-items:center;justify-content:space-between;'
+      + 'padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">'
+      + '<span style="font-size:12px;color:var(--text);font-weight:600">' + p.name + '</span>'
+      + '<span style="font-size:11px;color:var(--muted)">' + p.role + ' · ' + p.age + 'a</span>'
+      + '<span style="font-size:12px;font-weight:800;color:var(--green)">OVR ' + p.oldOvr + ' → ' + p.newOvr + '</span>'
+      + '</div>';
+  }).join('');
+
+  var ov = document.createElement('div');
+  ov.id = 'train-result-popup';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:600;backdrop-filter:blur(6px)';
+
+  ov.innerHTML = '<div style="background:var(--panel);border:1px solid #00838f44;border-radius:16px;'
+    + 'padding:24px 28px;max-width:440px;width:92%;max-height:80vh;overflow-y:auto;'
+    + 'box-shadow:0 8px 40px rgba(0,0,0,.5)">'
+
+    // Header
+    + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">'
+    + '<span style="font-size:30px">' + tr.icon + '</span>'
+    + '<div>'
+    + '<div style="font-weight:800;font-size:15px;color:var(--blue)">' + tr.name + '</div>'
+    + '<div style="font-size:11px;color:var(--muted)">' + tr.desc + '</div>'
+    + '</div>'
+    + '<button onclick="document.getElementById(\'train-result-popup\').remove()" '
+    + 'style="margin-left:auto;background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">✕</button>'
+    + '</div>'
+
+    // Effetti applicati
+    + '<div style="background:rgba(0,131,143,.08);border:1px solid rgba(0,131,143,.25);border-radius:8px;'
+    + 'padding:10px 14px;margin-bottom:14px;font-size:12px;color:rgba(255,255,255,.6)">'
+    + '<span style="color:#00838f;font-weight:700">' + t('training.effects') + ':</span> '
+    + (tr.eff ? Object.entries(tr.eff).map(function(kv) {
+        var attrMap2 = { fitness: t('roster.fitness'), morale: t('roster.morale'),
+          att: t('attrs.att'), def: t('attrs.def'), spe: t('attrs.spe'),
+          str: t('attrs.str'), tec: t('attrs.tec'), res: t('attrs.res') };
+        return '+' + kv[1] + ' ' + (attrMap2[kv[0]] || kv[0]);
+      }).join(' · ') : '—')
+    + '</div>'
+
+    // Stat: migliorati
+    + '<div style="display:flex;gap:10px;margin-bottom:14px">'
+    + '<div style="flex:1;text-align:center;background:rgba(46,204,113,.08);border:1px solid rgba(46,204,113,.25);border-radius:8px;padding:8px">'
+    + '<div style="font-size:22px;font-weight:900;color:var(--green)">' + improved + '</div>'
+    + '<div style="font-size:10px;color:var(--muted);text-transform:uppercase">' + t('training.improved', {n:''}).trim() + '</div>'
+    + '</div>'
+    + '</div>'
+
+    // Lista giocatori migliorati
+    + (improvedPlayers.length > 0
+        ? '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">OVR ↑</div>'
+          + rows
+        : '<div style="font-size:12px;color:var(--muted);text-align:center;padding:8px 0">' + t('common.unknown') + '</div>')
+
+    // Chiudi
+    + '<button onclick="document.getElementById(\'train-result-popup\').remove()" '
+    + 'style="width:100%;margin-top:16px;padding:10px;background:rgba(0,131,143,.15);border:1px solid rgba(0,131,143,.35);'
+    + 'border-radius:8px;color:#00838f;font-weight:700;font-size:13px;cursor:pointer">'
+    + t('common.close') + '</button>'
+    + '</div>';
+
+  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+}
+window._showTrainResultPopup = _showTrainResultPopup;
 
 // ════════════════════════════════════════════
 // OBIETTIVI

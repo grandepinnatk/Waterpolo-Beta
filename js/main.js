@@ -2197,7 +2197,7 @@ function _cpuMarketActivity() {
         roster.push(np);
       }
     }
-    if (needed > 0) G.msgs.push('🔄 ' + team.name + ' ha ingaggiato ' + Math.min(needed,2) + ' giocatori.');
+    if (needed > 0) G.msgs.push('🛒 ' + team.name + ' ' + t('market.available').toLowerCase() + ': +' + Math.min(needed,2));
   });
 }
 
@@ -2332,7 +2332,7 @@ function _showYouthPopup() {
       const np = { ...p }; delete np._fromYouth;
       G.rosters[G.myId].push(np);
       addLedger(t('extra.youthWage'), 0, t('extra.youthWage') + ' ' + np.name, 0);
-      G.msgs.push('🌟 ' + np.name + ' (' + np.role + ', ' + np.age + 'a, OVR ' + np.overall + ') entra in rosa dalla categoria giovanile. Ingaggio: ' + formatMoney(np.salary) + '/anno');
+      G.msgs.push('🛒 🌟 ' + np.name + ' (' + np.role + ', ' + np.age + 'a, OVR ' + np.overall + ') ' + t('extra.youthWage') + ': ' + formatMoney(np.salary) + '/a');
     });
     document.getElementById('youth-popup').remove();
     delete window._youthPlayers; delete window._youthSelected; delete window.toggleYouthSelect; delete window.confirmYouthSignings;
