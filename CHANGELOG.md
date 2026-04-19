@@ -2,6 +2,13 @@
 
 ---
 
+## [0.7.1-beta] — 2026-04-19
+
+### Bugfix
+- **Parziali partita live**: corretto bug che mostrava `function () { [native code] }1° T` nella tabella parziali durante la partita. La variabile di loop `tp` era stata scritta come `t` (nome della funzione i18n globale), causando la visualizzazione del toString della funzione invece del numero del tempo.
+
+---
+
 ## [0.7-beta] — 2026-04-16
 
 ### Sistema i18n — Internazionalizzazione completa IT/EN

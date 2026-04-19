@@ -328,7 +328,7 @@ function refreshMatchUI() {
       html += `
         <tr style="border-bottom:1px solid rgba(255,255,255,.05);${rowBg}">
           <td style="padding:5px 4px;color:${isCurrent ? 'var(--gold)' : 'var(--muted)'};font-size:11px;font-weight:${isCurrent ? 700 : 400}">
-            ${isCurrent ? '▶ ' : ''}${t + 1}° T
+            ${isCurrent ? '▶ ' : ''}${tp + 1}° T
           </td>
           <td style="text-align:center;padding:5px 6px;${valStyle}">${isFuture ? '—' : homeGoals}</td>
           <td style="text-align:center;padding:5px 6px;${valStyle}">${isFuture ? '—' : awayGoals}</td>
