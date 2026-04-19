@@ -5,6 +5,28 @@
 let _animReqId  = null;
 let _lastFrameT = null;
 
+// ── Coda eventi canvas ───────────────────────
+// Disaccoppia il motore (che genera eventi ogni 7-14s di gioco) dalla
+// visualizzazione (che mostra ogni evento con la sua durata reale).
+// A speed >= ANIM_SKIP_SPEED le animazioni vengono saltate.
+const ANIM_SKIP_SPEED = 10;   // da 10x in poi: solo posizione finale, niente animazioni
+
+// Durata visiva (secondi REALI) per tipo di evento
+const ANIM_DURATIONS = {
+  goal:    0.0,   // gestito interamente da MovementController (celebrazione lunga)
+  shot:    0.9,   // tiro verso porta
+  save:    1.1,   // parata + ripartenza portiere
+  pass:    0.7,   // passaggio
+  foul:    0.5,   // fallo
+  neutral: 0.5,   // evento neutro
+};
+
+// Coda: array di { event, animType, duration }
+let _canvasQueue   = [];
+let _canvasPlaying = false;  // true: stiamo riproducendo un evento
+let _canvasTimer   = 0;      // secondi reali trascorsi sull'evento corrente
+let _canvasCurrent = null;   // evento corrente in riproduzione
+
 // ── Avvia partita live ────────────────────────
 function startLiveMatch(match, isHome, opp, poType = null, poMatch = null) {
   // Assegna numeri di maglia dalla convocazione
@@ -26,6 +48,12 @@ function startLiveMatch(match, isHome, opp, poType = null, poMatch = null) {
   poolInitTokens(G.ms);
   if (typeof MovementController !== 'undefined') MovementController.init(G.ms);
   if (typeof poolSetSpeeds === 'function') poolSetSpeeds(G.ms);
+
+  // Reset coda canvas
+  _canvasQueue   = [];
+  _canvasPlaying = false;
+  _canvasCurrent = null;
+  _canvasTimer   = 0;
 
   const homeTeam = isHome ? G.myTeam : opp;
   const awayTeam = isHome ? opp : G.myTeam;
@@ -51,9 +79,191 @@ function startLiveMatch(match, isHome, opp, poType = null, poMatch = null) {
   renderFieldLists();
 }
 
-// ── Loop animazione ───────────────────────────
+// ── Classifica il tipo di animazione da usare per un evento motore ─────────
+function _animTypeOf(event) {
+  if (!event) return 'neutral';
+  if (event.goalScored)                           return 'goal';
+  if (event.cls === 'sv')                         return 'save';
+  if (event.moverKey && event.ballTarget)         return 'shot';
+  if (event.cls === 'fl')                         return 'foul';
+  if (event.ballTarget)                           return 'pass';
+  return 'neutral';
+}
 
-// ── Animazione GOAL ──────────────────────────────────────────────────
+// ── Esegue visivamente un evento (lo invia a MovementController/pool) ───────
+function _dispatchCanvasEvent(event) {
+  if (!event) return;
+  poolSyncTokens(G.ms);
+  if (typeof poolSetSpeeds === 'function') poolSetSpeeds(G.ms);
+
+  if (event.goalScored) {
+    if (typeof MovementController !== 'undefined' && MovementController.onGoalEvent) {
+      MovementController.onGoalEvent(event);
+    }
+    showGoalAnimation(event.goalScorer || '', event.goalTeam || 'my', G.ms);
+    if (typeof MovementController !== 'undefined')
+      MovementController.onPossessChange(event.goalTeam === 'my' ? 'opp' : 'my');
+
+  } else if (event.cls === 'sv') {
+    if (typeof MovementController !== 'undefined' && MovementController.onSave) {
+      MovementController.onSave(event);
+    } else if (event.ballTarget) {
+      poolMoveBall(event.ballTarget.x, event.ballTarget.y);
+    }
+    if (typeof MovementController !== 'undefined')
+      MovementController.onPossessChange(
+        event.ballTarget && event.ballTarget.x < 0.5 ? 'my' : 'opp'
+      );
+
+  } else if (event.moverKey && event.ballTarget) {
+    if (typeof MovementController !== 'undefined' && MovementController.onShot) {
+      MovementController.onShot(event);
+    } else {
+      poolMoveBall(event.ballTarget.x, event.ballTarget.y);
+      poolMoveToken(event.moverKey, event.moverTarget?.x || 0.5, event.moverTarget?.y || 0.5);
+    }
+
+  } else if (event.cls === 'fl') {
+    if (event.ballTarget) poolMoveBall(event.ballTarget.x, event.ballTarget.y);
+    if (event.moverKey)   poolMoveToken(event.moverKey, event.moverTarget?.x || 0.5, event.moverTarget?.y || 0.5);
+
+  } else if (event.ballTarget) {
+    if (typeof MovementController !== 'undefined' && MovementController.onPassOrNeutral) {
+      MovementController.onPassOrNeutral(event);
+    } else {
+      poolMoveBall(event.ballTarget.x, event.ballTarget.y);
+    }
+  }
+
+  if (event.expelled !== undefined) _handleExpulsion(event.expelled, event.moverKey);
+}
+
+// ── Applica l'evento al motore (stato + sync) senza animazione canvas ───────
+function _applyEventLog(event) {
+  if (!event) return;
+  if (event.expelled !== undefined) _handleExpulsion(event.expelled, event.moverKey);
+  poolSyncTokens(G.ms);
+  if (typeof poolSetSpeeds === 'function') poolSetSpeeds(G.ms);
+}
+
+// ── Tick della coda canvas ─────────────────────────────────────────────────
+// Chiamata ogni frame con rawDt (secondi reali).
+// Gestisce la riproduzione sequenziale degli eventi nella coda.
+function _tickCanvasQueue(rawDt) {
+  const speed = G.ms ? (G.ms.speed || 1) : 1;
+  const skip  = speed >= ANIM_SKIP_SPEED;
+
+  // A velocità alta: svuota tutta la coda istantaneamente (solo log + posizione finale)
+  if (skip) {
+    while (_canvasQueue.length > 0) {
+      const item = _canvasQueue.shift();
+      _applyEventLog(item.event);
+      _dispatchCanvasEvent(item.event);
+    }
+    _canvasPlaying = false;
+    _canvasCurrent = null;
+    return;
+  }
+
+  // A velocità normale/bassa: riproduci un evento alla volta
+  if (_canvasPlaying) {
+    _canvasTimer += rawDt;
+    if (_canvasTimer >= _canvasCurrent.duration) {
+      // Evento corrente completato
+      _canvasPlaying = false;
+      _canvasCurrent = null;
+      _canvasTimer   = 0;
+    } else {
+      return; // aspetta che finisca l'evento corrente
+    }
+  }
+
+  // Prendi il prossimo evento dalla coda
+  if (_canvasQueue.length > 0) {
+    const item = _canvasQueue.shift();
+    _applyEventLog(item.event);
+    _dispatchCanvasEvent(item.event);
+    _canvasCurrent = item;
+    _canvasTimer   = 0;
+    _canvasPlaying = item.duration > 0;
+  }
+}
+
+// ── Loop animazione principale ────────────────
+function _animLoop(timestamp) {
+  _animReqId = requestAnimationFrame(_animLoop);
+  const rawDt = _lastFrameT ? Math.min((timestamp - _lastFrameT) / 1000, 0.1) : 0;
+  _lastFrameT = timestamp;
+
+  if (G.ms && G.ms.running && !G.ms.finished) {
+    const { periodEnded, matchEnded } = advanceTime(G.ms, rawDt);
+
+    if (periodEnded && !matchEnded) {
+      G.ms.running = false;
+      document.getElementById('btn-play').textContent = '▶ ' + t('match.resume');
+      _lastFrameT = null;
+      if (typeof applyPeriodBreakRecovery === 'function') {
+        applyPeriodBreakRecovery({ ...G.ms, period: G.ms.period - 1 });
+      }
+      const _breakMin = (G.ms.period - 1) === 2 ? '5' : '2';
+      _appendLog('⏸ Fine ' + (G.ms.period - 1) + '° Tempo — Intervallo ' + _breakMin + ' min. Puoi effettuare sostituzioni.', 'sv');
+      renderFieldLists();
+      if (typeof MovementController !== 'undefined') MovementController.onPeriodStart();
+      // Svuota la coda canvas a fine periodo
+      _canvasQueue   = [];
+      _canvasPlaying = false;
+      _canvasCurrent = null;
+    }
+    if (matchEnded) {
+      document.getElementById('btn-end').style.display  = '';
+      document.getElementById('btn-play').style.display = 'none';
+      if (typeof MovementController !== 'undefined') MovementController.stop();
+      _canvasQueue   = [];
+      _canvasPlaying = false;
+    }
+
+    // ── Genera eventi motore → accoda nella coda canvas ──────────────────────
+    // Il motore continua ad avanzare indipendentemente dalla visualizzazione.
+    // Gli eventi vengono ACCODATI e riprodotti sequenzialmente dalla _tickCanvasQueue.
+    G.ms.lastActionTime += rawDt * (G.ms.speed || 1);
+    while (G.ms.lastActionTime >= G.ms.nextActionIn && !G.ms.finished) {
+      G.ms.lastActionTime -= G.ms.nextActionIn;
+      G.ms.nextActionIn    = rnd(7, 14);
+      const event = generateMatchEvent(G.ms);
+      if (event) {
+        const animType = _animTypeOf(event);
+        const duration = ANIM_DURATIONS[animType] ?? ANIM_DURATIONS.neutral;
+        // Il log viene aggiunto subito (lo storico deve essere in ordine cronologico)
+        _appendLog(event.txt, event.cls);
+        // L'animazione canvas viene accodata
+        _canvasQueue.push({ event, animType, duration });
+      }
+    }
+
+    // ── Riproduci coda canvas ────────────────────────────────────────────────
+    const _hadEvent = _canvasQueue.length > 0 || _canvasPlaying;
+    _tickCanvasQueue(rawDt);
+    // Aggiorna _everOnField e re-render lista campo solo se c'è stato un evento
+    if (_hadEvent || !_canvasPlaying) {
+      if (G.ms && G.ms._everOnField) {
+        Object.values(G.ms.onField).forEach(pi => G.ms._everOnField.add(pi));
+      }
+      renderFieldLists();
+    }
+
+    poolAnimStep(rawDt);
+    if (typeof MovementController !== 'undefined') MovementController.update(rawDt);
+
+    _checkExhaustedPlayers();
+    refreshMatchUI();
+  } else {
+    poolAnimStep(rawDt);
+    if (typeof MovementController !== 'undefined') MovementController.update(rawDt);
+  }
+
+  const canvas = document.getElementById('pool-canvas');
+  drawPool(canvas, G.myTeam.abbr, G.ms ? G.ms.oppTeam.abbr : '');
+}// ── Animazione GOAL ──────────────────────────────────────────────────
 let _goalAnimTimer = null;
 
 function showGoalAnimation(scorerName, teamType, ms) {
@@ -117,122 +327,6 @@ function showGoalAnimation(scorerName, teamType, ms) {
     }
     _goalAnimTimer = null;
   }, 1800); // durata animazione 1.8s
-}
-
-function _animLoop(timestamp) {
-  _animReqId = requestAnimationFrame(_animLoop);
-  const rawDt = _lastFrameT ? Math.min((timestamp - _lastFrameT) / 1000, 0.1) : 0;
-  _lastFrameT = timestamp;
-
-  if (G.ms && G.ms.running && !G.ms.finished) {
-    const speed = G.ms.speed || 1;
-    // dt scalato: tutto il motore lavora in "tempo di gioco"
-    const dt = rawDt * speed;
-
-    const { periodEnded, matchEnded } = advanceTime(G.ms, rawDt); // advanceTime già moltiplica per speed
-    if (periodEnded && !matchEnded) {
-      // Pausa automatica a fine periodo per consentire sostituzioni
-      G.ms.running = false;
-      document.getElementById('btn-play').textContent = '▶ ' + t('match.resume');
-      _lastFrameT = null;
-      // Applica recupero stamina durante l'intervallo (period - 1 = periodo appena finito)
-      if (typeof applyPeriodBreakRecovery === 'function') {
-        applyPeriodBreakRecovery({ ...G.ms, period: G.ms.period - 1 });
-      }
-      const _breakMin = (G.ms.period - 1) === 2 ? '5' : '2';
-      _appendLog('⏸ Fine ' + (G.ms.period - 1) + '° Tempo — Intervallo ' + _breakMin + ' min. Puoi effettuare sostituzioni.', 'sv');
-      renderFieldLists(); // re-render con isPaused=true per abilitare i click
-      if (typeof MovementController !== 'undefined') MovementController.onPeriodStart();
-    }
-    if (matchEnded) {
-      document.getElementById('btn-end').style.display  = '';
-      document.getElementById('btn-play').style.display = 'none';
-      if (typeof MovementController !== 'undefined') MovementController.stop();
-    }
-
-    // Accumula tempo di gioco verso il prossimo evento
-    G.ms.lastActionTime += dt;
-    if (G.ms.lastActionTime >= G.ms.nextActionIn) {
-      // A velocità alta possono scattare più eventi per frame
-      while (G.ms.lastActionTime >= G.ms.nextActionIn && !G.ms.finished) {
-        G.ms.lastActionTime -= G.ms.nextActionIn;
-        G.ms.nextActionIn    = rnd(7, 14);
-        const event = generateMatchEvent(G.ms);
-        if (event) {
-          _appendLog(event.txt, event.cls);
-
-          if (event.goalScored) {
-            // ── GOAL ─────────────────────────────────────────────────────────
-            if (typeof MovementController !== 'undefined' && MovementController.onGoalEvent) {
-              MovementController.onGoalEvent(event);
-            } else if (typeof poolShootAndScore === 'function') {
-              // fallback legacy
-              const bt = event.ballTarget || { x: 0.5, y: 0.5 };
-              var _scoringTeamName = event.goalTeam === 'opp' ? G.ms.oppTeam.name : G.ms.myTeam.name;
-              poolShootAndScore(bt.x, bt.y, event.goalScorer || '', event.goalTeam || 'my', _scoringTeamName);
-            }
-            showGoalAnimation(event.goalScorer || '', event.goalTeam || 'my', G.ms);
-            if (typeof MovementController !== 'undefined') MovementController.onPossessChange(event.goalTeam === 'my' ? 'opp' : 'my');
-
-          } else if (event.cls === 'sv') {
-            // ── PARATA ────────────────────────────────────────────────────────
-            if (typeof MovementController !== 'undefined' && MovementController.onSave) {
-              MovementController.onSave(event);
-            } else if (event.ballTarget) {
-              poolMoveBall(event.ballTarget.x, event.ballTarget.y);
-            }
-            if (typeof MovementController !== 'undefined') MovementController.onPossessChange(
-              event.ballTarget && event.ballTarget.x < 0.5 ? 'my' : 'opp'
-            );
-
-          } else if (event.moverKey && event.ballTarget) {
-            // ── TIRO (non goal) ────────────────────────────────────────────────
-            if (typeof MovementController !== 'undefined' && MovementController.onShot) {
-              MovementController.onShot(event);
-            } else {
-              poolMoveBall(event.ballTarget.x, event.ballTarget.y);
-              poolMoveToken(event.moverKey, event.moverTarget?.x || 0.5, event.moverTarget?.y || 0.5);
-            }
-
-          } else if (event.cls === 'fl') {
-            // ── FALLO ─────────────────────────────────────────────────────────
-            if (event.ballTarget) poolMoveBall(event.ballTarget.x, event.ballTarget.y);
-            if (event.moverKey)   poolMoveToken(event.moverKey, event.moverTarget?.x || 0.5, event.moverTarget?.y || 0.5);
-
-          } else if (event.ballTarget) {
-            // ── PASSAGGIO / NEUTRO ─────────────────────────────────────────────
-            if (typeof MovementController !== 'undefined' && MovementController.onPassOrNeutral) {
-              MovementController.onPassOrNeutral(event);
-            } else {
-              poolMoveBall(event.ballTarget.x, event.ballTarget.y);
-            }
-          }
-
-          if (event.expelled !== undefined) _handleExpulsion(event.expelled, event.moverKey);
-          poolSyncTokens(G.ms);
-          if (typeof poolSetSpeeds === 'function') poolSetSpeeds(G.ms);
-        }
-      }
-      // Aggiorna _everOnField con chi è attualmente in campo
-    if (G.ms && G.ms._everOnField) {
-      Object.values(G.ms.onField).forEach(pi => G.ms._everOnField.add(pi));
-    }
-    renderFieldLists();
-    }
-
-    poolAnimStep(rawDt); // l'animazione visiva resta fluida indipendentemente da speed
-    if (typeof MovementController !== 'undefined') MovementController.update(rawDt);
-
-    // ── Sostituzione obbligatoria: giocatori a stamina 0 ──
-    _checkExhaustedPlayers();
-
-    refreshMatchUI();
-  } else {
-    poolAnimStep(rawDt);
-  }
-
-  const canvas = document.getElementById('pool-canvas');
-  drawPool(canvas, G.myTeam.abbr, G.ms ? G.ms.oppTeam.abbr : '');
 }
 
 // ── Gestisce espulsione definitiva ────────────
@@ -894,16 +988,17 @@ function togglePlay() {
   }
 }
 
-// Espone la fase corrente del pool al match UI
-function _poolPhaseIsSprint() {
-  // pool.js espone _phase tramite questa funzione
-  return typeof poolGetPhase === 'function' && poolGetPhase() === 'sprint';
-}
 
 function skipPeriod() {
   const ms = G.ms; if (!ms || ms.finished) return;
   ms.running = false;
   document.getElementById('btn-play').textContent = '▶ ' + t('match.resume');
+
+  // Svuota la coda canvas — in fase skip non ci sono animazioni
+  _canvasQueue   = [];
+  _canvasPlaying = false;
+  _canvasCurrent = null;
+  _canvasTimer   = 0;
 
   // Calcola quanti secondi di gioco restano nel periodo corrente
   const periodStart  = (ms.period - 1) * PERIOD_SECONDS;

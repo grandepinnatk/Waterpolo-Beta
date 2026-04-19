@@ -2,6 +2,33 @@
 
 ---
 
+## [0.7.3-beta] — 2026-04-19
+
+### Bugfix — Sincronizzazione eventi canvas e telecronaca
+
+**Problema risolto:** gli eventi della telecronaca testuale (parate, tiri, passaggi) erano completamente scorrelati dalla visualizzazione canvas. Era possibile vedere una parata nel log senza che ci fosse stato un tiro visivo, o la palla ferma nel nulla dopo una rimessa del portiere.
+
+**Causa root:** il loop `_animLoop` usava un `while` che consumava tutti gli eventi pendenti in un singolo frame (soprattutto a velocità alta), inviandoli tutti contemporaneamente al canvas senza attendere che il precedente fosse completato.
+
+**Soluzione — architettura a coda canvas (`_canvasQueue`):**
+- Il **motore di gioco** genera eventi e aggiunge il testo al log immediatamente (ordine cronologico corretto)
+- Gli **eventi canvas** vengono accodati in `_canvasQueue` e riprodotti **uno alla volta**, ciascuno con la propria durata visiva reale:
+  - Tiro: 0.9s
+  - Parata: 1.1s (include ripartenza portiere)
+  - Passaggio: 0.7s
+  - Fallo: 0.5s
+  - Neutro: 0.5s
+  - Goal: gestito da `MovementController` (celebrazione + rimessa)
+- A **velocità ≥ 10x**: la coda viene svuotata istantaneamente mostrando solo la posizione finale (nessuna animazione, massima velocità di simulazione)
+- La coda viene resettata all'avvio partita, a fine periodo e durante `skipPeriod`
+
+**Altre correzioni:**
+- Rimossa funzione orfana `_poolPhaseIsSprint` (non più necessaria)
+- `renderFieldLists()` ora chiamata solo quando un evento viene processato, non ogni frame
+- `_applyEventLog` non duplica più il log testuale
+
+---
+
 ## [0.7.2-beta] — 2026-04-19
 
 ### Nuovo — Movimento segnalini realistico

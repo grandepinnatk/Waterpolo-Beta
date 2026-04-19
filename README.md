@@ -1,6 +1,6 @@
 # Waterpolo Manager
 
-**Versione:** 0.7.2-beta  
+**Versione:** 0.7.3-beta  
 **Campionato:** Serie A1 Maschile — Stagione 2025/26  
 **Piattaforma:** Browser (HTML5 + CSS3 + JavaScript vanilla)  
 **Dipendenze:** Firebase Auth + Realtime Database (autenticazione e sync cloud)  
