@@ -249,16 +249,48 @@ function poolSetSpeeds(ms) {
   });
 }
 
-function poolUpdateToken(key, ms) {
-  var tok = _tokens[key]; if (!tok) return;
-  var pk = tok.pk, pi = ms.onField[pk];
-  if (pi === undefined) { tok.expelled = true; return; }
-  tok.pi        = pi;
-  tok.shirt     = ms.shirtNumbers[pi] || '';
-  tok.shortName = _shortName(ms.myRoster[pi]);
-  tok.yellows   = ms.tempExp[pi] || 0;
-  tok.expelled  = ms.expelled.has(pi);
-}
+	function poolUpdateToken(key, ms) {
+	  var tok = _tokens[key]; if (!tok) return;
+	  var pk = tok.pk, pi = ms.onField[pk];
+	  if (pi === undefined) { tok.expelled = true; return; }
+	  tok.pi        = pi;
+	  tok.shirt     = ms.shirtNumbers[pi] || '';
+	  tok.shortName = _shortName(ms.myRoster[pi]);
+	  tok.yellows   = ms.tempExp[pi] || 0;
+	  tok.expelled  = ms.expelled.has(pi);
+
+			if (ms.phase === 'sprint') {
+				_ball.x = 0.5; _ball.y = 0.5; // Palla ferma al centro
+				
+				['my_6', 'opp_6'].forEach(id => {
+					let t = _tokens[id];
+					if (t) {
+						let dist = Math.hypot(t.x - 0.5, t.y - 0.5);
+						if (dist < 0.02) {
+							console.log(`%c[POOL] Palla presa da ${id}!`, "color: green; font-weight: bold;");
+							ms.phase = 'action';
+							ms.possessor = id;
+							ms.ballStatus = 'held';
+						}
+					}
+				});
+			}
+			if (ms.ballStatus === 'passing' && ms.targetReceiver) {
+			let targetTok = _tokens[ms.targetReceiver];
+			if (targetTok) {
+				let dx = targetTok.x - _ball.x;
+				let dy = targetTok.y - _ball.y;
+				let d = Math.sqrt(dx*dx + dy*dy);
+				if (d > 0.01) {
+					_ball.x += (dx / d) * 0.02; // Velocità del passaggio
+					_ball.y += (dy / d) * 0.02;
+				} else {
+					ms.ballStatus = 'held';
+					ms.possessor = ms.targetReceiver;
+				}
+			}
+		}
+	}
 
 function poolMoveBall(tx, ty) {
   _ball.tx = _clamp(tx, PLAY.x0, PLAY.x1);

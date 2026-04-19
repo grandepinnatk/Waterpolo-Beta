@@ -155,6 +155,18 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
     periodScores: [ {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0} ],
     // Punteggio al termine del periodo precedente (per calcolare il parziale corrente)
     _prevScore: { my:0, opp:0 },
+	
+	/* AGGIUNTA REALISMO **/
+	phase: 'sprint',         // Stato iniziale: sprint per la palla
+        possessor: null,         // Nessuno ha la palla all'inizio
+        ballStatus: 'center',    // Palla posizionata al centro
+        lastScorerId: null,      // Per gestire l'esultanza
+        lastScorerTeam: null,
+        targetReceiver: null,
+        formation: luState.formation,
+        shirtNumbers: luState.shirtNumbers,
+        running: false
+	/* FINE AGGIUNTA REALISMO **/
   };
 }
 

@@ -8,7 +8,16 @@
 // G è l'unico oggetto di stato condiviso tra tutti i moduli.
 // Viene inizializzato in welcome.js (startNewGame / continueGame)
 // e poi aggiornato da engine/* e ui/*.
+// let G = {};
+
+/* AGGIUNTA REALISMO MOVIMENTO */
 let G = {};
+G.REALISM = {
+    SECONDS_TO_CROSS: 10,
+    REF_SPEED_STAT: 100,
+    FPS: 60
+};
+/* FINE AGGIUNTA REALISMO MOVIMENTO */
 
 // ── Utility globali ───────────────────────────
 // Disponibili a tutti i moduli senza import (vanilla JS).

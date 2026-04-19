@@ -114,6 +114,36 @@ var MovementController = (function() {
     if (typeof poolGetTokens === 'function') return poolGetTokens()[key];
     return null;
   }
+ 
+/* AGGIUNTA REALISMO **/ 
+  function _getRealismSpeed(p) {
+    let fieldWidth = 0.8; // Lunghezza relativa del campo
+    let baseSpeed = (fieldWidth / G.REALISM.SECONDS_TO_CROSS) / G.REALISM.FPS;
+    let statFactor = (p.stats && p.stats.spe) ? p.stats.spe / G.REALISM.REF_SPEED_STAT : 0.5;
+    return baseSpeed * statFactor;
+	}
+
+	function _updatePlayerTarget(tokenKey) {
+		let tok = _getTok(tokenKey);
+		if (!tok) return;
+		let isHome = tokenKey.startsWith('my_');
+
+		if (_ms.phase === 'sprint') {
+			if (tok.pos === '6') {
+				tok.tx = 0.5; tok.ty = 0.5; // I n. 6 scattano verso la palla
+				console.log(`[MOVE] ${tokenKey} scatta verso il centro`);
+			} else {
+				tok.tx = isHome ? 0.6 : 0.4; // Gli altri avanzano a supporto
+				tok.ty = tok.sy; 
+			}
+		} else if (_ms.phase === 'celebration') {
+			let scorer = _getTok(_ms.lastScorerId);
+			if (scorer && tok.team === _ms.lastScorerTeam) {
+				tok.tx = scorer.x; tok.ty = scorer.y; // Esultanza di gruppo
+			}
+		}
+	}
+/* FINE AGGIUNTA REALISMO **/
 
   function _clampV(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function _rndV(lo, hi)      { return lo + Math.random() * (hi - lo); }
