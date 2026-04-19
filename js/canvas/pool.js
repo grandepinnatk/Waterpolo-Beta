@@ -137,15 +137,17 @@ var _tokens      = {};
 var _tokenSpeeds = {};   // key → velocità lineare (unità norm/secondo)
 var _SPRINT_DUR  = 5.0;  // usato solo per compatibilità
 var _ball        = { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 };
+var _ballOwner   = null;  // key del token che ha la palla (es. 'my_3') — la palla lo segue ogni frame
 var _bgImg       = null;
 var _bgReady    = false;
-var _phase      = 'idle';    // 'idle'|'sprint'|'play'|'goal'
+var _phase      = 'idle';    // 'idle'|'sprint'|'play'|'goal_cel'|'kickoff_after'|'penalty'
 var _attack     = 'my';
 var _sprintT    = 0;
 var _microT     = 0;
 var _goalAnim   = null;
-var _pendingGoal = null; // { scorer, team } — aspetta che la palla entri in rete
-var _prevSpeed  = 10;        // velocità prima dello sprint
+var _goalAnimTimer = 0;      // timer separato aggiornato SEMPRE, indipendente dalla fase
+var _pendingGoal = null;
+var _prevSpeed  = 10;
 var _sprintDone = false;
 
 // ── Carica sfondo ────────────────────────────
@@ -190,11 +192,13 @@ function _dist(tok) {
 function poolInitTokens(ms) {
   _tokens     = {};
   _ball       = { x: PLAY.cx, y: PLAY.cy, tx: PLAY.cx, ty: PLAY.cy };
+  _ballOwner  = null;
   _phase      = 'idle';
   _attack     = 'my';
   _sprintT    = 0;
   _sprintDone = false;
   _goalAnim   = null;
+  _pendingGoal = null;
   _prevSpeed  = (ms && ms.speed) ? ms.speed : 10;
 
   Object.entries(ms.onField).forEach(function(entry) {
@@ -307,6 +311,7 @@ function poolStartPeriod() {
   _ball.tx = PLAY.cx; _ball.ty = PLAY.cy;
   _goalAnim   = null;
   _pendingGoal = null;
+  _ballOwner  = null;
   // Ripristina posizioni kickoff sui bordi
   Object.values(_tokens).forEach(function(tok) {
     if (tok.expelled) return;
@@ -415,10 +420,19 @@ function _microMovements(dt) {
 
 // ── Step animazione ───────────────────────────
 function poolAnimStep(dt) {
+  // dt = secondi reali del frame (max 0.1 per evitare salti a tab in background)
   var f = Math.min(dt, 0.1);
 
-  // ── Controlla se la palla è entrata nella rete (goal pendente) ──
-  if (_pendingGoal) {
+  // ── 1. Timer overlay GOAL — avanza SEMPRE indipendentemente dalla fase ──
+  if (_goalAnim) {
+    _goalAnim.timer += f;
+    if (_goalAnim.timer >= _goalAnim.total) {
+      _goalAnim = null;  // nasconde l'overlay
+    }
+  }
+
+  // ── 2. Goal pendente: controlla se la palla è entrata in rete ──
+  if (_pendingGoal && !_goalAnim) {
     var bx = _ball.x, by = _ball.y;
     var inMyNet  = bx >= PLAY.myNetX0  && bx <= PLAY.myNetX1  && by >= PLAY.myNetY0  && by <= PLAY.myNetY1;
     var inOppNet = bx >= PLAY.oppNetX0 && bx <= PLAY.oppNetX1 && by >= PLAY.oppNetY0 && by <= PLAY.oppNetY1;
@@ -427,52 +441,65 @@ function poolAnimStep(dt) {
     }
   }
 
+  // ── 3. Aggiornamenti specifici per fase ──
   if (_phase === 'idle') {
     // Token fermi sui bordi — nessun aggiornamento posizioni
-  } else if (_phase === 'sprint' || _phase === 'goal_cel' || _phase === 'kickoff_after' || _phase === 'penalty') {
-    // Queste fasi sono orchestrate da MovementController
-    // pool.js esegue solo il movimento fisico verso i target già impostati
-    if (_goalAnim) {
-      _goalAnim.timer += dt;
-      if (_goalAnim.timer >= _goalAnim.total) _goalAnim = null;
-    }
-  } else { // 'play'
+  } else if (_phase === 'play') {
     _updateKeepers();
-    _microMovements(dt);
+    _microMovements(f);
+  }
+  // Le fasi sprint/goal_cel/kickoff_after/penalty sono orchestrate da MovementController
+
+  // ── 4. Palla segue il token possessore (aggiornata ogni frame) ──
+  if (_ballOwner) {
+    var ownerTok = _tokens[_ballOwner];
+    if (ownerTok && !ownerTok.expelled) {
+      var off = _ballOffsetForToken(ownerTok);
+      // Snap diretto sulla posizione corrente del token (non sul target)
+      _ball.tx = _clamp(ownerTok.x + off.dx, PLAY.x0, PLAY.x1);
+      _ball.ty = _clamp(ownerTok.y + off.dy, PLAY.y0, PLAY.y1);
+    } else {
+      _ballOwner = null;  // token non più disponibile
+    }
   }
 
-  // ── Movimento lineare a velocità costante (proporzionale a VEL) ──
-  // Con VEL=100, stamina=100 → il token percorre FIELD_WIDTH (0.80) in 12 secondi reali.
-  // spd è in unità normalizzate/secondo.
+  // ── 5. Movimento token — velocità lineare proporzionale a VEL ──
+  // spd = unità normalizzate/secondo a velocità 1x.
+  // NON moltiplichiamo per G.ms.speed qui: le velocità di simulazione
+  // accelerano il motore (timer), non i corpi fisici in campo.
+  // Altrimenti a 20x i giocatori teleportano invece di nuotare.
   Object.values(_tokens).forEach(function(tok) {
+    if (tok.expelled) return;
     var spd = _tokenSpeeds[tok.team + '_' + tok.pk] || _BASE_LIN_SPD;
-    var dx = tok.tx - tok.x;
-    var dy = tok.ty - tok.y;
+    var dx = tok.tx - tok.x, dy = tok.ty - tok.y;
     var dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < 0.001) {
-      tok.x = tok.tx;
-      tok.y = tok.ty;
+      tok.x = tok.tx; tok.y = tok.ty;
     } else {
       var step = spd * f;
-      if (step >= dist) {
-        tok.x = tok.tx;
-        tok.y = tok.ty;
-      } else {
-        tok.x += (dx / dist) * step;
-        tok.y += (dy / dist) * step;
-      }
+      if (step >= dist) { tok.x = tok.tx; tok.y = tok.ty; }
+      else { tok.x += (dx / dist) * step; tok.y += (dy / dist) * step; }
     }
   });
-  // La palla si muove veloce (tiro/passaggio): velocità fissa alta
-  var _ballSpd = _BASE_LIN_SPD * 3.5;  // ~4× velocità media
-  var _bdx = _ball.tx - _ball.x, _bdy = _ball.ty - _ball.y;
-  var _bdist = Math.sqrt(_bdx * _bdx + _bdy * _bdy);
-  if (_bdist < 0.002) {
-    _ball.x = _ball.tx; _ball.y = _ball.ty;
+
+  // ── 6. Movimento palla — più veloce dei giocatori (tiri/passaggi) ──
+  // Se ha un possessore la palla è già aggiornata al punto 4 (snap).
+  // Se è libera (tiro, palla persa) si muove velocemente verso il target.
+  if (!_ballOwner) {
+    var ballSpd = _BASE_LIN_SPD * 4.5;
+    var bdx = _ball.tx - _ball.x, bdy = _ball.ty - _ball.y;
+    var bdist = Math.sqrt(bdx * bdx + bdy * bdy);
+    if (bdist < 0.002) {
+      _ball.x = _ball.tx; _ball.y = _ball.ty;
+    } else {
+      var bstep = ballSpd * f;
+      if (bstep >= bdist) { _ball.x = _ball.tx; _ball.y = _ball.ty; }
+      else { _ball.x += (bdx / bdist) * bstep; _ball.y += (bdy / bdist) * bstep; }
+    }
   } else {
-    var _bstep = _ballSpd * f;
-    if (_bstep >= _bdist) { _ball.x = _ball.tx; _ball.y = _ball.ty; }
-    else { _ball.x += (_bdx / _bdist) * _bstep; _ball.y += (_bdy / _bdist) * _bstep; }
+    // Possessore attivo: snap palla sulla posizione tx/ty già calcolata al punto 4
+    _ball.x = _ball.tx;
+    _ball.y = _ball.ty;
   }
 }
 
@@ -634,30 +661,36 @@ function poolGetKickoffPos(team, pk) {
   return tbl[pk] ? { x: tbl[pk].x, y: tbl[pk].y } : { x: PLAY.cx, y: PLAY.cy };
 }
 
-// Muove la palla direttamente al target (movimento lineare veloce)
+// Muove la palla direttamente al target (cancella il possesso)
 function poolMoveBallDirect(tx, ty) {
+  _ballOwner   = null;  // palla libera: nessun token la segue
   _ball.tx = _clamp(tx, PLAY.x0, PLAY.x1);
   _ball.ty = _clamp(ty, PLAY.y0, PLAY.y1);
 }
 
-// Posiziona la palla accanto a un token (offset per mano: R=destra, L=sinistra, AMB=centro)
+// Assegna la palla a un token — la palla lo seguirà ogni frame (offset per mano)
 function poolSetBallOn(key) {
   var tok = _tokens[key];
   if (!tok) return;
-  // Recupera la mano del giocatore dallo stato partita
+  _ballOwner = key;  // la palla seguirà questo token ogni frame in poolAnimStep
+}
+
+// Muove la palla verso un token (ricevitore) — diventa il nuovo possessore
+function poolMoveBallToToken(key) {
+  poolSetBallOn(key);
+}
+
+// Helper interno: calcola offset palla in base alla mano del token
+function _ballOffsetForToken(tok) {
   var hand = 'R';
-  if (typeof G !== 'undefined' && G.ms && G.ms.myRoster && tok.team === 'my') {
+  if (tok.team === 'my' && typeof G !== 'undefined' && G.ms && G.ms.myRoster) {
     var p = G.ms.myRoster[tok.pi];
     if (p && p.hand) hand = p.hand;
   }
-  var offsetX = (hand === 'L') ? -0.025 : (hand === 'AMB') ? 0 : 0.025;
-  _ball.tx = _clamp(tok.tx + offsetX, PLAY.x0, PLAY.x1);
-  _ball.ty = _clamp(tok.ty + 0.008,   PLAY.y0, PLAY.y1);
-}
-
-// Muove la palla verso un token (ricevitore) con offset mano
-function poolMoveBallToToken(key) {
-  poolSetBallOn(key);
+  return {
+    dx: (hand === 'L') ? -0.028 : (hand === 'AMB') ? 0 : 0.028,
+    dy: 0.008,
+  };
 }
 
 // Imposta la fase canvas da movement.js (per sincronizzare _attack e _phase)
@@ -698,6 +731,11 @@ function poolBeginSprint(prevSpeed) {
 // Mantenuto per compatibilità con vecchie chiamate
 function poolShowGoal(scorer, team, teamName) {
   poolTriggerGoalAnim(scorer, team, teamName);
+}
+
+// Rilascia il possesso palla (la palla vola libera verso il target)
+function poolReleaseBall() {
+  _ballOwner = null;
 }
 
 function _pill(ctx,x,y,w,h,r) {

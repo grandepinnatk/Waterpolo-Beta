@@ -138,23 +138,26 @@ function _dispatchCanvasEvent(event) {
   if (event.expelled !== undefined) _handleExpulsion(event.expelled, event.moverKey);
 }
 
-// ── Applica l'evento al motore (stato + sync) senza animazione canvas ───────
+// ── Applica l'evento: log testuale + sync stato ──────────────────────────────
 function _applyEventLog(event) {
   if (!event) return;
+  _appendLog(event.txt, event.cls);
   if (event.expelled !== undefined) _handleExpulsion(event.expelled, event.moverKey);
   poolSyncTokens(G.ms);
   if (typeof poolSetSpeeds === 'function') poolSetSpeeds(G.ms);
 }
 
 // ── Tick della coda canvas ─────────────────────────────────────────────────
-// Chiamata ogni frame con rawDt (secondi reali).
-// Gestisce la riproduzione sequenziale degli eventi nella coda.
+// La coda non blocca più il canvas frame-by-frame.
+// A velocità < ANIM_SKIP_SPEED: invia al massimo 1 evento per frame,
+//   rispettando un gap minimo tra eventi per non sovrascrivere animazioni in corso.
+// A velocità >= ANIM_SKIP_SPEED: svuota tutta la coda istantaneamente.
 function _tickCanvasQueue(rawDt) {
+  if (_canvasQueue.length === 0) return;
   const speed = G.ms ? (G.ms.speed || 1) : 1;
-  const skip  = speed >= ANIM_SKIP_SPEED;
 
-  // A velocità alta: svuota tutta la coda istantaneamente (solo log + posizione finale)
-  if (skip) {
+  if (speed >= ANIM_SKIP_SPEED) {
+    // Alta velocità: applica tutti gli eventi in blocco, nessuna animazione
     while (_canvasQueue.length > 0) {
       const item = _canvasQueue.shift();
       _applyEventLog(item.event);
@@ -162,30 +165,29 @@ function _tickCanvasQueue(rawDt) {
     }
     _canvasPlaying = false;
     _canvasCurrent = null;
+    _canvasTimer   = 0;
     return;
   }
 
-  // A velocità normale/bassa: riproduci un evento alla volta
+  // Velocità normale: aggiorna timer dell'evento corrente
   if (_canvasPlaying) {
     _canvasTimer += rawDt;
-    if (_canvasTimer >= _canvasCurrent.duration) {
-      // Evento corrente completato
-      _canvasPlaying = false;
-      _canvasCurrent = null;
-      _canvasTimer   = 0;
-    } else {
-      return; // aspetta che finisca l'evento corrente
-    }
+    if (_canvasTimer < _canvasCurrent.duration) return; // ancora in corso
+    _canvasPlaying = false;
+    _canvasCurrent = null;
+    _canvasTimer   = 0;
   }
 
-  // Prendi il prossimo evento dalla coda
+  // Prendi il prossimo evento
   if (_canvasQueue.length > 0) {
     const item = _canvasQueue.shift();
     _applyEventLog(item.event);
     _dispatchCanvasEvent(item.event);
-    _canvasCurrent = item;
-    _canvasTimer   = 0;
-    _canvasPlaying = item.duration > 0;
+    if (item.duration > 0) {
+      _canvasCurrent = item;
+      _canvasTimer   = 0;
+      _canvasPlaying = true;
+    }
   }
 }
 
@@ -223,8 +225,6 @@ function _animLoop(timestamp) {
     }
 
     // ── Genera eventi motore → accoda nella coda canvas ──────────────────────
-    // Il motore continua ad avanzare indipendentemente dalla visualizzazione.
-    // Gli eventi vengono ACCODATI e riprodotti sequenzialmente dalla _tickCanvasQueue.
     G.ms.lastActionTime += rawDt * (G.ms.speed || 1);
     while (G.ms.lastActionTime >= G.ms.nextActionIn && !G.ms.finished) {
       G.ms.lastActionTime -= G.ms.nextActionIn;
@@ -233,9 +233,6 @@ function _animLoop(timestamp) {
       if (event) {
         const animType = _animTypeOf(event);
         const duration = ANIM_DURATIONS[animType] ?? ANIM_DURATIONS.neutral;
-        // Il log viene aggiunto subito (lo storico deve essere in ordine cronologico)
-        _appendLog(event.txt, event.cls);
-        // L'animazione canvas viene accodata
         _canvasQueue.push({ event, animType, duration });
       }
     }

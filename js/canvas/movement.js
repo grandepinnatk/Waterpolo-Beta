@@ -292,9 +292,12 @@ var MovementController = (function () {
       _ballOn(_cbWinner + '_6');
     });
     _qA(sprintDur + 0.35, function() {
-      // Passaggio veloce verso il C (pos 3) della squadra vincitrice
+      // CB rilascia, palla vola verso il C (pos 3)
+      if (typeof poolReleaseBall === 'function') poolReleaseBall();
       var tar3 = _cbWinner === 'my' ? ATK_MY['3'] : ATK_OPP['3'];
       _moveBall(tar3.x + _rnd(-0.02, 0.02), tar3.y + _rnd(-0.02, 0.02));
+      // Assegna possesso al pos 3 della squadra vincitrice
+      setTimeout(function() { _ballOn(_cbWinner + '_3'); }, 350);
     });
     _qA(sprintDur + 0.9, function() {
       // Tutti si mettono in formazione tattica
@@ -313,7 +316,8 @@ var MovementController = (function () {
     var scorerTeam = event.goalTeam || 'my';
     var scorerKey  = event.moverKey || (scorerTeam + '_3');
 
-    // Tiro verso rete
+    // Rilascia possesso e tiro verso rete
+    if (typeof poolReleaseBall === 'function') poolReleaseBall();
     if (event.ballTarget) _moveBall(event.ballTarget.x, event.ballTarget.y);
 
     _phase = 'goal_cel';
@@ -382,9 +386,11 @@ var MovementController = (function () {
     _ballOn(cb6Key);
 
     _qA(0.45, function() {
-      // Passaggio al C (pos 3)
+      // CB rilascia, palla vola al C (pos 3)
+      if (typeof poolReleaseBall === 'function') poolReleaseBall();
       var tar = batter === 'my' ? ATK_MY['3'] : ATK_OPP['3'];
       _moveBall(tar.x + _rnd(-0.02, 0.02), tar.y + _rnd(-0.02, 0.02));
+      setTimeout(function() { _ballOn(batter + '_3'); }, 350);
     });
     _qA(1.1, function() {
       _attack = batter;
@@ -401,54 +407,73 @@ var MovementController = (function () {
     var bx = event.ballTarget.x, by = event.ballTarget.y;
     // Determina squadra in possesso dalla posizione palla
     var team = bx > CX ? 'my' : 'opp';
-    // Trova il token più vicino alla destinazione
+    // Trova il token più vicino alla destinazione → diventa il possessore
     var closest = _findClosestFieldToken(team, bx, by);
 
-    if (closest && typeof poolMoveBallToToken === 'function') {
-      poolMoveBallToToken(closest);
+    if (closest) {
+      // Prima libera la palla, poi la assegna al ricevitore
+      if (typeof poolReleaseBall === 'function') poolReleaseBall();
+      _moveBall(bx, by);
+      // Dopo che la palla è arrivata, assegna il possesso
+      setTimeout(function() {
+        _ballOn(closest);
+        _attack = team;
+      }, 300);
     } else {
+      if (typeof poolReleaseBall === 'function') poolReleaseBall();
       _moveBall(bx, by);
     }
 
-    // Piccola traslazione della formazione verso la porta avversaria (pressione)
+    // Piccola traslazione della formazione verso la porta avversaria
     if (_phase === 'play') {
       setTimeout(function() {
         _repositionTactical(0.020);
-      }, 500);
+      }, 400);
     }
   }
 
   // ── 5. TIRO ───────────────────────────────────────────────────────────────
   function onShot(event) {
     if (!event || !event.ballTarget) return;
-    // Palla parte dall'attaccante
+    // Assegna brevemente il possesso al tiratore (appare con la palla)
     if (event.moverKey) _ballOn(event.moverKey);
 
     setTimeout(function() {
+      // Rilascia il possesso: la palla vola libera verso la porta
+      if (typeof poolReleaseBall === 'function') poolReleaseBall();
       _moveBall(event.ballTarget.x, event.ballTarget.y);
-      // L'attaccante segue il tiro avanzando leggermente
       if (event.moverKey && event.moverTarget) {
         _mv(event.moverKey, event.moverTarget.x, event.moverTarget.y, 0.015);
       }
-    }, 280);
+    }, 250);
   }
 
   // ── 6. PARATA ─────────────────────────────────────────────────────────────
   function onSave(event) {
     if (!event || !event.ballTarget) return;
-    // Palla si ferma davanti al portiere
+    // Palla vola libera verso il portiere
+    if (typeof poolReleaseBall === 'function') poolReleaseBall();
     _moveBall(event.ballTarget.x, event.ballTarget.y);
 
     setTimeout(function() {
       if (_phase !== 'play') return;
-      // Determina quale portiere ha parato in base alla posizione palla
-      var gkTeam  = event.ballTarget.x < CX ? 'my' : 'opp';
-      // Rilancio dal portiere verso il pos 3 della propria squadra
-      var tar3    = gkTeam === 'my' ? ATK_MY['3'] : ATK_OPP['3'];
-      _moveBall(tar3.x + _rnd(-0.05, 0.05), tar3.y + _rnd(-0.04, 0.04));
-      _attack = gkTeam;
-      _repositionTactical(0.022);
-    }, 900);
+      var gkTeam = event.ballTarget.x < CX ? 'my' : 'opp';
+      var gkKey  = gkTeam + '_GK';
+      // Il portiere prende possesso
+      _ballOn(gkKey);
+
+      // Dopo 0.7s rilancia al pos 3
+      setTimeout(function() {
+        var tar3 = gkTeam === 'my' ? ATK_MY['3'] : ATK_OPP['3'];
+        if (typeof poolReleaseBall === 'function') poolReleaseBall();
+        _moveBall(tar3.x + _rnd(-0.05, 0.05), tar3.y + _rnd(-0.04, 0.04));
+        setTimeout(function() {
+          _ballOn(gkTeam + '_3');
+          _attack = gkTeam;
+          _repositionTactical(0.022);
+        }, 450);
+      }, 700);
+    }, 750);
   }
 
   // ── 7. RIGORE ─────────────────────────────────────────────────────────────
@@ -473,12 +498,14 @@ var MovementController = (function () {
     // Carica
     _qA(1.0, function() {
       var ty = _rnd(OPP_GOAL_Y0 + 0.04, OPP_GOAL_Y1 - 0.04);
+      if (typeof poolReleaseBall === 'function') poolReleaseBall();
       if (isGoal) {
         var netX = sTeam === 'my' ? 0.96 : 0.04;
         _moveBall(netX, ty);
       } else {
-        // Parata: palla al portiere
         _moveBall(gkX + (sTeam === 'my' ? -0.02 : 0.02), CY + _rnd(-0.05, 0.05));
+        // Portiere prende possesso dopo parata rigore
+        setTimeout(function() { _ballOn(gkKey); }, 400);
       }
     });
 

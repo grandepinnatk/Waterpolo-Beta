@@ -2,6 +2,31 @@
 
 ---
 
+## [0.7.4-beta] — 2026-04-19
+
+### Bugfix — 4 problemi canvas risolti
+
+**1. Overlay GOAL resta fisso**
+Il timer `_goalAnim.timer` veniva incrementato solo dentro certi branch di fase (`goal_cel`), ma `MovementController` cambiava la fase prima che il timer completasse. Ora il timer avanza **sempre** in `poolAnimStep`, indipendentemente dalla fase corrente.
+
+**2. Palla che non segue il possessore**
+Introdotto il sistema `_ballOwner`: quando un token prende possesso della palla (`poolSetBallOn`), la palla aggiorna la propria posizione **ogni frame** seguendo il token con l'offset corretto per la mano (`R/L/AMB`). Quando la palla viene tirata o passata (`poolReleaseBall`), il possesso viene cancellato e la palla vola libera verso il target.
+
+**3. Scatti / movimento a singhiozzo**
+La vecchia coda canvas bloccava tutto il canvas per la durata dell'animazione (0.7–1.1s), durante la quale i token non ricevevano nuovi target e sembravano congelati fino allo scatto successivo. La nuova `_tickCanvasQueue` non blocca mai il canvas: gestisce il gap minimo tra eventi ma lascia `poolAnimStep` girare fluidamente ogni frame.
+
+**4. Velocità di simulazione (1x/2x/10x/15x/20x)**
+Il vecchio `_BASE_LIN_SPD` era fisso e non legato a `G.ms.speed`. Chiarito il modello: le velocità di simulazione accelerano il **timer di gioco** (quanti secondi di partita passano per secondo reale), non la velocità fisica dei segnalini sul campo. I giocatori nuotano sempre alla stessa velocità visiva — è il mondo di gioco che scorre più veloce.
+
+**Sequenza eventi aggiornata:**
+- **Tiro**: il tiratore appare con la palla → `poolReleaseBall()` → palla vola verso porta
+- **Parata**: palla vola libera → portiere prende possesso → rilancio al pos 3 → pos 3 prende possesso
+- **Passaggio**: palla vola libera → ricevitore prende possesso
+- **Sprint/rimessa**: CB prende possesso → passa al pos 3 → pos 3 prende possesso
+- **Goal**: palla vola in rete → overlay GOAL 2.5s → esultanza → rimessa
+
+---
+
 ## [0.7.3-beta] — 2026-04-19
 
 ### Bugfix — Sincronizzazione eventi canvas e telecronaca
