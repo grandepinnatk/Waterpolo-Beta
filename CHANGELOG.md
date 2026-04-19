@@ -2,6 +2,33 @@
 
 ---
 
+## [0.7.5-beta] — 2026-04-19
+
+### Nuovo — Gameplay continuo stile Football Manager
+
+Riscrittura completa di `pool.js` e `movement.js` per passare da un modello **event-driven** (token fermi tra un evento e l'altro) a un modello **simulation-driven** (tutti i token si muovono continuamente ogni frame).
+
+**Cambiamenti principali:**
+
+1. **Movimento continuo di tutti i token** — ogni giocatore ha un'oscillazione sinusoidale individuale (fase randomizzata) che simula il nuoto sul posto. I target vengono aggiornati ogni ~2.5s in background, indipendentemente dagli eventi del motore.
+
+2. **Compressione/espansione difensiva** — quando cambia il possesso, la formazione di difesa si comprime compatta verso la propria porta, quella di attacco si espande verso la porta avversaria con una lieve deriva progressiva.
+
+3. **Pressione sul possessore** — 2 difensori avversari si avvicinano continuamente a chi ha la palla: il primo pressa (~0.09 di distanza), il secondo copre lo spazio a zona (~0.16). Indicatore visivo: alone rosso sul difensore che pressa.
+
+4. **Nome solo sul possessore** — il nome del giocatore appare in evidenza (testo giallo su sfondo scuro) solo sul token che ha la palla. Gli altri giocatori hanno il nome in piccolo e semitrasparente.
+
+5. **Alone sul possessore** — cerchio giallo attorno al token che ha la palla per identificarlo a colpo d'occhio.
+
+6. **Nessun blocco su goal/eventi** — `poolAnimStep` gira sempre, `_goalAnim.timer` avanza sempre. Gli eventi sono microeventi nel flusso continuo.
+
+**Architettura:**
+- `pool.js`: rendering + step fisico (movimento lineare, palla segue possessore)
+- `movement.js`: simulazione tattica continua (target, pressione, oscillazioni)
+- `match.js`: genera eventi, li accoda, li dispatcha — senza bloccare il canvas
+
+---
+
 ## [0.7.4-beta] — 2026-04-19
 
 ### Bugfix — 4 problemi canvas risolti

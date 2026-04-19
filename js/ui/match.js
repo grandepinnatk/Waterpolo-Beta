@@ -99,10 +99,11 @@ function _dispatchCanvasEvent(event) {
   if (event.goalScored) {
     if (typeof MovementController !== 'undefined' && MovementController.onGoalEvent) {
       MovementController.onGoalEvent(event);
+      // onGoalEvent chiama internamente showGoalAnimation e onPossessChange
+    } else {
+      // fallback senza MovementController
+      showGoalAnimation(event.goalScorer || '', event.goalTeam || 'my', G.ms);
     }
-    showGoalAnimation(event.goalScorer || '', event.goalTeam || 'my', G.ms);
-    if (typeof MovementController !== 'undefined')
-      MovementController.onPossessChange(event.goalTeam === 'my' ? 'opp' : 'my');
 
   } else if (event.cls === 'sv') {
     if (typeof MovementController !== 'undefined' && MovementController.onSave) {
