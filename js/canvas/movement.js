@@ -128,6 +128,11 @@ var MovementController = (function() {
 		if (!tok) return;
 		let isHome = tokenKey.startsWith('my_');
 
+		if (!_ms || !_ms.phase) {
+				console.error("[MOVEMENT ERROR] Impossibile aggiornare target: fase mancante!");
+				return;
+			}
+
 		if (_ms.phase === 'sprint') {
 			if (tok.pos === '6') {
 				tok.tx = 0.5; tok.ty = 0.5; // I n. 6 scattano verso la palla
@@ -142,6 +147,7 @@ var MovementController = (function() {
 				tok.tx = scorer.x; tok.ty = scorer.y; // Esultanza di gruppo
 			}
 		}
+		console.log(`[TARGET] Assegnato a ${tokenKey}: x=${tok.tx}, y=${tok.ty} per fase ${_ms.phase}`);
 	}
 /* FINE AGGIUNTA REALISMO **/
 

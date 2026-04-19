@@ -249,6 +249,47 @@ function poolSetSpeeds(ms) {
   });
 }
 
+/** FUNZIONE AGGIUNTA PER REALISMO */
+
+function poolUpdate(dt, ms) {
+    if (!ms || !ms.running) return;
+
+    // --- AGGIUNGI QUESTO LOG ---
+    if (Math.random() < 0.01) { // Logga solo l'1% delle volte per non intasare
+        console.log("[POOL UPDATE] Loop in esecuzione. Fase:", ms.phase);
+    }
+
+    Object.entries(_tokens).forEach(([id, tok]) => {
+        // Se il segnalino ha un target, dobbiamo muoverlo
+        if (tok.tx !== undefined && tok.ty !== undefined) {
+            
+            // Calcolo distanza dal target
+            let dx = tok.tx - tok.x;
+            let dy = tok.ty - tok.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+
+            if (dist > 0.005) {
+                // AGGIUNGI QUESTO LOG per vedere se si muovono
+                if (id === 'my_6' && Math.random() < 0.05) {
+                    console.log(`[MOVE] ${id} si muove verso ${tok.tx}, ${tok.ty}. Distanza: ${dist.toFixed(4)}`);
+                }
+
+                // Esegui lo spostamento fisico (Velocità basata su 10s per il campo)
+                let speed = 0.0015; // Valore indicativo da calcolare poi con RealismSpeed
+                tok.x += (dx / dist) * speed;
+                tok.y += (dy / dist) * speed;
+            }
+        }
+    });
+
+    // Controllo presa palla nello sprint
+    if (ms.phase === 'sprint') {
+        _checkSprintCollision(ms);
+    }
+}
+
+/** FINE FUNZIONE AGGIUNTA PER REALISMO */
+
 	function poolUpdateToken(key, ms) {
 	  var tok = _tokens[key]; if (!tok) return;
 	  var pk = tok.pk, pi = ms.onField[pk];

@@ -165,7 +165,7 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
         targetReceiver: null,
         formation: luState.formation,
         shirtNumbers: luState.shirtNumbers,
-        running: false
+        running: true
 	/* FINE AGGIUNTA REALISMO **/
   };
 }
