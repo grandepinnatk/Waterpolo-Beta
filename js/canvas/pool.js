@@ -126,10 +126,16 @@ const AFTERGOAL_MY_DEFEND = {
   '1': { x: 0.20, y: 0.78 },
 };
 
+// ── Costanti velocità ─────────────────────────
+// VEL=100, stamina=100 → percorre il campo (0.80 unità) in 12 secondi reali
+var _FIELD_WIDTH  = 0.80;
+var _VEL_100_TIME = 12.0;
+var _BASE_LIN_SPD = _FIELD_WIDTH / _VEL_100_TIME;  // ≈ 0.0667 unità/s
+
 // ── Stato ─────────────────────────────────────
 var _tokens      = {};
-var _tokenSpeeds = {};   // key → lerp speed (calcolata da spe + stamina)
-var _SPRINT_DUR  = 5.0;  // secondi per spe=100, stamina=100
+var _tokenSpeeds = {};   // key → velocità lineare (unità norm/secondo)
+var _SPRINT_DUR  = 5.0;  // usato solo per compatibilità
 var _ball        = { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 };
 var _bgImg       = null;
 var _bgReady    = false;
@@ -231,7 +237,8 @@ function poolSyncTokens(ms) {
   poolSetSpeeds(ms);
 }
 
-// Aggiorna velocità token da spe + stamina attuale (chiamata dopo sync)
+// Aggiorna velocità token da VEL (spe) + stamina attuale
+// Calibrato su VEL=100, stamina=100 → tutto il campo (0.80 unità) in 12 secondi
 function poolSetSpeeds(ms) {
   if (!ms) return;
   Object.entries(ms.onField).forEach(function(entry) {
@@ -239,13 +246,14 @@ function poolSetSpeeds(ms) {
     var p       = ms.myRoster[pi]; if (!p) return;
     var spe     = (p.stats && p.stats.spe) ? p.stats.spe : 50;
     var stamina = (ms.stamina && ms.stamina[pi] !== undefined) ? ms.stamina[pi] : (p.fitness || 50);
-    var speFact  = spe / 100;
-    var stamFact = 0.40 + (stamina / 100) * 0.60;
-    _tokenSpeeds['my_' + pk] = 2.4 * speFact * stamFact;
+    var speFact  = spe / 100.0;
+    // La stamina influisce tra il 50% (esausto) e il 100% (fresco)
+    var stamFact = 0.50 + (stamina / 100.0) * 0.50;
+    _tokenSpeeds['my_' + pk] = _BASE_LIN_SPD * speFact * stamFact;
   });
-  // Avversari: velocità media fissa (npc)
+  // Avversari NPC: VEL media 65 (giocatore competitivo ma non top)
   ['GK','1','2','3','4','5','6'].forEach(function(pk) {
-    _tokenSpeeds['opp_' + pk] = 2.4 * 0.75;
+    _tokenSpeeds['opp_' + pk] = _BASE_LIN_SPD * 0.65;
   });
 }
 
@@ -297,11 +305,13 @@ function poolStartPeriod() {
   _sprintT    = 0;
   _sprintDone = false;
   _ball.tx = PLAY.cx; _ball.ty = PLAY.cy;
+  _goalAnim   = null;
+  _pendingGoal = null;
   // Ripristina posizioni kickoff sui bordi
   Object.values(_tokens).forEach(function(tok) {
     if (tok.expelled) return;
     var pos = tok.team === 'my' ? KICKOFF_MY[tok.pk] : KICKOFF_OPP[tok.pk];
-    if (pos) { tok.tx = pos.x; tok.ty = pos.y; }
+    if (pos) { tok.tx = pos.x; tok.ty = pos.y; tok.x = pos.x; tok.y = pos.y; }
   });
 }
 
@@ -418,48 +428,52 @@ function poolAnimStep(dt) {
   }
 
   if (_phase === 'idle') {
-    // Fermi sui bordi — nessun aggiornamento
-  } else if (_phase === 'sprint') {
-    _sprintT += dt;
-    // Durata sprint proporzionale alla velocità del pos 3 (scattista)
-    // spe=100, stamina=100 → lerp=2.4 → durata=_SPRINT_DUR (5s)
-    // spe=50, stamina=80  → lerp≈1.1 → durata≈11s
-    var sprintLerp = _tokenSpeeds['my_3'] || 2.4;
-    var sprintDur  = _SPRINT_DUR * (2.4 / Math.max(sprintLerp, 0.3));
-    if (_sprintT >= sprintDur) {
-      _sprintDone = true;
-      _phase = 'play';
-      var my3 = _tokens['my_3'], opp3 = _tokens['opp_3'];
-      // Chi ha preso la palla: il più vicino al centro
-      var my3dist  = my3  ? Math.abs(my3.x  - PLAY.cx) + Math.abs(my3.y  - PLAY.cy) : 999;
-      var opp3dist = opp3 ? Math.abs(opp3.x - PLAY.cx) + Math.abs(opp3.y - PLAY.cy) : 999;
-      _attack = (my3dist <= opp3dist) ? 'my' : 'opp';
-      _triggerTactical();
-    }
-  } else if (_phase === 'goal') {
-    // Durante l'animazione GOAL i giocatori sono in PAUSA (non si muovono)
+    // Token fermi sui bordi — nessun aggiornamento posizioni
+  } else if (_phase === 'sprint' || _phase === 'goal_cel' || _phase === 'kickoff_after' || _phase === 'penalty') {
+    // Queste fasi sono orchestrate da MovementController
+    // pool.js esegue solo il movimento fisico verso i target già impostati
     if (_goalAnim) {
       _goalAnim.timer += dt;
       if (_goalAnim.timer >= _goalAnim.total) _goalAnim = null;
     }
-    // Interpola solo palla (entra in porta), token fermi
-    _ball.x += (_ball.tx - _ball.x) * Math.min(f * 5.0, 1);
-    _ball.y += (_ball.ty - _ball.y) * Math.min(f * 5.0, 1);
-    return;   // <-- esce prima dell'interpolazione generale dei token
   } else { // 'play'
     _updateKeepers();
     _microMovements(dt);
   }
 
-  // Interpolazione token con velocità individuale (spe + stamina)
-  // Durante lo sprint il pos 3 usa velocità piena, gli altri la loro normale
+  // ── Movimento lineare a velocità costante (proporzionale a VEL) ──
+  // Con VEL=100, stamina=100 → il token percorre FIELD_WIDTH (0.80) in 12 secondi reali.
+  // spd è in unità normalizzate/secondo.
   Object.values(_tokens).forEach(function(tok) {
-    var spd = _tokenSpeeds[tok.team + '_' + tok.pk] || 2.4;
-    tok.x += (tok.tx - tok.x) * Math.min(f * spd, 1);
-    tok.y += (tok.ty - tok.y) * Math.min(f * spd, 1);
+    var spd = _tokenSpeeds[tok.team + '_' + tok.pk] || _BASE_LIN_SPD;
+    var dx = tok.tx - tok.x;
+    var dy = tok.ty - tok.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 0.001) {
+      tok.x = tok.tx;
+      tok.y = tok.ty;
+    } else {
+      var step = spd * f;
+      if (step >= dist) {
+        tok.x = tok.tx;
+        tok.y = tok.ty;
+      } else {
+        tok.x += (dx / dist) * step;
+        tok.y += (dy / dist) * step;
+      }
+    }
   });
-  _ball.x += (_ball.tx - _ball.x) * Math.min(f * 4.5, 1);
-  _ball.y += (_ball.ty - _ball.y) * Math.min(f * 4.5, 1);
+  // La palla si muove veloce (tiro/passaggio): velocità fissa alta
+  var _ballSpd = _BASE_LIN_SPD * 3.5;  // ~4× velocità media
+  var _bdx = _ball.tx - _ball.x, _bdy = _ball.ty - _ball.y;
+  var _bdist = Math.sqrt(_bdx * _bdx + _bdy * _bdy);
+  if (_bdist < 0.002) {
+    _ball.x = _ball.tx; _ball.y = _ball.ty;
+  } else {
+    var _bstep = _ballSpd * f;
+    if (_bstep >= _bdist) { _ball.x = _ball.tx; _ball.y = _ball.ty; }
+    else { _ball.x += (_bdx / _bdist) * _bstep; _ball.y += (_bdy / _bdist) * _bstep; }
+  }
 }
 
 // ── Disegno ──────────────────────────────────
@@ -602,6 +616,88 @@ function drawPool(canvas, myTeamAbbr, oppTeamAbbr) {
     }
     ctx.restore();
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// NUOVE API — usate da movement.js  v0.7.2
+// ═══════════════════════════════════════════════════════════════════
+
+// Restituisce la mappa delle velocità { key → unità/s }
+function poolGetTokenSpeeds() { return _tokenSpeeds; }
+
+// Restituisce un singolo token per chiave (es. 'my_6')
+function poolGetToken(key) { return _tokens[key] || null; }
+
+// Restituisce la posizione kickoff di un token (team='my'|'opp', pk='GK'|'1'…'6')
+function poolGetKickoffPos(team, pk) {
+  var tbl = team === 'my' ? KICKOFF_MY : KICKOFF_OPP;
+  return tbl[pk] ? { x: tbl[pk].x, y: tbl[pk].y } : { x: PLAY.cx, y: PLAY.cy };
+}
+
+// Muove la palla direttamente al target (movimento lineare veloce)
+function poolMoveBallDirect(tx, ty) {
+  _ball.tx = _clamp(tx, PLAY.x0, PLAY.x1);
+  _ball.ty = _clamp(ty, PLAY.y0, PLAY.y1);
+}
+
+// Posiziona la palla accanto a un token (offset per mano: R=destra, L=sinistra, AMB=centro)
+function poolSetBallOn(key) {
+  var tok = _tokens[key];
+  if (!tok) return;
+  // Recupera la mano del giocatore dallo stato partita
+  var hand = 'R';
+  if (typeof G !== 'undefined' && G.ms && G.ms.myRoster && tok.team === 'my') {
+    var p = G.ms.myRoster[tok.pi];
+    if (p && p.hand) hand = p.hand;
+  }
+  var offsetX = (hand === 'L') ? -0.025 : (hand === 'AMB') ? 0 : 0.025;
+  _ball.tx = _clamp(tok.tx + offsetX, PLAY.x0, PLAY.x1);
+  _ball.ty = _clamp(tok.ty + 0.008,   PLAY.y0, PLAY.y1);
+}
+
+// Muove la palla verso un token (ricevitore) con offset mano
+function poolMoveBallToToken(key) {
+  poolSetBallOn(key);
+}
+
+// Imposta la fase canvas da movement.js (per sincronizzare _attack e _phase)
+function poolSetPhaseFromMC(phase, attack) {
+  if (phase !== undefined) _phase  = phase;
+  if (attack !== undefined) _attack = attack;
+}
+
+// Triggera l'animazione GOAL su canvas (chiamata da movement.js)
+function poolTriggerGoalAnim(scorer, team, teamName) {
+  _pendingGoal = null;
+  _goalAnim = {
+    timer:    0,
+    total:    2.5,
+    scorer:   scorer   || '',
+    team:     team     || 'my',
+    teamName: teamName || '',
+  };
+  // Non cambia _phase — la gestione della fase è delegata a movement.js
+}
+
+// Aggiorna portieri in base alla posizione attuale della palla
+function poolUpdateKeepers() {
+  _updateKeepers();
+}
+
+// ── poolBeginSprint: rimanda a MovementController ─────────────────────────────
+// Mantenuto per compatibilità con ui/match.js
+function poolBeginSprint(prevSpeed) {
+  if (_phase !== 'idle') return;
+  _phase = 'sprint';
+  if (typeof MovementController !== 'undefined' && MovementController.onSprintStart) {
+    MovementController.onSprintStart(prevSpeed);
+  }
+}
+
+// poolShowGoal: ora delega a poolTriggerGoalAnim
+// Mantenuto per compatibilità con vecchie chiamate
+function poolShowGoal(scorer, team, teamName) {
+  poolTriggerGoalAnim(scorer, team, teamName);
 }
 
 function _pill(ctx,x,y,w,h,r) {

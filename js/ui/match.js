@@ -160,22 +160,54 @@ function _animLoop(timestamp) {
         const event = generateMatchEvent(G.ms);
         if (event) {
           _appendLog(event.txt, event.cls);
-          if (event.goalScored && typeof poolShootAndScore === 'function') {
-            const bt = event.ballTarget || { x: 0.5, y: 0.5 };
-            var _scoringTeamName = event.goalTeam === 'opp' ? G.ms.oppTeam.name : G.ms.myTeam.name;
-            poolShootAndScore(bt.x, bt.y, event.goalScorer || '', event.goalTeam || 'my', _scoringTeamName);
-            if (typeof MovementController !== 'undefined') MovementController.onPossessChange(event.goalTeam === 'my' ? 'opp' : 'my');
+
+          if (event.goalScored) {
+            // ── GOAL ─────────────────────────────────────────────────────────
+            if (typeof MovementController !== 'undefined' && MovementController.onGoalEvent) {
+              MovementController.onGoalEvent(event);
+            } else if (typeof poolShootAndScore === 'function') {
+              // fallback legacy
+              const bt = event.ballTarget || { x: 0.5, y: 0.5 };
+              var _scoringTeamName = event.goalTeam === 'opp' ? G.ms.oppTeam.name : G.ms.myTeam.name;
+              poolShootAndScore(bt.x, bt.y, event.goalScorer || '', event.goalTeam || 'my', _scoringTeamName);
+            }
             showGoalAnimation(event.goalScorer || '', event.goalTeam || 'my', G.ms);
+            if (typeof MovementController !== 'undefined') MovementController.onPossessChange(event.goalTeam === 'my' ? 'opp' : 'my');
+
+          } else if (event.cls === 'sv') {
+            // ── PARATA ────────────────────────────────────────────────────────
+            if (typeof MovementController !== 'undefined' && MovementController.onSave) {
+              MovementController.onSave(event);
+            } else if (event.ballTarget) {
+              poolMoveBall(event.ballTarget.x, event.ballTarget.y);
+            }
+            if (typeof MovementController !== 'undefined') MovementController.onPossessChange(
+              event.ballTarget && event.ballTarget.x < 0.5 ? 'my' : 'opp'
+            );
+
+          } else if (event.moverKey && event.ballTarget) {
+            // ── TIRO (non goal) ────────────────────────────────────────────────
+            if (typeof MovementController !== 'undefined' && MovementController.onShot) {
+              MovementController.onShot(event);
+            } else {
+              poolMoveBall(event.ballTarget.x, event.ballTarget.y);
+              poolMoveToken(event.moverKey, event.moverTarget?.x || 0.5, event.moverTarget?.y || 0.5);
+            }
+
+          } else if (event.cls === 'fl') {
+            // ── FALLO ─────────────────────────────────────────────────────────
+            if (event.ballTarget) poolMoveBall(event.ballTarget.x, event.ballTarget.y);
+            if (event.moverKey)   poolMoveToken(event.moverKey, event.moverTarget?.x || 0.5, event.moverTarget?.y || 0.5);
+
           } else if (event.ballTarget) {
-            poolMoveBall(event.ballTarget.x, event.ballTarget.y);
-            if (event.cls === 'myg' || event.cls === 'og') {
-              if (typeof MovementController !== 'undefined') MovementController.onPossessChange(event.cls === 'myg' ? 'opp' : 'my');
+            // ── PASSAGGIO / NEUTRO ─────────────────────────────────────────────
+            if (typeof MovementController !== 'undefined' && MovementController.onPassOrNeutral) {
+              MovementController.onPassOrNeutral(event);
+            } else {
+              poolMoveBall(event.ballTarget.x, event.ballTarget.y);
             }
           }
-          if (event.moverKey) {
-            poolMoveToken(event.moverKey, event.moverTarget?.x || 0.5, event.moverTarget?.y || 0.5);
-            poolResetToken(event.moverKey);
-          }
+
           if (event.expelled !== undefined) _handleExpulsion(event.expelled, event.moverKey);
           poolSyncTokens(G.ms);
           if (typeof poolSetSpeeds === 'function') poolSetSpeeds(G.ms);
@@ -189,7 +221,7 @@ function _animLoop(timestamp) {
     }
 
     poolAnimStep(rawDt); // l'animazione visiva resta fluida indipendentemente da speed
-    if (typeof MovementController !== 'undefined') MovementController.update(rawDt * (G.ms.speed || 1));
+    if (typeof MovementController !== 'undefined') MovementController.update(rawDt);
 
     // ── Sostituzione obbligatoria: giocatori a stamina 0 ──
     _checkExhaustedPlayers();
@@ -849,14 +881,15 @@ function togglePlay() {
   _lastFrameT = null;
 
   // Se stiamo avviando e il canvas è in fase 'idle' (kickoff),
-  // inizia lo sprint a 1x — la velocità verrà ripristinata quando il pos 3 tocca la palla
-  if (ms.running && typeof poolBeginSprint === 'function') {
-    // poolBeginSprint gestisce internamente la fase; se non è idle non fa nulla
+  // inizia lo sprint — la velocità verrà ripristinata da MovementController
+  if (ms.running && typeof poolGetPhase === 'function' && poolGetPhase() === 'idle') {
     const prevSpeed = ms.speed;
-    poolBeginSprint(prevSpeed);
-    // Forza velocità 1x durante lo sprint
-    if (typeof _poolPhaseIsSprint === 'function' && _poolPhaseIsSprint()) {
-      setSpeed(1);
+    // Forza velocità 1x durante lo sprint per rendere l'animazione visibile
+    setSpeed(1);
+    if (typeof MovementController !== 'undefined' && MovementController.onSprintStart) {
+      MovementController.onSprintStart(prevSpeed);
+    } else if (typeof poolBeginSprint === 'function') {
+      poolBeginSprint(prevSpeed);
     }
   }
 }

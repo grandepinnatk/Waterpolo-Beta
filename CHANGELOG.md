@@ -2,6 +2,40 @@
 
 ---
 
+## [0.7.2-beta] — 2026-04-19
+
+### Nuovo — Movimento segnalini realistico
+
+**Velocità proporzionale a VEL:**
+- Ricalibrata la formula di velocità: VEL=100, stamina=100 → percorre tutto il campo (porta→porta) in **12 secondi reali**. VEL=50 → 24s, VEL=75 → 16s, ecc.
+- Sostituito il vecchio modello lerp moltiplicativo con **movimento lineare a velocità costante** (unità/secondo), proporzionale al parametro VEL del giocatore.
+- La stamina influisce tra il 50% (giocatore esausto) e il 100% (fresco).
+- Avversari NPC calibrati a VEL effettiva 65.
+
+**7 situazioni di gioco animate (`movement.js` riscritto):**
+
+1. **Sprint iniziale** — tutti i giocatori nuotano dalla propria porta verso centrocampo. I CB (pos 6) si contendono la palla: vince chi ha VEL più alta; a parità decide il morale; a ulteriore parità, random. Il vincitore passa al C (pos 3), la squadra si mette in formazione.
+2. **Goal — esultanza** — i compagni della squadra che ha segnato nuotano verso il marcatore. Timer fermato durante la celebrazione.
+3. **Rimessa dal centro** — dopo l'esultanza, il CB della squadra che ha subito va al centro, batte al proprio C (pos 3), poi il timer riparte.
+4. **Passaggio** — la palla si sposta fisicamente da un token all'altro. Posizione palla: a destra del token se mano destra (`hand='R'`), a sinistra se `hand='L'`, al centro se ambidestro (`hand='AMB'`).
+5. **Tiro** — la palla parte dal segnalino tiratore e viaggia verso la porta avversaria.
+6. **Parata** — la palla si ferma davanti al portiere; dopo ~0.9s il portiere rilancia verso il C (pos 3) avviando il proprio contrattacco.
+7. **Rigore** — il CB si posiziona sulla linea dei 6 metri, il portiere al centro porta. Se goal: palla in rete; se parata: palla al portiere.
+
+**Formazione semicerchio attacco (dalla foto):**
+- CB (pos 6): centroboa sotto porta avversaria
+- AD/AS (pos 5/1): ali sui lati alti/bassi
+- AT/AT (pos 4/2): laterali del semicerchio
+- C (pos 3): centro campo con palla
+
+**Portiere:** segue la palla scorrendo da palo a palo.
+**Difensori:** seguono i movimenti dei giocatori avversari nel semicerchio.
+
+**Nuove funzioni API in `pool.js`:**
+`poolGetTokenSpeeds`, `poolGetToken`, `poolGetKickoffPos`, `poolMoveBallDirect`, `poolSetBallOn`, `poolMoveBallToToken`, `poolSetPhaseFromMC`, `poolTriggerGoalAnim`, `poolUpdateKeepers`
+
+---
+
 ## [0.7.1-beta] — 2026-04-19
 
 ### Bugfix
