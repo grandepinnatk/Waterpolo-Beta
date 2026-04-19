@@ -145,7 +145,6 @@ var _attack     = 'my';
 var _sprintT    = 0;
 var _microT     = 0;
 var _goalAnim   = null;
-var _goalAnimTimer = 0;      // timer separato aggiornato SEMPRE, indipendente dalla fase
 var _pendingGoal = null;
 var _prevSpeed  = 10;
 var _sprintDone = false;
