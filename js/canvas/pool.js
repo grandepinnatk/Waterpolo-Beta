@@ -249,89 +249,16 @@ function poolSetSpeeds(ms) {
   });
 }
 
-/** FUNZIONE AGGIUNTA PER REALISMO */
-
-function poolUpdate(dt, ms) {
-    if (!ms || !ms.running) return;
-
-    // --- AGGIUNGI QUESTO LOG ---
-    if (Math.random() < 0.01) { // Logga solo l'1% delle volte per non intasare
-        console.log("[POOL UPDATE] Loop in esecuzione. Fase:", ms.phase);
-    }
-
-    Object.entries(_tokens).forEach(([id, tok]) => {
-        // Se il segnalino ha un target, dobbiamo muoverlo
-        if (tok.tx !== undefined && tok.ty !== undefined) {
-            
-            // Calcolo distanza dal target
-            let dx = tok.tx - tok.x;
-            let dy = tok.ty - tok.y;
-            let dist = Math.sqrt(dx*dx + dy*dy);
-
-            if (dist > 0.005) {
-                // AGGIUNGI QUESTO LOG per vedere se si muovono
-                if (id === 'my_6' && Math.random() < 0.05) {
-                    console.log(`[MOVE] ${id} si muove verso ${tok.tx}, ${tok.ty}. Distanza: ${dist.toFixed(4)}`);
-                }
-
-                // Esegui lo spostamento fisico (Velocità basata su 10s per il campo)
-                let speed = 0.0015; // Valore indicativo da calcolare poi con RealismSpeed
-                tok.x += (dx / dist) * speed;
-                tok.y += (dy / dist) * speed;
-            }
-        }
-    });
-
-    // Controllo presa palla nello sprint
-    if (ms.phase === 'sprint') {
-        _checkSprintCollision(ms);
-    }
+function poolUpdateToken(key, ms) {
+  var tok = _tokens[key]; if (!tok) return;
+  var pk = tok.pk, pi = ms.onField[pk];
+  if (pi === undefined) { tok.expelled = true; return; }
+  tok.pi        = pi;
+  tok.shirt     = ms.shirtNumbers[pi] || '';
+  tok.shortName = _shortName(ms.myRoster[pi]);
+  tok.yellows   = ms.tempExp[pi] || 0;
+  tok.expelled  = ms.expelled.has(pi);
 }
-
-/** FINE FUNZIONE AGGIUNTA PER REALISMO */
-
-	function poolUpdateToken(key, ms) {
-	  var tok = _tokens[key]; if (!tok) return;
-	  var pk = tok.pk, pi = ms.onField[pk];
-	  if (pi === undefined) { tok.expelled = true; return; }
-	  tok.pi        = pi;
-	  tok.shirt     = ms.shirtNumbers[pi] || '';
-	  tok.shortName = _shortName(ms.myRoster[pi]);
-	  tok.yellows   = ms.tempExp[pi] || 0;
-	  tok.expelled  = ms.expelled.has(pi);
-
-			if (ms.phase === 'sprint') {
-				_ball.x = 0.5; _ball.y = 0.5; // Palla ferma al centro
-				
-				['my_6', 'opp_6'].forEach(id => {
-					let t = _tokens[id];
-					if (t) {
-						let dist = Math.hypot(t.x - 0.5, t.y - 0.5);
-						if (dist < 0.02) {
-							console.log(`%c[POOL] Palla presa da ${id}!`, "color: green; font-weight: bold;");
-							ms.phase = 'action';
-							ms.possessor = id;
-							ms.ballStatus = 'held';
-						}
-					}
-				});
-			}
-			if (ms.ballStatus === 'passing' && ms.targetReceiver) {
-			let targetTok = _tokens[ms.targetReceiver];
-			if (targetTok) {
-				let dx = targetTok.x - _ball.x;
-				let dy = targetTok.y - _ball.y;
-				let d = Math.sqrt(dx*dx + dy*dy);
-				if (d > 0.01) {
-					_ball.x += (dx / d) * 0.02; // Velocità del passaggio
-					_ball.y += (dy / d) * 0.02;
-				} else {
-					ms.ballStatus = 'held';
-					ms.possessor = ms.targetReceiver;
-				}
-			}
-		}
-	}
 
 function poolMoveBall(tx, ty) {
   _ball.tx = _clamp(tx, PLAY.x0, PLAY.x1);
