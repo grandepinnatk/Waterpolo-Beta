@@ -331,7 +331,7 @@ function poolAnimStep(dt, gameSpeed) {
 
   // ── Movimento palla — anche scalato con gameSpeed ──────────────
   if(!_ballOwner){
-    var bspd=_BASE_SPD*5.0*gameSpeed;
+    var bspd=_BASE_SPD*15.0*gameSpeed;  // palla molto veloce: ~1m/s reale = percorre campo in ~0.8s
     var bdx=_ball.tx-_ball.x, bdy=_ball.ty-_ball.y;
     var bd=Math.sqrt(bdx*bdx+bdy*bdy);
     if(bd<0.002){ _ball.x=_ball.tx; _ball.y=_ball.ty; _ballFly=null; }
