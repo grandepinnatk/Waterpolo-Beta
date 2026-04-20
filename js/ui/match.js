@@ -43,7 +43,7 @@ function startLiveMatch(match, isHome, opp, poType = null, poMatch = null) {
   });
   G.ms.poType  = poType;
   G.ms.poMatch = poMatch;
-  G.ms.speed   = 192;  // 2.5s reali per periodo
+  G.ms.speed   = 10;  // velocità default 10x (coerente con _setSpeedUI(10) sotto)
 
   poolInitTokens(G.ms);
   if (typeof MovementController !== 'undefined') MovementController.init(G.ms);
@@ -326,13 +326,18 @@ function showGoalAnimation(scorerName, teamType, ms) {
   if (_goalAnimTimer) clearTimeout(_goalAnimTimer);
   _goalAnimTimer = setTimeout(function() {
     overlay.classList.remove('visible');
-    // Riprendi alla velocità precedente solo se non era già in pausa prima
-    if (!wasPaused && ms && !ms.finished) {
-      ms.running = true;
-      document.getElementById('btn-play').textContent = '⏸ Pausa';
+    // Riprendi solo se non era in pausa, la partita non è finita,
+    // e non siamo già a fine periodo (per evitare doppio avanzamento periodo)
+    if (!wasPaused && ms && !ms.finished && ms.running === false) {
+      // Controlla che non siamo già a fine periodo prima di riprendere
+      const curPeriodSec = ms.totalSeconds - (ms.period - 1) * (8 * 60);
+      if (curPeriodSec < 8 * 60) {
+        ms.running = true;
+        document.getElementById('btn-play').textContent = '⏸ Pausa';
+      }
     }
     _goalAnimTimer = null;
-  }, 1800); // durata animazione 1.8s
+  }, 1800);
 }
 
 // ── Gestisce espulsione definitiva ────────────

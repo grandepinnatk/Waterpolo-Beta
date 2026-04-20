@@ -220,13 +220,14 @@ var MovementController = (function() {
     var cbTok3   = _tok(atkCBKey);
     var d3Tok    = _tok(def3Key);
     if(cbTok3 && d3Tok && !d3Tok.expelled && !d3Tok.tempAbsent && _ballOwnerKey !== def3Key) {
-      // Il marcatore sta TRA LA PROPRIA PORTA e il CB avversario.
-      // Cioè: tra il CB e la porta che difende (lato porta difesa).
-      // Se noi attacchiamo verso dx (my), il CB avv è a sx → il def3 avv sta a dx del CB (tra CB e porta avv)
-      // Se avv attacca verso sx, il CB my è a dx → il def3 my sta a sx del CB (tra CB e porta my)
-      var gx = (_attack === 'my') ? 0.91 : 0.09;  // x della porta che difende il def3
-      // Posizione: 40% del percorso tra CB e porta (più vicino al CB che alla porta)
-      var markX = _clamp(cbTok3.tx + (gx - cbTok3.tx) * 0.40, 0.12, 0.88);
+      // Il difensore pos3 deve stare TRA il CB avversario e LA PROPRIA PORTA (che deve difendere).
+      // - Se noi (my) attacchiamo: CB=my_6 attacca verso dx, difensore=opp_3 difende porta opp (0.91)
+      //   → opp_3 si mette tra my_6 e porta opp, cioè a DX di my_6
+      // - Se avv (opp) attacca: CB=opp_6 attacca verso sx, difensore=my_3 difende porta my (0.09)
+      //   → my_3 si mette tra opp_6 e porta my, cioè a SX di opp_6
+      var goalX = (_attack === 'my') ? 0.91 : 0.09;  // porta che il difensore protegge
+      // 35% del percorso CB→porta: abbastanza vicino al CB da marcarlo, non troppo vicino alla porta
+      var markX = _clamp(cbTok3.tx + (goalX - cbTok3.tx) * 0.35, 0.13, 0.87);
       var markY = _clamp(cbTok3.ty + _rnd(-0.018, 0.018), 0.14, 0.86);
       poolMoveToken(def3Key, markX, markY);
     }
@@ -308,7 +309,15 @@ var MovementController = (function() {
     if(typeof poolMoveBallDirect === 'function')
       poolMoveBallDirect(futX, futY);
 
-    _pendingReceiver = { key: pick.key, team: ownerTeam };
+    // Salva posizione di lancio per il cooldown (la palla deve percorrere almeno 40% prima di essere raccolta)
+    var lBall = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:ownerTok.x, y:ownerTok.y};
+    var _tdx = futX - lBall.x, _tdy = futY - lBall.y;
+    _pendingReceiver = {
+      key: pick.key, team: ownerTeam,
+      startX: lBall.x, startY: lBall.y,
+      totalDist: Math.max(0.02, Math.sqrt(_tdx*_tdx + _tdy*_tdy)),
+      ready: false,
+    };
   }
 
   // ── Pressione sul possessore avversario ───────────────────────
@@ -408,17 +417,30 @@ var MovementController = (function() {
       _applyPressure();
 
       // ── Fix 4: assegna possesso quando palla arriva fisicamente al ricevitore ──
+      // _pendingReceiver.minDist = distanza minima che la palla deve percorrere
+      //   prima di poter essere raccolta (evita assegnazione immediata)
       if(_pendingReceiver) {
         var recTok = _tok(_pendingReceiver.key);
         if(recTok && !recTok.expelled) {
           var ballPos = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:0.5,y:0.5};
-          var prDx = recTok.x - ballPos.x, prDy = recTok.y - ballPos.y;
-          var prDist = Math.sqrt(prDx*prDx + prDy*prDy);
-          if(prDist < 0.055) {
-            // Palla arrivata: assegna possesso
-            _ballOn(_pendingReceiver.key);
-            _attack = _pendingReceiver.team;
-            _pendingReceiver = null;
+
+          // Aggiorna la distanza minima percorsa dalla palla
+          if(_pendingReceiver.startX !== undefined) {
+            var sdx = ballPos.x - _pendingReceiver.startX;
+            var sdy = ballPos.y - _pendingReceiver.startY;
+            var traveled = Math.sqrt(sdx*sdx + sdy*sdy);
+            // Pronto a raccogliere solo dopo aver percorso almeno il 40% della distanza totale
+            _pendingReceiver.ready = (traveled >= _pendingReceiver.totalDist * 0.40);
+          }
+
+          if(_pendingReceiver.ready) {
+            var prDx = recTok.x - ballPos.x, prDy = recTok.y - ballPos.y;
+            var prDist = Math.sqrt(prDx*prDx + prDy*prDy);
+            if(prDist < 0.060) {
+              _ballOn(_pendingReceiver.key);
+              _attack = _pendingReceiver.team;
+              _pendingReceiver = null;
+            }
           }
         } else {
           _pendingReceiver = null;
@@ -478,9 +500,14 @@ var MovementController = (function() {
     _qA(sprintDur+0.3, function(){
       if(typeof poolReleaseBall==='function')poolReleaseBall();
       var tar3=_cbWinner==='my'?ATK_MY['3']:ATK_OPP['3'];
-      if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(tar3.x+_rnd(-0.02,0.02),tar3.y+_rnd(-0.02,0.02));
-      // Usa pendingReceiver per assegnare il possesso per prossimità (no setTimeout)
-      _pendingReceiver = { key: _cbWinner+'_3', team: _cbWinner };
+      var tX3=tar3.x+_rnd(-0.02,0.02), tY3=tar3.y+_rnd(-0.02,0.02);
+      if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(tX3,tY3);
+      // Usa pendingReceiver con dati di lancio per il cooldown
+      var lb3=typeof poolGetBallPos==='function'?poolGetBallPos():{x:CX,y:CY};
+      var d3x=tX3-lb3.x, d3y=tY3-lb3.y;
+      _pendingReceiver={key:_cbWinner+'_3',team:_cbWinner,
+        startX:lb3.x,startY:lb3.y,
+        totalDist:Math.max(0.02,Math.sqrt(d3x*d3x+d3y*d3y)),ready:false};
     });
     _qA(sprintDur+0.8, function(){
       _repositionAll(0.025);_phase='play';_tacticalT=0;_microPhase={};
