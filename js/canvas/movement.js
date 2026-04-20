@@ -41,6 +41,10 @@ var MovementController = (function() {
   var _tacticalT   = 0;
   var TACTICAL_INT = 2.5;   // secondi: quanto spesso aggiorniamo le posizioni base
 
+  // Timer passaggio automatico: ogni 1.5-2.5s il possessore passa a un compagno
+  var _passT    = 0;
+  var _passNext = 0;   // prossima scadenza in secondi (tempo di gioco)
+
   // Micro-oscillazione: ogni giocatore ha una fase individuale
   var _microPhase  = {};    // key → float 0..2π
   var MICRO_AMP    = 0.022; // ampiezza oscillazione laterale
@@ -75,7 +79,12 @@ var MovementController = (function() {
       poolMoveToken(key,x+_rnd(-jit,jit),y+_rnd(-jit,jit));
   }
 
-  function _ballOn(key){if(typeof poolSetBallOn==='function')poolSetBallOn(key);_ballOwnerKey=key;}
+  function _ballOn(key){
+    if(typeof poolSetBallOn==='function')poolSetBallOn(key);
+    _ballOwnerKey=key;
+    // Resetta il timer del passaggio: il nuovo possessore ha il suo intervallo fresco
+    _passT=0; _passNext=_rnd(1.5,2.5);
+  }
   function _ballFree(tx,ty){if(typeof poolReleaseBall==='function')poolReleaseBall();_ballOwnerKey=null;if(tx!==undefined&&typeof poolMoveBallDirect==='function')poolMoveBallDirect(tx,ty);}
 
   // ── Coda sequenziale ──────────────────────────────────────────
@@ -147,6 +156,46 @@ var MovementController = (function() {
     });
   }
 
+  // ── Passaggi automatici continui ─────────────────────────────
+  // Ogni 1.5–2.5s (tempo di gioco) il possessore passa a un compagno casuale.
+  // Resetta il timer ogni volta che un evento esterno cambia il possessore.
+  function _autoPass() {
+    if(!_ballOwnerKey) return;
+    var ownerTeam = _ballOwnerKey.split('_')[0];
+
+    // Raccoglie i compagni disponibili (non espulsi, non il possessore stesso)
+    var teammates = [];
+    ['1','2','3','4','5','6'].forEach(function(pk){
+      var key = ownerTeam + '_' + pk;
+      if(key === _ballOwnerKey) return;
+      var tok = _tok(key);
+      if(!tok || tok.expelled) return;
+      teammates.push(key);
+    });
+    if(teammates.length === 0) return;
+
+    // Sceglie un compagno casuale
+    var receiver = teammates[Math.floor(Math.random() * teammates.length)];
+    var recTok   = _tok(receiver);
+    if(!recTok) return;
+
+    // Rilascia la palla e la manda verso il ricevitore
+    if(typeof poolReleaseBall === 'function') poolReleaseBall();
+    _ballOwnerKey = null;
+    if(typeof poolMoveBallDirect === 'function')
+      poolMoveBallDirect(recTok.tx + _rnd(-0.02,0.02), recTok.ty + _rnd(-0.015,0.015));
+
+    // Dopo che la palla arriva, il ricevitore prende possesso
+    setTimeout(function(){
+      _ballOn(receiver);
+      _attack = ownerTeam;
+    }, 280);
+
+    // Resetta il timer per il prossimo passaggio
+    _passT    = 0;
+    _passNext = _rnd(1.5, 2.5);
+  }
+
   // ── Pressione sul possessore avversario ───────────────────────
   // 1-2 difensori si avvicinano a chi ha la palla
   function _applyPressure() {
@@ -196,7 +245,8 @@ var MovementController = (function() {
   function init(ms) {
     _ms=ms;_active=true;_phase='idle';_attack='my';
     _ballOwnerKey=null;_pressTarget=null;_microPhase={};
-    _tacticalT=0;_seq=[];_seqActive=false;
+    _tacticalT=0;_passT=0;_passNext=_rnd(1.5,2.5);
+    _seq=[];_seqActive=false;
   }
 
   function stop(){_active=false;_ms=null;_seq=[];_seqActive=false;}
@@ -224,6 +274,17 @@ var MovementController = (function() {
       }
 
       _applyPressure();
+
+      // Passaggi automatici: timer scalato con gameSpeed
+      if(_ballOwnerKey){
+        _passT += eff;
+        if(_passT >= _passNext) _autoPass();
+      } else {
+        // Nessun possessore: resetta il timer così quando la palla arriva
+        // il nuovo possessore ha subito il suo intervallo fresco
+        _passT = 0;
+      }
+
       if(typeof poolUpdateKeepers==='function')poolUpdateKeepers();
     }
   }
@@ -231,7 +292,7 @@ var MovementController = (function() {
   // ── 1. INIZIO PERIODO ─────────────────────────────────────────
   function onPeriodStart() {
     _phase='idle';_seq=[];_seqActive=false;_ballOwnerKey=null;
-    _microPhase={};_tacticalT=0;
+    _microPhase={};_tacticalT=0;_passT=0;_passNext=_rnd(1.5,2.5);
     if(typeof poolStartPeriod==='function')poolStartPeriod();
   }
 

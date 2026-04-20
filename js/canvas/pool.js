@@ -95,7 +95,18 @@ function _ballOffsetForToken(tok) {
     var p = G.ms.myRoster[tok.pi];
     if (p && p.hand) hand = p.hand;
   }
-  return {dx: hand==='L'?-0.026:hand==='AMB'?0:0.026, dy:0.006};
+  // Direzione di attacco determina quale mano è in alto/basso:
+  //   Attacco sx→dx (attackRight=true):  mano R = basso (+dy),  mano L = alto (-dy)
+  //   Attacco dx→sx (attackRight=false): mano R = alto  (-dy),  mano L = basso (+dy)
+  var attackRight = (tok.team==='my') ? (_attack==='my') : (_attack==='opp');
+  if (hand === 'AMB') { return {dx:0, dy:0}; }
+  if (hand === 'R') {
+    return { dx: attackRight ?  0.024 : -0.024,
+             dy: attackRight ?  0.020 : -0.020 };
+  }
+  // L
+  return   { dx: attackRight ? -0.024 :  0.024,
+             dy: attackRight ? -0.020 :  0.020 };
 }
 
 // ── Inizializzazione ───────────────────────────────────────────────
