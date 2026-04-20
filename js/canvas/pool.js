@@ -15,8 +15,15 @@ const PLAY = {
   myGoalX: 0.08,  oppGoalX: 0.92,
   myGoalY0: 0.38, myGoalY1: 0.62,
   oppGoalY0: 0.38, oppGoalY1: 0.62,
-  myGKminX: 0.07,  myGKmaxX: 0.13,
-  oppGKminX: 0.87, oppGKmaxX: 0.93,
+  // Portiere: rimane SULLA linea di porta (x fisso, solo y varia tra i pali)
+  myGKX:    0.09,   // x fisso portiere nostro
+  oppGKX:   0.91,   // x fisso portiere avversario
+  myGKminX: 0.08,  myGKmaxX: 0.10,   // range strettissimo attorno alla linea
+  oppGKminX: 0.90, oppGKmaxX: 0.92,
+  // Zona dei 2 metri: area vietata agli attaccanti (regolamento Art.8)
+  // Il CB (pos6) in attacco NON può entrare nei 2m avversari
+  myTwoMeterX:  0.20,   // limite 2m zona nostra  (pos6 avv non può andare a sx di questo)
+  oppTwoMeterX: 0.80,   // limite 2m zona avv     (pos6 my non può andare a dx di questo)
   myNetX0: 0.02,  myNetX1: 0.09,  myNetY0: 0.38, myNetY1: 0.62,
   oppNetX0: 0.91, oppNetX1: 0.98, oppNetY0: 0.38, oppNetY1: 0.62,
 };
@@ -167,6 +174,7 @@ function poolGetPhase()   {return _phase;}
 function poolGetTokens()  {return _tokens;}
 function poolGetToken(key){return _tokens[key]||null;}
 function poolGetTokenSpeeds(){return _tokenSpd;}
+function poolGetBallPos() {return {x:_ball.x, y:_ball.y};}  // espone posizione palla
 function poolGetKickoffPos(team,pk){
   var t=team==='my'?KICKOFF_MY:KICKOFF_OPP;
   return t[pk]?{x:t[pk].x,y:t[pk].y}:{x:PLAY.cx,y:PLAY.cy};
@@ -176,8 +184,15 @@ function poolGetKickoffPos(team,pk){
 function poolMoveToken(key,tx,ty) {
   var tok=_tokens[key];if(!tok)return;
   if(tok.isGK){
-    tx=tok.team==='my'?_clamp(tx,PLAY.myGKminX,PLAY.myGKmaxX):_clamp(tx,PLAY.oppGKminX,PLAY.oppGKmaxX);
-    ty=_clamp(ty,PLAY.myGoalY0+0.02,PLAY.myGoalY1-0.02);
+    // Portiere: x fisso sulla linea di porta, y solo tra i pali
+    tok.tx = tok.team==='my' ? PLAY.myGKX : PLAY.oppGKX;
+    tok.ty = _clamp(ty, PLAY.myGoalY0+0.02, PLAY.myGoalY1-0.02);
+    return;
+  }
+  // Regola 2 metri (Art.8): il CB (pos6) in attacco non può entrare nell'area dei 2m avversari
+  if(tok.pk==='6') {
+    if(tok.team==='my')  tx = Math.min(tx, PLAY.oppTwoMeterX);
+    if(tok.team==='opp') tx = Math.max(tx, PLAY.myTwoMeterX);
   }
   tok.tx=_clamp(tx,PLAY.x0+0.01,PLAY.x1-0.01);
   tok.ty=_clamp(ty,PLAY.y0+0.01,PLAY.y1-0.01);
@@ -247,16 +262,17 @@ function poolShowGoal(scorer,team,teamName){poolTriggerGoalAnim(scorer,team,team
 
 // ── Portieri ───────────────────────────────────────────────────────
 function _updateKeepers() {
-  var by=_ball.y;
-  var myGK=_tokens['my_GK'];
-  if(myGK&&!myGK.expelled){
-    myGK.tx=_clamp(PLAY.myGoalX+0.03,PLAY.myGKminX,PLAY.myGKmaxX);
-    myGK.ty=_clamp(by,PLAY.myGoalY0+0.03,PLAY.myGoalY1-0.03);
+  var by = _ball.y;
+  var myGK = _tokens['my_GK'];
+  if(myGK && !myGK.expelled) {
+    // Portiere SEMPRE sulla linea di porta (x fisso), solo y segue la palla tra i pali
+    myGK.tx = PLAY.myGKX;
+    myGK.ty = _clamp(by, PLAY.myGoalY0 + 0.02, PLAY.myGoalY1 - 0.02);
   }
-  var oppGK=_tokens['opp_GK'];
-  if(oppGK&&!oppGK.expelled){
-    oppGK.tx=_clamp(PLAY.oppGoalX-0.03,PLAY.oppGKminX,PLAY.oppGKmaxX);
-    oppGK.ty=_clamp(by,PLAY.oppGoalY0+0.03,PLAY.oppGoalY1-0.03);
+  var oppGK = _tokens['opp_GK'];
+  if(oppGK && !oppGK.expelled) {
+    oppGK.tx = PLAY.oppGKX;
+    oppGK.ty = _clamp(by, PLAY.oppGoalY0 + 0.02, PLAY.oppGoalY1 - 0.02);
   }
 }
 function poolUpdateKeepers(){_updateKeepers();}

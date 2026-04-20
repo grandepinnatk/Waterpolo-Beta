@@ -18,8 +18,8 @@ var MovementController = (function() {
   var BASE_SPD=FIELD_W/VEL100_T;
 
   // ── Formazioni (identiche a pool.js) ────────────────────────────
-  var ATK_MY  = {GK:{x:0.09,y:0.50},'5':{x:0.68,y:0.17},'4':{x:0.60,y:0.32},'6':{x:0.87,y:0.50},'3':{x:0.55,y:0.50},'2':{x:0.60,y:0.68},'1':{x:0.68,y:0.83}};
-  var ATK_OPP = {GK:{x:0.91,y:0.50},'1':{x:0.32,y:0.17},'2':{x:0.40,y:0.32},'6':{x:0.13,y:0.50},'3':{x:0.45,y:0.50},'4':{x:0.40,y:0.68},'5':{x:0.32,y:0.83}};
+  var ATK_MY  = {GK:{x:0.09,y:0.50},'5':{x:0.68,y:0.17},'4':{x:0.60,y:0.32},'6':{x:0.79,y:0.50},'3':{x:0.55,y:0.50},'2':{x:0.60,y:0.68},'1':{x:0.68,y:0.83}};
+  var ATK_OPP = {GK:{x:0.91,y:0.50},'1':{x:0.32,y:0.17},'2':{x:0.40,y:0.32},'6':{x:0.21,y:0.50},'3':{x:0.45,y:0.50},'4':{x:0.40,y:0.68},'5':{x:0.32,y:0.83}};
   var DEF_MY  = {GK:{x:0.09,y:0.50},'5':{x:0.23,y:0.21},'4':{x:0.30,y:0.35},'6':{x:0.37,y:0.50},'3':{x:0.30,y:0.50},'2':{x:0.30,y:0.65},'1':{x:0.23,y:0.79}};
   var DEF_OPP = {GK:{x:0.91,y:0.50},'1':{x:0.77,y:0.21},'2':{x:0.70,y:0.35},'6':{x:0.63,y:0.50},'3':{x:0.70,y:0.50},'4':{x:0.70,y:0.65},'5':{x:0.77,y:0.79}};
   var KICKOFF_MY  = {GK:{x:0.09,y:0.50},'5':{x:0.13,y:0.20},'4':{x:0.13,y:0.35},'6':{x:0.13,y:0.50},'3':{x:0.13,y:0.50},'2':{x:0.13,y:0.65},'1':{x:0.13,y:0.80}};
@@ -37,8 +37,8 @@ var MovementController = (function() {
   var SUP_ATK_MY_42 = {
     GK:  {x:0.09, y:0.50},
     '1': {x:0.82, y:0.70},  // ala dx — ai 2m lato basso
-    '6': {x:0.88, y:0.58},  // Palo 1 — davanti palo dx (in basso guardando porta)
-    '3': {x:0.88, y:0.42},  // Palo 5 — davanti palo sx (in alto guardando porta)
+    '6': {x:0.79, y:0.55},  // Palo 1 — davanti palo dx (in basso guardando porta)
+    '3': {x:0.79, y:0.45},  // Palo 5 — davanti palo sx (in alto guardando porta)
     '5': {x:0.82, y:0.30},  // ala sx — ai 2m lato alto
     '2': {x:0.68, y:0.68},  // esterno dx — linea 4m
     '4': {x:0.68, y:0.32},  // esterno sx — linea 4m
@@ -210,6 +210,22 @@ var MovementController = (function() {
         }
       }
     });
+
+    // ── Fix 3: il difensore pos3 marca sempre il CB avversario (pos6) ──────
+    // Regola: il centrovasca (pos3) della squadra in DIFESA segue sempre il pos6 avversario.
+    // Questo è il marcatore del centroboa: si affianca a ~0.06 unità dal pos6 avversario.
+    var defTeam3 = (_attack === 'my') ? 'opp' : 'my';   // squadra che difende
+    var atkCBKey = (_attack === 'my') ? 'my_6' : 'opp_6'; // CB della squadra in attacco
+    var def3Key  = defTeam3 + '_3';
+    var cbTok3   = _tok(atkCBKey);
+    var d3Tok    = _tok(def3Key);
+    if(cbTok3 && d3Tok && !d3Tok.expelled && !d3Tok.tempAbsent && _ballOwnerKey !== def3Key) {
+      // Si posiziona tra il CB avversario e la propria porta (leggermente davanti al CB)
+      var markOffsetX = (_attack === 'my') ? -0.055 : 0.055;  // si mette tra CB e porta
+      var markX = _clamp(cbTok3.tx + markOffsetX, 0.12, 0.88);
+      var markY = _clamp(cbTok3.ty + _rnd(-0.015, 0.015), 0.14, 0.86);
+      poolMoveToken(def3Key, markX, markY);
+    }
   }
 
   // Avanza le fasi dell'oscillazione ogni frame
@@ -221,57 +237,40 @@ var MovementController = (function() {
   }
 
   // ── Passaggi automatici continui ─────────────────────────────
-  // Ogni 1.5–2.5s di gioco il possessore passa a un compagno casuale.
+  // Il possessore passa la palla ogni 1.5-2.5s di gioco.
+  // FIX: il possesso viene assegnato quando la palla è FISICAMENTE arrivata
+  // al ricevitore (check di prossimità nel loop update), non con setTimeout.
+  var _pendingReceiver = null;  // { key, team } attende che palla arrivi
+
   function _autoPass() {
     if(!_ballOwnerKey) return;
     var ownerTeam = _ballOwnerKey.split('_')[0];
 
-    // Compagni disponibili (non espulsi, non il possessore)
     var teammates = [];
     ['1','2','3','4','5','6'].forEach(function(pk){
       var key = ownerTeam + '_' + pk;
       if(key === _ballOwnerKey) return;
       var tok = _tok(key);
-      if(!tok || tok.expelled) return;
+      if(!tok || tok.expelled || tok.tempAbsent) return;
       teammates.push({key:key, tok:tok});
     });
     if(teammates.length === 0) return;
 
-    // Ricevitore casuale
     var pick = teammates[Math.floor(Math.random() * teammates.length)];
 
-    // Segna subito il nuovo possessore (PRIMA di rilasciare)
-    // così il timer non viene resettato dal blocco else nell'update
-    var nextOwner = pick.key;
-    _ballOwnerKey = null;   // libera senza chiamare _ballOn (che resetterebbe il timer)
-
-    // Palla vola verso la posizione attuale del ricevitore (non il target)
+    // Libera il possesso SENZA chiamare _ballOn (evita reset del timer)
+    _ballOwnerKey = null;
     if(typeof poolReleaseBall === 'function') poolReleaseBall();
+
+    // Palla vola verso la posizione attuale del ricevitore
     if(typeof poolMoveBallDirect === 'function')
       poolMoveBallDirect(
-        pick.tok.x + _rnd(-0.015, 0.015),
-        pick.tok.y + _rnd(-0.010, 0.010)
+        pick.tok.x + _rnd(-0.012, 0.012),
+        pick.tok.y + _rnd(-0.008, 0.008)
       );
 
-    // Calcola il tempo di volo e assegna il possesso quando la palla arriva
-    // (approssimazione: la palla viaggia a BASE_SPD*5 → tempo ≈ dist/vel)
-    var ownerTok = _tok(_ballOwnerKey || (ownerTeam+'_3'));
-    var dist = 0.15; // stima fallback
-    if(ownerTok) {
-      var dx = pick.tok.x - ownerTok.x, dy = pick.tok.y - ownerTok.y;
-      dist = Math.sqrt(dx*dx + dy*dy);
-    }
-    var ballSpd = (typeof _BASE_SPD !== 'undefined' ? _BASE_SPD : 0.067) * 5;
-    var flightMs = Math.max(80, Math.min(400, (dist / ballSpd) * 1000));
-
-    var gameSpeed = (_ms && _ms.speed) ? _ms.speed : 1;
-    flightMs = flightMs / gameSpeed;
-
-    setTimeout(function(){
-      // Assegna il possesso con reset del timer
-      _ballOn(nextOwner);
-      _attack = ownerTeam;
-    }, flightMs);
+    // Registra il ricevitore: possesso assegnato quando palla arriva (nel loop update)
+    _pendingReceiver = { key: pick.key, team: ownerTeam };
   }
 
   // ── Pressione sul possessore avversario ───────────────────────
@@ -325,6 +324,7 @@ var MovementController = (function() {
     _ballOwnerKey=null;_pressTarget=null;_microPhase={};
     _tacticalT=0;_passT=0;_passNext=_rnd(1.5,2.5);
     _prevSup=false;_prevInf=false;
+    _pendingReceiver=null;
     _seq=[];_seqActive=false;
   }
 
@@ -369,6 +369,24 @@ var MovementController = (function() {
 
       _applyPressure();
 
+      // ── Fix 4: assegna possesso quando palla arriva fisicamente al ricevitore ──
+      if(_pendingReceiver) {
+        var recTok = _tok(_pendingReceiver.key);
+        if(recTok && !recTok.expelled) {
+          var ballPos = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:0.5,y:0.5};
+          var prDx = recTok.x - ballPos.x, prDy = recTok.y - ballPos.y;
+          var prDist = Math.sqrt(prDx*prDx + prDy*prDy);
+          if(prDist < 0.055) {
+            // Palla arrivata: assegna possesso
+            _ballOn(_pendingReceiver.key);
+            _attack = _pendingReceiver.team;
+            _pendingReceiver = null;
+          }
+        } else {
+          _pendingReceiver = null;
+        }
+      }
+
       if(_ballOwnerKey){
         _passT += eff;
         if(_passT >= _passNext) _autoPass();
@@ -382,6 +400,7 @@ var MovementController = (function() {
   function onPeriodStart() {
     _phase='idle';_seq=[];_seqActive=false;_ballOwnerKey=null;
     _microPhase={};_tacticalT=0;_passT=0;_passNext=_rnd(1.5,2.5);
+    _pendingReceiver=null;
     if(typeof poolStartPeriod==='function')poolStartPeriod();
   }
 
