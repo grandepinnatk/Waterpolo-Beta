@@ -249,13 +249,14 @@ function _animLoop(timestamp) {
       renderFieldLists();
     }
 
-    poolAnimStep(rawDt);
+    const _gameSpeed = G.ms ? (G.ms.speed || 1) : 1;
+    poolAnimStep(rawDt, _gameSpeed);
     if (typeof MovementController !== 'undefined') MovementController.update(rawDt);
 
     _checkExhaustedPlayers();
     refreshMatchUI();
   } else {
-    poolAnimStep(rawDt);
+    poolAnimStep(rawDt, G.ms ? (G.ms.speed || 1) : 1);
     if (typeof MovementController !== 'undefined') MovementController.update(rawDt);
   }
 

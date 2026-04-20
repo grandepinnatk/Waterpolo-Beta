@@ -2,6 +2,25 @@
 
 ---
 
+## [0.7.6-beta] — 2026-04-19
+
+### Bugfix — Correlazione velocità di gioco e movimento segnalini
+
+**Problema:** aumentando la velocità di gioco (2x, 10x, 15x, 20x) i segnalini continuavano a muoversi alla stessa velocità lenta mentre gli eventi del motore scorrevano molto più veloci, creando una totale scorrelazione tra visuale e telecronaca.
+
+**Causa:** `poolAnimStep(rawDt)` riceveva solo il delta-time reale del frame (~16ms a 60fps), senza sapere la velocità di gioco (`G.ms.speed`). I token si muovevano quindi sempre alla stessa velocità fisica indipendentemente dal moltiplicatore selezionato.
+
+**Fix — sistema a due modalità:**
+
+- **Velocità 1x–2x** (< 5x): movimento fisico fluido e animato, i token nuotano visibilmente verso i target con velocità proporzionale al parametro VEL del giocatore.
+- **Velocità 5x–20x** (≥ 5x): snap istantaneo — i token si teletrasportano direttamente al target ogni frame. Il risultato è coerente con gli eventi che scorrono veloci: le posizioni cambiano di colpo ad ogni azione, come un replay accelerato.
+
+`poolAnimStep(dt, gameSpeed)` ora riceve la velocità di gioco come secondo parametro. Stessa logica applicata alla palla libera (tiri/passaggi).
+
+`MovementController.update` scala la frequenza degli aggiornamenti tattici con la velocità di gioco, così i target vengono ricalcolati abbastanza spesso anche a velocità alta.
+
+---
+
 ## [0.7.5-beta] — 2026-04-19
 
 ### Nuovo — Gameplay continuo stile Football Manager

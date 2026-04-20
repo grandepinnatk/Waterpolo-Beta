@@ -207,22 +207,23 @@ var MovementController = (function() {
     var canRun=_ms.running||_phase==='goal_cel'||_phase==='kickoff_after'||_phase==='penalty';
     if(!canRun)return;
 
+    var gameSpeed = _ms.speed || 1;
+
     if(_seqActive){_tickSeq(dt);return;}
 
     if(_phase==='play'){
-      _tacticalT+=dt;
-      _tickMicro(dt);
+      // Scala il tempo effettivo con la velocità di gioco:
+      // a 10x i target vengono aggiornati 10 volte più spesso
+      var eff = dt * gameSpeed;
+      _tacticalT += eff;
+      _tickMicro(eff);
 
-      // Aggiorna i target di tutti ogni TACTICAL_INT secondi
-      if(_tacticalT>=TACTICAL_INT){
-        _tacticalT=0;
+      if(_tacticalT >= TACTICAL_INT){
+        _tacticalT = 0;
         _updateAllTargets(dt);
       }
 
-      // Pressione: aggiornata ogni frame (lentamente perché il token si muove lento)
       _applyPressure();
-
-      // Portieri sempre aggiornati
       if(typeof poolUpdateKeepers==='function')poolUpdateKeepers();
     }
   }

@@ -71,6 +71,7 @@ var _tokens     = {};
 var _tokenSpd   = {};       // key → unità/s
 var _ball       = {x:0.5, y:0.5, tx:0.5, ty:0.5};
 var _ballOwner  = null;     // chiave token possessore
+var _ballFly    = null;     // {x0,y0,x1,y1,dist} — traiettoria del volo corrente (parabola)
 var _phase      = 'idle';   // 'idle'|'play'
 var _attack     = 'my';     // chi ha il possesso
 var _pressKey   = null;     // chiave del token sotto pressione (per visual)
@@ -162,10 +163,29 @@ function poolMoveToken(key,tx,ty) {
 function poolMoveBall(tx,ty) {
   _ball.tx=_clamp(tx,PLAY.x0,PLAY.x1);_ball.ty=_clamp(ty,PLAY.y0,PLAY.y1);
 }
-function poolMoveBallDirect(tx,ty) {_ballOwner=null;poolMoveBall(tx,ty);}
-function poolSetBallOn(key)      {if(_tokens[key])_ballOwner=key;}
-function poolMoveBallToToken(key){poolSetBallOn(key);}
-function poolReleaseBall()       {_ballOwner=null;}
+function poolMoveBallDirect(tx,ty) {
+  // Registra la traiettoria di volo partendo dalla posizione corrente
+  var fx=_ball.x, fy=_ball.y;
+  var ftx=_clamp(tx,PLAY.x0,PLAY.x1), fty=_clamp(ty,PLAY.y0,PLAY.y1);
+  var dx=ftx-fx, dy=fty-fy;
+  var dist=Math.sqrt(dx*dx+dy*dy);
+  _ballOwner=null;
+  _ball.tx=ftx; _ball.ty=fty;
+  _ballFly=(dist>0.01)?{x0:fx,y0:fy,x1:ftx,y1:fty,dist:dist}:null;
+}
+function poolSetBallOn(key) {
+  if(_tokens[key]){_ballOwner=key; _ballFly=null;}  // possessore: nessuna parabola
+}
+function poolReleaseBall() {
+  // Quando la palla viene rilasciata con un target già impostato, inizia il volo
+  if(_ballOwner){
+    var tok=_tokens[_ballOwner];
+    if(tok){ var fx=tok.x,fy=tok.y,ftx=_ball.tx,fty=_ball.ty;
+      var dx=ftx-fx,dy=fty-fy,dist=Math.sqrt(dx*dx+dy*dy);
+      _ballFly=(dist>0.01)?{x0:fx,y0:fy,x1:ftx,y1:fty,dist:dist}:null; }
+  }
+  _ballOwner=null;
+}
 
 // ── Possesso / fase ────────────────────────────────────────────────
 function poolSetAttack(team) {_attack=team;}
@@ -221,8 +241,12 @@ function poolUpdateKeepers(){_updateKeepers();}
 function poolResetToken(key){}  // compat stub
 
 // ── Step animazione ────────────────────────────────────────────────
-function poolAnimStep(dt) {
-  var f=Math.min(dt,0.1);
+// gameSpeed = G.ms.speed (1=normale, 2=doppio, 10x…)
+// I token nuotano SEMPRE — la velocità fisica scala con gameSpeed.
+// A 2x nuotano il doppio, a 10x dieci volte più veloci.
+function poolAnimStep(dt, gameSpeed) {
+  var f = Math.min(dt, 0.1);
+  gameSpeed = gameSpeed || 1;
 
   // Timer overlay GOAL — avanza sempre
   if(_goalAnim){
@@ -243,7 +267,7 @@ function poolAnimStep(dt) {
   // Portieri seguono sempre la palla
   if(_phase!=='idle')_updateKeepers();
 
-  // Palla segue il possessore (aggiornata ogni frame)
+  // Palla segue il possessore (ogni frame)
   if(_ballOwner){
     var ow=_tokens[_ballOwner];
     if(ow&&!ow.expelled){
@@ -253,25 +277,27 @@ function poolAnimStep(dt) {
     } else { _ballOwner=null; }
   }
 
-  // Movimento token — velocità lineare proporzionale a VEL
+  // ── Movimento token — velocità scalata con gameSpeed ──────────
   Object.values(_tokens).forEach(function(tok){
     if(tok.expelled)return;
-    var spd=_tokenSpd[tok.team+'_'+tok.pk]||_BASE_SPD;
-    var dx=tok.tx-tok.x,dy=tok.ty-tok.y;
+    var dx=tok.tx-tok.x, dy=tok.ty-tok.y;
     var d=Math.sqrt(dx*dx+dy*dy);
-    if(d<0.001){tok.x=tok.tx;tok.y=tok.ty;}
-    else{var s=spd*f;if(s>=d){tok.x=tok.tx;tok.y=tok.ty;}else{tok.x+=dx/d*s;tok.y+=dy/d*s;}}
+    if(d<0.001){ tok.x=tok.tx; tok.y=tok.ty; return; }
+    var spd=(_tokenSpd[tok.team+'_'+tok.pk]||_BASE_SPD) * gameSpeed;
+    var s=spd*f;
+    if(s>=d){ tok.x=tok.tx; tok.y=tok.ty; }
+    else { tok.x+=dx/d*s; tok.y+=dy/d*s; }
   });
 
-  // Palla libera → si muove veloce
+  // ── Movimento palla — anche scalato con gameSpeed ──────────────
   if(!_ballOwner){
-    var bspd=_BASE_SPD*5.0;
-    var dx=_ball.tx-_ball.x,dy=_ball.ty-_ball.y;
-    var d=Math.sqrt(dx*dx+dy*dy);
-    if(d<0.002){_ball.x=_ball.tx;_ball.y=_ball.ty;}
-    else{var s=bspd*f;if(s>=d){_ball.x=_ball.tx;_ball.y=_ball.ty;}else{_ball.x+=dx/d*s;_ball.y+=dy/d*s;}}
+    var bspd=_BASE_SPD*5.0*gameSpeed;
+    var bdx=_ball.tx-_ball.x, bdy=_ball.ty-_ball.y;
+    var bd=Math.sqrt(bdx*bdx+bdy*bdy);
+    if(bd<0.002){ _ball.x=_ball.tx; _ball.y=_ball.ty; _ballFly=null; }
+    else{ var bs=bspd*f; if(bs>=bd){_ball.x=_ball.tx;_ball.y=_ball.ty;_ballFly=null;}else{_ball.x+=bdx/bd*bs;_ball.y+=bdy/bd*bs;} }
   } else {
-    _ball.x=_ball.tx;_ball.y=_ball.ty;
+    _ball.x=_ball.tx; _ball.y=_ball.ty;
   }
 }
 
@@ -360,7 +386,20 @@ function drawPool(canvas, myTeamAbbr, oppTeamAbbr) {
   });
 
   // Pallone
-  var bx=_ball.x*W,by=_ball.y*H,BR=13;
+  var bx=_ball.x*W, by=_ball.y*H;
+  var BR_BASE = 9;   // raggio base -30% rispetto al precedente 13
+
+  // Parabola durante il volo: picco +20% a metà traiettoria
+  var BR = BR_BASE;
+  if(_ballFly && !_ballOwner){
+    var dx=_ball.x-_ballFly.x0, dy=_ball.y-_ballFly.y0;
+    var traveled=Math.sqrt(dx*dx+dy*dy);
+    var t=_ballFly.dist>0?Math.min(traveled/_ballFly.dist,1):0;
+    // Parabola: 4*t*(1-t) vale 1 a t=0.5, 0 agli estremi
+    var arc=4*t*(1-t);
+    BR=BR_BASE*(1+0.20*arc);
+  }
+
   ctx.save();ctx.globalAlpha=0.28;ctx.fillStyle='#000';
   ctx.beginPath();ctx.ellipse(bx+2,by+BR+1,BR*0.65,3,0,0,Math.PI*2);ctx.fill();ctx.restore();
   if(_ballReady&&_ballImg){
