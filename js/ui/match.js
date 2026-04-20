@@ -96,12 +96,19 @@ function _dispatchCanvasEvent(event) {
   poolSyncTokens(G.ms);
   if (typeof poolSetSpeeds === 'function') poolSetSpeeds(G.ms);
 
+  // ── Superiorità/inferiorità: riposiziona tutti i token ─────────────────
+  if (event.superiorityStart || event.inferiorityStart) {
+    if (typeof MovementController !== 'undefined' && MovementController.onNumericalChange) {
+      MovementController.onNumericalChange(event.superiorityStart ? 'superiority' : 'inferiority');
+    }
+    if (event.ballTarget) poolMoveBall(event.ballTarget.x, event.ballTarget.y);
+    return;
+  }
+
   if (event.goalScored) {
     if (typeof MovementController !== 'undefined' && MovementController.onGoalEvent) {
       MovementController.onGoalEvent(event);
-      // onGoalEvent chiama internamente showGoalAnimation e onPossessChange
     } else {
-      // fallback senza MovementController
       showGoalAnimation(event.goalScorer || '', event.goalTeam || 'my', G.ms);
     }
 

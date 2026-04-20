@@ -29,6 +29,65 @@ var MovementController = (function() {
   var RESET_OPP_ATK = {GK:{x:0.91,y:0.50},'1':{x:0.49,y:0.18},'2':{x:0.53,y:0.34},'6':{x:0.50,y:0.50},'3':{x:0.52,y:0.50},'4':{x:0.53,y:0.66},'5':{x:0.49,y:0.82}};
   var RESET_MY_DEF  = {GK:{x:0.09,y:0.50},'5':{x:0.22,y:0.22},'4':{x:0.28,y:0.36},'6':{x:0.34,y:0.50},'3':{x:0.28,y:0.50},'2':{x:0.28,y:0.64},'1':{x:0.22,y:0.78}};
 
+  // ── SUPERIORITÀ NUMERICA: attacco 4-2 (noi 6 vs avversario 5) ─────
+  // La nostra squadra attacca verso dx (porta avversaria a destra)
+  // 4 esterni: pos1(ala dx), pos2(est dx), pos4(est sx), pos5(ala sx)
+  // 2 Pali ai 2m: pos6=Palo1 (lato dx/basso), pos3=Palo5 (lato sx/alto)
+  // Nostra squadra in 4-2, attacca verso porta dx
+  var SUP_ATK_MY_42 = {
+    GK:  {x:0.09, y:0.50},
+    '1': {x:0.82, y:0.70},  // ala dx — ai 2m lato basso
+    '6': {x:0.88, y:0.58},  // Palo 1 — davanti palo dx (in basso guardando porta)
+    '3': {x:0.88, y:0.42},  // Palo 5 — davanti palo sx (in alto guardando porta)
+    '5': {x:0.82, y:0.30},  // ala sx — ai 2m lato alto
+    '2': {x:0.68, y:0.68},  // esterno dx — linea 4m
+    '4': {x:0.68, y:0.32},  // esterno sx — linea 4m
+  };
+  // Avversario 5 giocatori in difesa pressing (marca stretto ogni attaccante)
+  // Ogni difensore avversario copre il proprio attaccante direttamente
+  var SUP_DEF_OPP_PRESS = {
+    GK:  {x:0.91, y:0.50},
+    '1': {x:0.84, y:0.68},  // marca pos1
+    '6': {x:0.84, y:0.42},  // marca zona Palo (copre entrambi i Pali da solo)
+    '3': {x:0.76, y:0.50},  // marca zona centrale
+    '5': {x:0.84, y:0.32},  // marca pos5
+    '2': {x:0.74, y:0.65},  // marca pos2 esterno
+    // pos 4 OPP è assente (espulso)
+  };
+
+  // ── INFERIORITÀ NUMERICA: difesa 5 pressing (noi 5 vs avversario 6) ──
+  // Avversario attacca verso sx (porta nostra a sx), noi difendiamo in 5
+  // Schema pressing: ogni difensore marca stretto il proprio attaccante
+  var INF_DEF_MY_PRESS = {
+    GK:  {x:0.09, y:0.50},
+    '1': {x:0.16, y:0.68},  // marca ala dx avv
+    '6': {x:0.16, y:0.42},  // marca zona Palo avversario (copre entrambi)
+    '3': {x:0.24, y:0.50},  // marcatore centrovasca avv — zona centrale
+    '5': {x:0.16, y:0.32},  // marca ala sx avv
+    '2': {x:0.26, y:0.65},  // marca esterno dx avv
+    // pos 4 MY è assente (espulso temporaneamente)
+  };
+  // Schema zona M: difensori si posizionano a zona, raddoppio sul CB avv
+  var INF_DEF_MY_ZONAM = {
+    GK:  {x:0.09, y:0.50},
+    '1': {x:0.18, y:0.65},  // zona dx
+    '6': {x:0.14, y:0.48},  // zona CB avversario (raddoppio)
+    '3': {x:0.20, y:0.50},  // centrovasca — scende a coprire CB avv
+    '5': {x:0.18, y:0.35},  // zona sx
+    '2': {x:0.28, y:0.60},  // esterno dx aperto
+    // pos 4 MY è assente
+  };
+  // Avversario in superiorità attacca in 4-2 verso sx (porta nostra)
+  var INF_ATK_OPP_42 = {
+    GK:  {x:0.91, y:0.50},
+    '1': {x:0.18, y:0.70},  // ala dx avv
+    '6': {x:0.12, y:0.58},  // Palo 1 avv (CB avv)
+    '3': {x:0.12, y:0.42},  // Palo 5 avv
+    '5': {x:0.18, y:0.30},  // ala sx avv
+    '2': {x:0.32, y:0.68},  // esterno dx avv
+    '4': {x:0.32, y:0.32},  // esterno sx avv
+  };
+
   // ── Stato interno ─────────────────────────────────────────────
   var _ms          = null;
   var _active      = false;
@@ -54,6 +113,8 @@ var MovementController = (function() {
 
   // CB vincitore dello sprint
   var _cbWinner='my', _myCBSpd=BASE_SPD, _oppCBSpd=BASE_SPD;
+  // Stile difesa in inferiorità: alterna pressing/zonaM a ogni episodio
+  var _infDefStyle = 'press';
 
   // ── Helpers ───────────────────────────────────────────────────
   function _clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
@@ -106,19 +167,25 @@ var MovementController = (function() {
   // simulare il movimento continuo di tipo Football Manager.
   function _updateAllTargets(time) {
     if(_phase==='idle')return;
+    var f = _getFormations();
+    var sup = _ms && _ms.superiorityActive;
+    var inf = _ms && _ms.inferiorityActive;
     var ALL=['GK','1','2','3','4','5','6'];
     ALL.forEach(function(pk){
       // ── NOSTRA SQUADRA ──
       var mKey='my_'+pk;
+      // In inferiorità pos4 nostra è assente
+      if(inf && pk==='4') return;
       var mTok=_tok(mKey);
       if(mTok&&!mTok.expelled&&pk!=='GK'){
-        var base=_attack==='my'?ATK_MY[pk]:DEF_MY[pk];
+        var base=_attack==='my'?f.myAtk[pk]:f.myDef[pk];
         if(base){
           var ph=_microPhase[mKey]||_rnd(0,Math.PI*2);
           _microPhase[mKey]=ph;
-          var oscX=Math.sin(ph*1.1)*0.035;
-          var oscY=Math.cos(ph*0.9)*0.028;
-          var pushX=_attack==='my'?0.018:-0.018;
+          var oscX=Math.sin(ph*1.1)*0.030;
+          var oscY=Math.cos(ph*0.9)*0.024;
+          // In superiorità: più aggressivi verso porta, oscillazione ridotta per precisione
+          var pushX = sup ? 0.010 : (_attack==='my' ? 0.018 : -0.018);
           var tx=_clamp(base.x+oscX+pushX,0.11,0.89);
           var ty=_clamp(base.y+oscY,0.13,0.87);
           if(_ballOwnerKey!==mKey) poolMoveToken(mKey,tx,ty);
@@ -126,15 +193,17 @@ var MovementController = (function() {
       }
       // ── AVVERSARIO ──
       var oKey='opp_'+pk;
+      // In superiorità pos4 avversario è assente (espulso)
+      if(sup && pk==='4') return;
       var oTok=_tok(oKey);
       if(oTok&&!oTok.expelled&&pk!=='GK'){
-        var obase=_attack==='opp'?ATK_OPP[pk]:DEF_OPP[pk];
+        var obase=_attack==='opp'?f.oppAtk[pk]:f.oppDef[pk];
         if(obase){
           var ph2=_microPhase[oKey]||_rnd(0,Math.PI*2);
           _microPhase[oKey]=ph2;
-          var oscX2=Math.sin(ph2*1.1)*0.035;
-          var oscY2=Math.cos(ph2*0.9)*0.028;
-          var pushX2=_attack==='opp'?-0.018:0.018;
+          var oscX2=Math.sin(ph2*1.1)*0.030;
+          var oscY2=Math.cos(ph2*0.9)*0.024;
+          var pushX2 = inf ? -0.010 : (_attack==='opp' ? -0.018 : 0.018);
           var tx2=_clamp(obase.x+oscX2+pushX2,0.11,0.89);
           var ty2=_clamp(obase.y+oscY2,0.13,0.87);
           if(_ballOwnerKey!==oKey) poolMoveToken(oKey,tx2,ty2);
@@ -255,12 +324,16 @@ var MovementController = (function() {
     _ms=ms;_active=true;_phase='idle';_attack='my';
     _ballOwnerKey=null;_pressTarget=null;_microPhase={};
     _tacticalT=0;_passT=0;_passNext=_rnd(1.5,2.5);
+    _prevSup=false;_prevInf=false;
     _seq=[];_seqActive=false;
   }
 
   function stop(){_active=false;_ms=null;_seq=[];_seqActive=false;}
 
   // dt = secondi REALI (non moltiplicati per speed)
+  // Traccia lo stato precedente per rilevare cambiamenti
+  var _prevSup = false, _prevInf = false;
+
   function update(dt) {
     if(!_active||!_ms)return;
     var canRun=_ms.running||_phase==='goal_cel'||_phase==='kickoff_after'||_phase==='penalty';
@@ -271,8 +344,20 @@ var MovementController = (function() {
     if(_seqActive){_tickSeq(dt);return;}
 
     if(_phase==='play'){
-      // Scala il tempo effettivo con la velocità di gioco:
-      // a 10x i target vengono aggiornati 10 volte più spesso
+      var curSup = !!_ms.superiorityActive;
+      var curInf = !!_ms.inferiorityActive;
+
+      // Riposiziona quando la superiorità/inferiorità TERMINA (ritorno a parità)
+      if(_prevSup && !curSup) {
+        _repositionAll(0.025);
+        _passT=0; _passNext=_rnd(1.5,2.5);
+      }
+      if(_prevInf && !curInf) {
+        _repositionAll(0.025);
+      }
+      _prevSup = curSup;
+      _prevInf = curInf;
+
       var eff = dt * gameSpeed;
       _tacticalT += eff;
       _tickMicro(eff);
@@ -284,10 +369,6 @@ var MovementController = (function() {
 
       _applyPressure();
 
-      // Passaggi automatici: timer scalato con gameSpeed
-      // _passT avanza solo quando c'è un possessore.
-      // Quando la palla è in volo (_ballOwnerKey=null) il timer resta fermo
-      // finché il ricevitore non prende possesso (e _ballOn resetta il timer).
       if(_ballOwnerKey){
         _passT += eff;
         if(_passT >= _passNext) _autoPass();
@@ -489,16 +570,77 @@ var MovementController = (function() {
     if(_phase==='play')_repositionAll(0.022);
   }
 
+  // Chiamato quando scatta superiorità o inferiorità numerica
+  function onNumericalChange(type) {
+    if (!_ms) return;
+    if (type === 'inferiority') {
+      // Alterna lo schema difensivo ad ogni episodio
+      _infDefStyle = (_infDefStyle === 'press') ? 'zonam' : 'press';
+    }
+    // Riposiziona immediatamente tutte le squadre
+    if (_phase === 'play') {
+      _repositionAll(0.018);
+      // Resetta i passaggi automatici: la palla va al centro della superiorità
+      _passT = 0;
+      _passNext = _rnd(1.5, 2.5);
+    }
+  }
+
   // ── Riposizionamento tattico completo ─────────────────────────
+  // Restituisce le formazioni corrette in base allo stato di gioco
+  function _getFormations() {
+    var sup = _ms && _ms.superiorityActive;
+    var inf = _ms && _ms.inferiorityActive;
+    // Sceglie difesa avversaria in inferiorità: alterna pressing/zonaM casualmente
+    var oppDef5 = (_infDefStyle === 'zonam') ? INF_DEF_MY_ZONAM : INF_DEF_MY_PRESS;
+
+    if (sup) {
+      // Noi in superiorità: attacchiamo in 4-2, loro difendono in 5
+      return {
+        myAtk:  SUP_ATK_MY_42,
+        myDef:  DEF_MY,             // non usata (siamo in attacco)
+        oppAtk: ATK_OPP,            // non usata (loro difendono)
+        oppDef: SUP_DEF_OPP_PRESS,  // 5 difensori in pressing
+      };
+    } else if (inf) {
+      // Noi in inferiorità: difendiamo in 5, loro attaccano in 4-2
+      return {
+        myAtk:  ATK_MY,             // non usata (noi difendiamo)
+        myDef:  oppDef5,            // pressing o zona M con 5 giocatori
+        oppAtk: INF_ATK_OPP_42,     // avversario attacca in 4-2
+        oppDef: DEF_OPP,            // non usata
+      };
+    } else {
+      return { myAtk: ATK_MY, myDef: DEF_MY, oppAtk: ATK_OPP, oppDef: DEF_OPP };
+    }
+  }
+
   function _repositionAll(jit) {
-    jit=jit||0.020;
-    ['GK','1','2','3','4','5','6'].forEach(function(pk){
-      var mb=_attack==='my'?ATK_MY[pk]:DEF_MY[pk];
-      var ob=_attack==='opp'?ATK_OPP[pk]:DEF_OPP[pk];
-      if(mb)_mv('my_'+pk,mb.x,mb.y,pk==='GK'?0:jit);
-      if(ob)_mv('opp_'+pk,ob.x,ob.y,pk==='GK'?0:jit);
+    jit = jit || 0.020;
+    var f = _getFormations();
+    var sup = _ms && _ms.superiorityActive;
+    var inf = _ms && _ms.inferiorityActive;
+    var ALL = ['GK','1','2','3','4','5','6'];
+    ALL.forEach(function(pk) {
+      // In superiorità pos4 avversario è assente (espulso) → salta
+      if (sup && pk === '4') {
+        // Non muoviamo opp_4 (è fuori campo)
+        var mb = f.myAtk[pk] || (f.myDef[pk]);
+        if (mb) _mv('my_'+pk, mb.x, mb.y, pk==='GK'?0:jit);
+        return;
+      }
+      // In inferiorità pos4 nostra è assente → salta
+      if (inf && pk === '4') {
+        var ob2 = _attack==='opp' ? f.oppAtk[pk] : f.oppDef[pk];
+        if (ob2) _mv('opp_'+pk, ob2.x, ob2.y, pk==='GK'?0:jit);
+        return;
+      }
+      var mb = _attack==='my' ? f.myAtk[pk] : f.myDef[pk];
+      var ob = _attack==='opp' ? f.oppAtk[pk] : f.oppDef[pk];
+      if (mb) _mv('my_'+pk,  mb.x, mb.y, pk==='GK'?0:jit);
+      if (ob) _mv('opp_'+pk, ob.x, ob.y, pk==='GK'?0:jit);
     });
-    if(typeof poolUpdateKeepers==='function')poolUpdateKeepers();
+    if (typeof poolUpdateKeepers==='function') poolUpdateKeepers();
   }
 
   // ── Helpers ───────────────────────────────────────────────────
@@ -533,7 +675,8 @@ var MovementController = (function() {
     onSave:          onSave,
     onPassOrNeutral: onPassOrNeutral,
     onPenaltyKick:   onPenaltyKick,
-    onPossessChange: onPossessChange,
+    onPossessChange:     onPossessChange,
+    onNumericalChange:   onNumericalChange,
   };
 
 })();

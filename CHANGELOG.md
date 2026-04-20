@@ -2,6 +2,22 @@
 
 ---
 
+## [0.8.1-beta] — 2026-04-20
+
+### Nuovo — Schemi di superiorità e inferiorità numerica
+
+Implementazione completa degli schemi tattici per la situazione 6v5 e 5v6.
+
+**Motore (`engine/match.js`):** timer superiorità/inferiorità 20s, espulsioni avversarie, nuovi campi stato.
+
+**Superiorità (6v5) — attacco 4-2:** pos1=ala dx, pos6=Palo1 (ai 2m dx), pos3=Palo5 (ai 2m sx), pos5=ala sx, pos2/4=esterni 4m. Avversario espulso (opp_4) scompare; 5 difensori in pressing.
+
+**Inferiorità (5v6) — difesa 5:** my_4 scompare; difesa alterna pressing / zona M. Avversario attacca in 4-2.
+
+Al termine dei 20s tutti tornano alla formazione normale automaticamente.
+
+---
+
 ## [0.7.6-beta] — 2026-04-19
 
 ### Bugfix — Correlazione velocità di gioco e movimento segnalini

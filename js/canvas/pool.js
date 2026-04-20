@@ -135,6 +135,19 @@ function poolSyncTokens(ms) {
     tok.pi=pi;tok.shirt=ms.shirtNumbers[pi]||'';tok.shortName=_shortName(ms.myRoster[pi]);
     tok.yellows=ms.tempExp[pi]||0;tok.expelled=ms.expelled.has(pi);tok.posLabel=pk==='GK'?'P':pk;
   });
+
+  // Nascondi visivamente il token assente per superiorità/inferiorità
+  // Superiorità nostra (6v5): opp_4 è assente (avversario espulso)
+  // Inferiorità nostra (5v6): my_4 è temporaneamente fuori
+  var sup = ms.superiorityActive;
+  var inf = ms.inferiorityActive;
+  ['GK','1','2','3','4','5','6'].forEach(function(pk){
+    var myTok  = _tokens['my_'+pk];
+    var oppTok = _tokens['opp_'+pk];
+    if(myTok)  myTok.tempAbsent  = (inf && pk==='4');
+    if(oppTok) oppTok.tempAbsent = (sup && pk==='4');
+  });
+
   poolSetSpeeds(ms);
 }
 
@@ -325,7 +338,7 @@ function drawPool(canvas, myTeamAbbr, oppTeamAbbr) {
   var ownerKey = _ballOwner;
 
   Object.values(_tokens).forEach(function(tok){
-    if(tok.expelled)return;
+    if(tok.expelled || tok.tempAbsent) return;  // nasconde espulsi e temporaneamente assenti
     var px=tok.x*W,py=tok.y*H;
     var isMy=tok.team==='my',isGK=tok.isGK;
     var R=19;

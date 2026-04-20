@@ -155,6 +155,12 @@ function createMatchState({ match, isHome, myTeam, oppTeam, myRoster, oppRoster,
     periodScores: [ {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0}, {my:0,opp:0} ],
     // Punteggio al termine del periodo precedente (per calcolare il parziale corrente)
     _prevScore: { my:0, opp:0 },
+    // Superiorità/inferiorità numerica canvas
+    superiorityActive: false,
+    inferiorityActive: false,
+    superiorityTimer:  0,
+    inferiorityTimer:  0,
+    oppTempExp:        0,
   };
 }
 
@@ -165,11 +171,30 @@ function advanceTime(ms, dt) {
   // Cala la stamina dei giocatori in campo
   _drainStamina(ms, dt * ms.speed);
 
+  // ── Tick timer superiorità/inferiorità ──────────────────────────────
+  const tickSec = dt * ms.speed;
+  if (ms.superiorityActive && ms.superiorityTimer > 0) {
+    ms.superiorityTimer -= tickSec;
+    if (ms.superiorityTimer <= 0) {
+      ms.superiorityTimer  = 0;
+      ms.superiorityActive = false;
+    }
+  }
+  if (ms.inferiorityActive && ms.inferiorityTimer > 0) {
+    ms.inferiorityTimer -= tickSec;
+    if (ms.inferiorityTimer <= 0) {
+      ms.inferiorityTimer  = 0;
+      ms.inferiorityActive = false;
+    }
+  }
+
   const curPeriodSec = ms.totalSeconds - (ms.period - 1) * PERIOD_SECONDS;
   if (curPeriodSec >= PERIOD_SECONDS) {
+    // Fine periodo: azzera superiorità
+    ms.superiorityActive = false; ms.superiorityTimer = 0;
+    ms.inferiorityActive = false; ms.inferiorityTimer = 0;
     if (ms.period < TOTAL_PERIODS) {
       ms.period++;
-      // Avvia animazione scatto per il nuovo periodo
       if (typeof poolStartPeriod === 'function') poolStartPeriod();
       return { periodEnded: true, matchEnded: false };
     } else {
@@ -569,6 +594,7 @@ function generateMatchEvent(ms) {
 
     if (count >= MAX_TEMP_EXP) {
       ms.expelled.add(pi);
+      // Nostra espulsione definitiva → nessuna inferiorità (già gestita)
       return {
         txt: '🔴 ESPULSO! ' + fp.p.name + ' (#' + shirt + ') — 3ª espulsione temporanea.',
         cls: 'exp',
@@ -576,12 +602,32 @@ function generateMatchEvent(ms) {
         moverKey: 'my_' + fp.pk,
       };
     } else {
+      // Espulsione temporanea nostra → inferiorità numerica 20 secondi
+      ms.inferiorityActive = true;
+      ms.inferiorityTimer  = 20;
       return {
-        txt: '🟡 Esp. temporanea (' + count + '/3) — ' + fp.p.name + ' (#' + shirt + ')',
+        txt: '🟡 Esp. temporanea (' + count + '/3) — ' + fp.p.name + ' (#' + shirt + ') — Inferiorità numerica!',
         cls: 'fl',
+        inferiorityStart: true,
         ballTarget: { x: 0.45 + rnd(-0.1, 0.1), y: 0.3 + rnd(0, 0.4) },
       };
     }
+  }
+
+  // ── FALLO AVVERSARIO → nostra superiorità numerica ───────────────
+  // Probabilità simmetrica al fallo nostro, ma solo se non siamo già in superiorità
+  const oppFoulProb = BASE_FOUL_PROB * 0.9;
+  if (!ms.superiorityActive && Math.random() < oppFoulProb) {
+    ms.oppTempExp = (ms.oppTempExp || 0) + 1;
+    ms.superiorityActive = true;
+    ms.superiorityTimer  = 20;  // 20 secondi di superiorità
+    const oppName = ms.oppTeam.abbr || ms.oppTeam.name;
+    return {
+      txt: '🟡 Fallo ' + oppName + ' — Superiorità numerica! (20s)',
+      cls: 'sv',  // usa sv per colorazione verde nel log
+      superiorityStart: true,
+      ballTarget: { x: 0.55 + rnd(-0.05, 0.05), y: 0.5 + rnd(-0.1, 0.1) },
+    };
   }
 
   return { txt: pick(NEUTRAL_EVENTS), cls: '', ballTarget: { x: rnd(3, 7) / 10, y: rnd(3, 7) / 10 } };
