@@ -95,18 +95,18 @@ function _ballOffsetForToken(tok) {
     var p = G.ms.myRoster[tok.pi];
     if (p && p.hand) hand = p.hand;
   }
-  // Direzione di attacco determina quale mano è in alto/basso:
-  //   Attacco sx→dx (attackRight=true):  mano R = basso (+dy),  mano L = alto (-dy)
-  //   Attacco dx→sx (attackRight=false): mano R = alto  (-dy),  mano L = basso (+dy)
-  var attackRight = (tok.team==='my') ? (_attack==='my') : (_attack==='opp');
   if (hand === 'AMB') { return {dx:0, dy:0}; }
+
+  // La palla sta SOPRA o SOTTO il segnalino in base alla mano e alla direzione di attacco.
+  // Attacco sx→dx (attackRight=true):  mano R → sotto (+dy),  mano L → sopra (-dy)
+  // Attacco dx→sx (attackRight=false): mano R → sopra (-dy),  mano L → sotto (+dy)
+  var attackRight = (tok.team==='my') ? (_attack==='my') : (_attack==='opp');
+  var dyVal = 0.032;   // distanza verticale dal centro del segnalino
   if (hand === 'R') {
-    return { dx: attackRight ?  0.024 : -0.024,
-             dy: attackRight ?  0.020 : -0.020 };
+    return { dx: 0, dy: attackRight ? +dyVal : -dyVal };
   }
   // L
-  return   { dx: attackRight ? -0.024 :  0.024,
-             dy: attackRight ? -0.020 :  0.020 };
+  return   { dx: 0, dy: attackRight ? -dyVal : +dyVal };
 }
 
 // ── Inizializzazione ───────────────────────────────────────────────

@@ -39,7 +39,7 @@ var MovementController = (function() {
 
   // Timer per aggiornamenti periodici dei target (movimento continuo)
   var _tacticalT   = 0;
-  var TACTICAL_INT = 2.5;   // secondi: quanto spesso aggiorniamo le posizioni base
+  var TACTICAL_INT = 0.8;   // secondi: target aggiornati frequentemente per movimento fluido
 
   // Timer passaggio automatico: ogni 1.5-2.5s il possessore passa a un compagno
   var _passT    = 0;
@@ -114,19 +114,14 @@ var MovementController = (function() {
       if(mTok&&!mTok.expelled&&pk!=='GK'){
         var base=_attack==='my'?ATK_MY[pk]:DEF_MY[pk];
         if(base){
-          // Oscillazione individuale continua (simula nuoto lento)
           var ph=_microPhase[mKey]||_rnd(0,Math.PI*2);
           _microPhase[mKey]=ph;
-          var oscX=Math.sin(ph*1.1)*MICRO_AMP;
-          var oscY=Math.cos(ph*0.9)*MICRO_AMP*0.7;
-
-          // Se in attacco: deriva graduale verso la porta avv
-          var pushX=_attack==='my'?0.008:0;
+          var oscX=Math.sin(ph*1.1)*0.035;
+          var oscY=Math.cos(ph*0.9)*0.028;
+          var pushX=_attack==='my'?0.018:-0.018;
           var tx=_clamp(base.x+oscX+pushX,0.11,0.89);
           var ty=_clamp(base.y+oscY,0.13,0.87);
-
-          // Il possessore NON viene spostato da questo sistema
-          if(_ballOwnerKey!==mKey)poolMoveToken(mKey,tx,ty);
+          if(_ballOwnerKey!==mKey) poolMoveToken(mKey,tx,ty);
         }
       }
       // ── AVVERSARIO ──
@@ -137,12 +132,12 @@ var MovementController = (function() {
         if(obase){
           var ph2=_microPhase[oKey]||_rnd(0,Math.PI*2);
           _microPhase[oKey]=ph2;
-          var oscX2=Math.sin(ph2*1.1)*MICRO_AMP;
-          var oscY2=Math.cos(ph2*0.9)*MICRO_AMP*0.7;
-          var pushX2=_attack==='opp'?-0.008:0;
+          var oscX2=Math.sin(ph2*1.1)*0.035;
+          var oscY2=Math.cos(ph2*0.9)*0.028;
+          var pushX2=_attack==='opp'?-0.018:0.018;
           var tx2=_clamp(obase.x+oscX2+pushX2,0.11,0.89);
           var ty2=_clamp(obase.y+oscY2,0.13,0.87);
-          if(_ballOwnerKey!==oKey)poolMoveToken(oKey,tx2,ty2);
+          if(_ballOwnerKey!==oKey) poolMoveToken(oKey,tx2,ty2);
         }
       }
     });
@@ -157,43 +152,57 @@ var MovementController = (function() {
   }
 
   // ── Passaggi automatici continui ─────────────────────────────
-  // Ogni 1.5–2.5s (tempo di gioco) il possessore passa a un compagno casuale.
-  // Resetta il timer ogni volta che un evento esterno cambia il possessore.
+  // Ogni 1.5–2.5s di gioco il possessore passa a un compagno casuale.
   function _autoPass() {
     if(!_ballOwnerKey) return;
     var ownerTeam = _ballOwnerKey.split('_')[0];
 
-    // Raccoglie i compagni disponibili (non espulsi, non il possessore stesso)
+    // Compagni disponibili (non espulsi, non il possessore)
     var teammates = [];
     ['1','2','3','4','5','6'].forEach(function(pk){
       var key = ownerTeam + '_' + pk;
       if(key === _ballOwnerKey) return;
       var tok = _tok(key);
       if(!tok || tok.expelled) return;
-      teammates.push(key);
+      teammates.push({key:key, tok:tok});
     });
     if(teammates.length === 0) return;
 
-    // Sceglie un compagno casuale
-    var receiver = teammates[Math.floor(Math.random() * teammates.length)];
-    var recTok   = _tok(receiver);
-    if(!recTok) return;
+    // Ricevitore casuale
+    var pick = teammates[Math.floor(Math.random() * teammates.length)];
 
-    // Rilascia la palla e la manda verso il ricevitore
+    // Segna subito il nuovo possessore (PRIMA di rilasciare)
+    // così il timer non viene resettato dal blocco else nell'update
+    var nextOwner = pick.key;
+    _ballOwnerKey = null;   // libera senza chiamare _ballOn (che resetterebbe il timer)
+
+    // Palla vola verso la posizione attuale del ricevitore (non il target)
     if(typeof poolReleaseBall === 'function') poolReleaseBall();
-    _ballOwnerKey = null;
     if(typeof poolMoveBallDirect === 'function')
-      poolMoveBallDirect(recTok.tx + _rnd(-0.02,0.02), recTok.ty + _rnd(-0.015,0.015));
+      poolMoveBallDirect(
+        pick.tok.x + _rnd(-0.015, 0.015),
+        pick.tok.y + _rnd(-0.010, 0.010)
+      );
 
-    // Dopo che la palla arriva, il ricevitore prende possesso
+    // Calcola il tempo di volo e assegna il possesso quando la palla arriva
+    // (approssimazione: la palla viaggia a BASE_SPD*5 → tempo ≈ dist/vel)
+    var ownerTok = _tok(_ballOwnerKey || (ownerTeam+'_3'));
+    var dist = 0.15; // stima fallback
+    if(ownerTok) {
+      var dx = pick.tok.x - ownerTok.x, dy = pick.tok.y - ownerTok.y;
+      dist = Math.sqrt(dx*dx + dy*dy);
+    }
+    var ballSpd = (typeof _BASE_SPD !== 'undefined' ? _BASE_SPD : 0.067) * 5;
+    var flightMs = Math.max(80, Math.min(400, (dist / ballSpd) * 1000));
+
+    var gameSpeed = (_ms && _ms.speed) ? _ms.speed : 1;
+    flightMs = flightMs / gameSpeed;
+
     setTimeout(function(){
-      _ballOn(receiver);
+      // Assegna il possesso con reset del timer
+      _ballOn(nextOwner);
       _attack = ownerTeam;
-    }, 280);
-
-    // Resetta il timer per il prossimo passaggio
-    _passT    = 0;
-    _passNext = _rnd(1.5, 2.5);
+    }, flightMs);
   }
 
   // ── Pressione sul possessore avversario ───────────────────────
@@ -276,13 +285,12 @@ var MovementController = (function() {
       _applyPressure();
 
       // Passaggi automatici: timer scalato con gameSpeed
+      // _passT avanza solo quando c'è un possessore.
+      // Quando la palla è in volo (_ballOwnerKey=null) il timer resta fermo
+      // finché il ricevitore non prende possesso (e _ballOn resetta il timer).
       if(_ballOwnerKey){
         _passT += eff;
         if(_passT >= _passNext) _autoPass();
-      } else {
-        // Nessun possessore: resetta il timer così quando la palla arriva
-        // il nuovo possessore ha subito il suo intervallo fresco
-        _passT = 0;
       }
 
       if(typeof poolUpdateKeepers==='function')poolUpdateKeepers();
