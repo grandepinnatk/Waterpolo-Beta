@@ -22,6 +22,20 @@ var MovementController = (function() {
   var ATK_OPP = {GK:{x:0.91,y:0.50},'1':{x:0.32,y:0.17},'2':{x:0.40,y:0.32},'6':{x:0.21,y:0.50},'3':{x:0.45,y:0.50},'4':{x:0.40,y:0.68},'5':{x:0.32,y:0.83}};
   var DEF_MY  = {GK:{x:0.09,y:0.50},'5':{x:0.23,y:0.21},'4':{x:0.30,y:0.35},'6':{x:0.37,y:0.50},'3':{x:0.30,y:0.50},'2':{x:0.30,y:0.65},'1':{x:0.23,y:0.79}};
   var DEF_OPP = {GK:{x:0.91,y:0.50},'1':{x:0.77,y:0.21},'2':{x:0.70,y:0.35},'6':{x:0.63,y:0.50},'3':{x:0.70,y:0.50},'4':{x:0.70,y:0.65},'5':{x:0.77,y:0.79}};
+
+  // ── Mappatura marcatura a uomo (speculare del semicerchio) ───────────────
+  // Chi attacca in pos X difende sull'avversario che occupa posX_OPPONENT.
+  // Il semicerchio è simmetrico: ali si fronteggiano, laterali si fronteggiano,
+  // CB marca il C avversario e viceversa.
+  //   pos1 (ala sx/bassa) ↔ opp pos5 (ala sx/bassa avv)
+  //   pos2 (laterale sx)  ↔ opp pos4 (laterale sx avv)
+  //   pos3 (C centrov.)   ↔ opp pos6 (CB centroboa avv)  ← già gestito separatamente
+  //   pos4 (laterale dx)  ↔ opp pos2 (laterale dx avv)
+  //   pos5 (ala dx/alta)  ↔ opp pos1 (ala dx/alta avv)
+  //   pos6 (CB centroboa) ↔ opp pos3 (C centrov. avv)   ← già gestito separatamente
+  var MARK_OPP_FOR_MY = {'1':'5','2':'4','4':'2','5':'1','6':'3'};  // my_pk difende su opp_MARK[pk]
+  var MARK_MY_FOR_OPP = {'1':'5','2':'4','4':'2','5':'1','6':'3'};  // opp_pk difende su my_MARK[pk]
+
   var KICKOFF_MY  = {GK:{x:0.09,y:0.50},'5':{x:0.13,y:0.20},'4':{x:0.13,y:0.35},'6':{x:0.13,y:0.50},'3':{x:0.13,y:0.50},'2':{x:0.13,y:0.65},'1':{x:0.13,y:0.80}};
   var KICKOFF_OPP = {GK:{x:0.91,y:0.50},'1':{x:0.87,y:0.20},'2':{x:0.87,y:0.35},'6':{x:0.87,y:0.50},'3':{x:0.87,y:0.50},'4':{x:0.87,y:0.65},'5':{x:0.87,y:0.80}};
   var RESET_MY_ATK  = {GK:{x:0.09,y:0.50},'5':{x:0.51,y:0.18},'4':{x:0.47,y:0.34},'6':{x:0.50,y:0.50},'3':{x:0.48,y:0.50},'2':{x:0.47,y:0.66},'1':{x:0.51,y:0.82}};
@@ -186,15 +200,17 @@ var MovementController = (function() {
       var mKey='my_'+pk;
       if(inf && pk==='4') return;
       var mTok=_tok(mKey);
-      if(mTok && !mTok.expelled && pk!=='GK' && pk!=='3') {
+      if(mTok && !mTok.expelled && pk!=='GK' && pk!=='3' && pk!=='6') {
         if(_attack==='my') {
           // In attacco: formazione semicerchio
           var base=f.myAtk[pk];
           if(base){var pushX=sup?0.010:0.018;
             if(_ballOwnerKey!==mKey) poolMoveToken(mKey,_clamp(base.x+oscX+pushX,0.11,0.89),_clamp(base.y+oscY,0.13,0.87));}
         } else {
-          // In difesa: marcatura a uomo — segue l'avversario diretto (stessa posizione)
-          var oppMark = _tok('opp_'+pk);
+          // In difesa: marcatura SPECULARE — ogni giocatore marca l'avversario
+          // che occupa la posizione simmetrica nel semicerchio avversario
+          var markPk = MARK_OPP_FOR_MY[pk] || pk;  // posizione da marcare
+          var oppMark = _tok('opp_'+markPk);
           if(oppMark && !oppMark.expelled) {
             // Si posiziona tra il suo attaccante e la propria porta (sx)
             var defX = _clamp(oppMark.x + (0.09 - oppMark.x)*0.30 + oscX*0.5, 0.11, 0.89);
@@ -212,17 +228,17 @@ var MovementController = (function() {
       var oKey='opp_'+pk;
       if(sup && pk==='4') return;
       var oTok=_tok(oKey);
-      if(oTok && !oTok.expelled && pk!=='GK' && pk!=='3') {
+      if(oTok && !oTok.expelled && pk!=='GK' && pk!=='3' && pk!=='6') {
         if(_attack==='opp') {
           // In attacco: formazione semicerchio avversario
           var obase=f.oppAtk[pk];
           if(obase){var pushX2o=inf?-0.010:-0.018;
             if(_ballOwnerKey!==oKey) poolMoveToken(oKey,_clamp(obase.x+oscX2+pushX2o,0.11,0.89),_clamp(obase.y+oscY2,0.13,0.87));}
         } else {
-          // In difesa: marcatura a uomo — segue il nostro giocatore diretto
-          var myMark = _tok('my_'+pk);
+          // In difesa: marcatura SPECULARE
+          var oMarkPk = MARK_MY_FOR_OPP[pk] || pk;
+          var myMark = _tok('my_'+oMarkPk);
           if(myMark && !myMark.expelled) {
-            // Si posiziona tra il suo attaccante e la propria porta (dx)
             var odefX = _clamp(myMark.x + (0.91 - myMark.x)*0.30 + oscX2*0.5, 0.11, 0.89);
             var odefY = _clamp(myMark.y + oscY2*0.5, 0.13, 0.87);
             if(_ballOwnerKey!==oKey) poolMoveToken(oKey, odefX, odefY);
@@ -278,6 +294,21 @@ var MovementController = (function() {
           }
         }
       }
+    }
+
+    // ── pos6 in difesa marca il pos3 avversario (centrovasca) ───────────────
+    // Simmetrico al blocco sopra: CB in difesa segue il centrovasca avversario.
+    var atkTeam6  = _attack;  // squadra in attacco
+    var defCB6Key = (atkTeam6 === 'my') ? 'opp_6' : 'my_6';  // CB della squadra in difesa
+    var atkC3Key  = (atkTeam6 === 'my') ? 'opp_3' : 'my_3';  // C avversario da marcare
+    var cb6Tok    = _tok(defCB6Key);
+    var c3Tok     = _tok(atkC3Key);
+    if(cb6Tok && c3Tok && !cb6Tok.expelled && !cb6Tok.tempAbsent && _ballOwnerKey !== defCB6Key) {
+      // Il CB difensore si posiziona tra il C avversario e la propria porta
+      var cb6GoalX = (atkTeam6 === 'my') ? 0.91 : 0.09;
+      var cb6MarkX = _clamp(c3Tok.x + (cb6GoalX - c3Tok.x) * 0.35, 0.13, 0.87);
+      var cb6MarkY = _clamp(c3Tok.y + _rnd(-0.012, 0.012), 0.14, 0.86);
+      poolMoveToken(defCB6Key, cb6MarkX, cb6MarkY);
     }
   }
 
