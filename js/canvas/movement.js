@@ -115,6 +115,8 @@ var MovementController = (function() {
   var _cbWinner='my', _myCBSpd=BASE_SPD, _oppCBSpd=BASE_SPD;
   // Stile difesa in inferiorità: alterna pressing/zonaM a ogni episodio
   var _infDefStyle = 'press';
+  // Cooldown tiro CB (evita tiri consecutivi troppo rapidi)
+  var _cbShotCooldown = false;
 
   // ── Helpers ───────────────────────────────────────────────────
   function _clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
@@ -172,41 +174,62 @@ var MovementController = (function() {
     var inf = _ms && _ms.inferiorityActive;
     var ALL=['GK','1','2','3','4','5','6'];
     ALL.forEach(function(pk){
+      // Oscillazione individuale per movimento continuo
+      var phM = _microPhase['my_'+pk] || _rnd(0,Math.PI*2);
+      _microPhase['my_'+pk] = phM;
+      var phO = _microPhase['opp_'+pk] || _rnd(0,Math.PI*2);
+      _microPhase['opp_'+pk] = phO;
+      var oscX  = Math.sin(phM*1.1)*0.025, oscY  = Math.cos(phM*0.9)*0.020;
+      var oscX2 = Math.sin(phO*1.1)*0.025, oscY2 = Math.cos(phO*0.9)*0.020;
+
       // ── NOSTRA SQUADRA ──
       var mKey='my_'+pk;
-      // In inferiorità pos4 nostra è assente
       if(inf && pk==='4') return;
       var mTok=_tok(mKey);
-      if(mTok&&!mTok.expelled&&pk!=='GK'){
-        var base=_attack==='my'?f.myAtk[pk]:f.myDef[pk];
-        if(base){
-          var ph=_microPhase[mKey]||_rnd(0,Math.PI*2);
-          _microPhase[mKey]=ph;
-          var oscX=Math.sin(ph*1.1)*0.030;
-          var oscY=Math.cos(ph*0.9)*0.024;
-          // In superiorità: più aggressivi verso porta, oscillazione ridotta per precisione
-          var pushX = sup ? 0.010 : (_attack==='my' ? 0.018 : -0.018);
-          var tx=_clamp(base.x+oscX+pushX,0.11,0.89);
-          var ty=_clamp(base.y+oscY,0.13,0.87);
-          if(_ballOwnerKey!==mKey) poolMoveToken(mKey,tx,ty);
+      if(mTok && !mTok.expelled && pk!=='GK' && pk!=='3') {
+        if(_attack==='my') {
+          // In attacco: formazione semicerchio
+          var base=f.myAtk[pk];
+          if(base){var pushX=sup?0.010:0.018;
+            if(_ballOwnerKey!==mKey) poolMoveToken(mKey,_clamp(base.x+oscX+pushX,0.11,0.89),_clamp(base.y+oscY,0.13,0.87));}
+        } else {
+          // In difesa: marcatura a uomo — segue l'avversario diretto (stessa posizione)
+          var oppMark = _tok('opp_'+pk);
+          if(oppMark && !oppMark.expelled) {
+            // Si posiziona tra il suo attaccante e la propria porta (sx)
+            var defX = _clamp(oppMark.x + (0.09 - oppMark.x)*0.30 + oscX*0.5, 0.11, 0.89);
+            var defY = _clamp(oppMark.y + oscY*0.5, 0.13, 0.87);
+            if(_ballOwnerKey!==mKey) poolMoveToken(mKey, defX, defY);
+          } else {
+            // Avversario assente: posizione difensiva base
+            var base2=f.myDef[pk];
+            if(base2 && _ballOwnerKey!==mKey) poolMoveToken(mKey,_clamp(base2.x+oscX,0.11,0.89),_clamp(base2.y+oscY,0.13,0.87));
+          }
         }
       }
+
       // ── AVVERSARIO ──
       var oKey='opp_'+pk;
-      // In superiorità pos4 avversario è assente (espulso)
       if(sup && pk==='4') return;
       var oTok=_tok(oKey);
-      if(oTok&&!oTok.expelled&&pk!=='GK'){
-        var obase=_attack==='opp'?f.oppAtk[pk]:f.oppDef[pk];
-        if(obase){
-          var ph2=_microPhase[oKey]||_rnd(0,Math.PI*2);
-          _microPhase[oKey]=ph2;
-          var oscX2=Math.sin(ph2*1.1)*0.030;
-          var oscY2=Math.cos(ph2*0.9)*0.024;
-          var pushX2 = inf ? -0.010 : (_attack==='opp' ? -0.018 : 0.018);
-          var tx2=_clamp(obase.x+oscX2+pushX2,0.11,0.89);
-          var ty2=_clamp(obase.y+oscY2,0.13,0.87);
-          if(_ballOwnerKey!==oKey) poolMoveToken(oKey,tx2,ty2);
+      if(oTok && !oTok.expelled && pk!=='GK' && pk!=='3') {
+        if(_attack==='opp') {
+          // In attacco: formazione semicerchio avversario
+          var obase=f.oppAtk[pk];
+          if(obase){var pushX2o=inf?-0.010:-0.018;
+            if(_ballOwnerKey!==oKey) poolMoveToken(oKey,_clamp(obase.x+oscX2+pushX2o,0.11,0.89),_clamp(obase.y+oscY2,0.13,0.87));}
+        } else {
+          // In difesa: marcatura a uomo — segue il nostro giocatore diretto
+          var myMark = _tok('my_'+pk);
+          if(myMark && !myMark.expelled) {
+            // Si posiziona tra il suo attaccante e la propria porta (dx)
+            var odefX = _clamp(myMark.x + (0.91 - myMark.x)*0.30 + oscX2*0.5, 0.11, 0.89);
+            var odefY = _clamp(myMark.y + oscY2*0.5, 0.13, 0.87);
+            if(_ballOwnerKey!==oKey) poolMoveToken(oKey, odefX, odefY);
+          } else {
+            var obase2=f.oppDef[pk];
+            if(obase2 && _ballOwnerKey!==oKey) poolMoveToken(oKey,_clamp(obase2.x+oscX2,0.11,0.89),_clamp(obase2.y+oscY2,0.13,0.87));
+          }
         }
       }
     });
@@ -219,17 +242,42 @@ var MovementController = (function() {
     var def3Key  = defTeam3 + '_3';
     var cbTok3   = _tok(atkCBKey);
     var d3Tok    = _tok(def3Key);
-    if(cbTok3 && d3Tok && !d3Tok.expelled && !d3Tok.tempAbsent && _ballOwnerKey !== def3Key) {
-      // Il difensore pos3 deve stare TRA il CB avversario e LA PROPRIA PORTA (che deve difendere).
-      // - Se noi (my) attacchiamo: CB=my_6 attacca verso dx, difensore=opp_3 difende porta opp (0.91)
-      //   → opp_3 si mette tra my_6 e porta opp, cioè a DX di my_6
-      // - Se avv (opp) attacca: CB=opp_6 attacca verso sx, difensore=my_3 difende porta my (0.09)
-      //   → my_3 si mette tra opp_6 e porta my, cioè a SX di opp_6
-      var goalX = (_attack === 'my') ? 0.91 : 0.09;  // porta che il difensore protegge
-      // 35% del percorso CB→porta: abbastanza vicino al CB da marcarlo, non troppo vicino alla porta
-      var markX = _clamp(cbTok3.tx + (goalX - cbTok3.tx) * 0.35, 0.13, 0.87);
-      var markY = _clamp(cbTok3.ty + _rnd(-0.018, 0.018), 0.14, 0.86);
-      poolMoveToken(def3Key, markX, markY);
+    if(cbTok3 && d3Tok && !d3Tok.expelled && !d3Tok.tempAbsent) {
+      // Il difensore pos3 segue SEMPRE il CB avversario (anche quando il CB ha la palla).
+      // Si posiziona tra il CB e la propria porta, usando la posizione ATTUALE del CB (non il target).
+      var goalX = (_attack === 'my') ? 0.91 : 0.09;
+      var markX = _clamp(cbTok3.x + (goalX - cbTok3.x) * 0.35, 0.13, 0.87);
+      var markY = _clamp(cbTok3.y + _rnd(-0.012, 0.012), 0.14, 0.86);
+      // Non muovere il marcatore se lui stesso ha la palla
+      if(_ballOwnerKey !== def3Key) poolMoveToken(def3Key, markX, markY);
+
+      // ── Trigger tiro CB: se il CB ha la palla, è entro 5m dalla porta
+      // avversaria e il marcatore è a meno di 2m (proporzionali) → tiro ────
+      if(_ballOwnerKey === atkCBKey && _phase === 'play') {
+        var oppGoalX = (_attack === 'my') ? 0.91 : 0.09;
+        var distToGoal = Math.abs(cbTok3.x - oppGoalX);
+        var FIVE_M_NORM = 0.16;   // 5m proporzionale (campo ~30m → 5/30 ≈ 0.167)
+        var TWO_M_NORM  = 0.065;  // 2m proporzionale
+        var markerDist  = _dist(cbTok3.x, cbTok3.y, d3Tok.x, d3Tok.y);
+        if(distToGoal < FIVE_M_NORM && markerDist < TWO_M_NORM) {
+          // CB in zona pericolosa con marcatore vicino → triggerare tiro
+          if(!_cbShotCooldown) {
+            _cbShotCooldown = true;
+            // Crea evento tiro sintetico verso la porta
+            var shotY = _rnd(0.40, 0.60);
+            var shotX = (_attack === 'my') ? 0.95 : 0.05;
+            if(typeof poolReleaseBall==='function') poolReleaseBall();
+            _ballOwnerKey = null;
+            if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(shotX, shotY);
+            // Cooldown 3s per evitare tiri continui
+            setTimeout(function(){ _cbShotCooldown = false; }, 3000);
+            // Riposiziona dopo il tiro
+            setTimeout(function(){
+              if(_phase==='play'){_repositionAll(0.025);_passT=0;_passNext=_rnd(1.5,2.5);}
+            }, 600);
+          }
+        }
+      }
     }
   }
 
@@ -268,33 +316,10 @@ var MovementController = (function() {
     var pick = teammates[Math.floor(Math.random() * teammates.length)];
     var recTok = pick.tok;
 
-    // Calcola tempo di volo della palla (distanza / velocità palla)
-    var ballSpd = BASE_SPD * 15.0;  // stessa costante di pool.js
-    var dx = recTok.x - ownerTok.x, dy = recTok.y - ownerTok.y;
-    var dist = Math.sqrt(dx*dx + dy*dy);
-    var flightTime = dist / Math.max(ballSpd, 0.001);  // secondi
-
-    // Posizione futura del ricevitore: dove sarà quando la palla arriva
-    // (il ricevitore nuota verso il suo target corrente a velocità tok)
-    var recSpd = (typeof poolGetTokenSpeeds==='function'
-      ? (poolGetTokenSpeeds()[pick.key] || BASE_SPD)
-      : BASE_SPD);
-    var tdx = recTok.tx - recTok.x, tdy = recTok.ty - recTok.y;
-    var tdist = Math.sqrt(tdx*tdx + tdy*tdy);
-    var futX, futY;
-    if(tdist < 0.01) {
-      // Ricevitore già fermo: palla va sulla sua posizione attuale
-      futX = recTok.x; futY = recTok.y;
-    } else {
-      // Anticipa: posizione = pos_attuale + vel * flightTime (capped a target)
-      var moveFrac = Math.min(1, (recSpd * flightTime) / tdist);
-      futX = recTok.x + tdx * moveFrac;
-      futY = recTok.y + tdy * moveFrac;
-    }
-
-    // Aggiungi piccolo jitter
-    futX += _rnd(-0.012, 0.012);
-    futY += _rnd(-0.008, 0.008);
+    // Palla va sulla posizione ATTUALE del ricevitore (no previsione futura:
+    // i target cambiano continuamente e la previsione manda la palla nel vuoto)
+    var futX = recTok.x + _rnd(-0.015, 0.015);
+    var futY = recTok.y + _rnd(-0.010, 0.010);
 
     // Libera il possesso
     _ballOwnerKey = null;
@@ -372,6 +397,7 @@ var MovementController = (function() {
     _tacticalT=0;_passT=0;_passNext=_rnd(1.5,2.5);
     _prevSup=false;_prevInf=false;
     _pendingReceiver=null;
+    _cbShotCooldown=false;
     _seq=[];_seqActive=false;
   }
 
@@ -460,7 +486,7 @@ var MovementController = (function() {
   function onPeriodStart() {
     _phase='idle';_seq=[];_seqActive=false;_ballOwnerKey=null;
     _microPhase={};_tacticalT=0;_passT=0;_passNext=_rnd(1.5,2.5);
-    _pendingReceiver=null;
+    _pendingReceiver=null;_cbShotCooldown=false;
     if(typeof poolStartPeriod==='function')poolStartPeriod();
   }
 
@@ -616,17 +642,66 @@ var MovementController = (function() {
   // ── PASSAGGIO / NEUTRO ────────────────────────────────────────
   function onPassOrNeutral(event) {
     if(!event||!event.ballTarget)return;
-    var bx=event.ballTarget.x,by=event.ballTarget.y;
-    var team=bx>CX?'my':'opp';
-    var closest=_findClosestToken(team,bx,by);
-    if(typeof poolReleaseBall==='function')poolReleaseBall();
-    _ballOwnerKey=null;
-    if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(bx,by);
-    if(closest){
-      setTimeout(function(){
-        _ballOn(closest);
-        _attack=team;
-      },280);
+    var bx=event.ballTarget.x, by=event.ballTarget.y;
+
+    // Determina la squadra che prende possesso
+    var newTeam = bx > CX ? 'my' : 'opp';
+    // La squadra che PERDE possesso è quella attuale
+    var oldTeam = _attack;
+
+    // ── Simulazione furto palla ──────────────────────────────────────────────
+    // Se cambia il possesso (non è un semplice passaggio nella stessa squadra),
+    // il difensore più vicino alla palla "scatta" fisicamente su di essa
+    // per simulare visivamente il momento del contrasto/intercetto.
+    var isStealing = (newTeam !== oldTeam) && _ballOwnerKey !== null;
+
+    if(isStealing) {
+      // Trova il difensore più vicino alla posizione palla corrente
+      var ballPos = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:bx,y:by};
+      var stealerTok = null, stealerKey = null, bestD = 999;
+      ['1','2','3','4','5','6'].forEach(function(pk){
+        var key = newTeam+'_'+pk;
+        var tok = _tok(key);
+        if(!tok||tok.expelled||tok.tempAbsent) return;
+        var d = _dist(tok.x,tok.y,ballPos.x,ballPos.y);
+        if(d<bestD){bestD=d;stealerKey=key;stealerTok=tok;}
+      });
+      if(stealerKey) {
+        // Il difensore scatta sulla posizione della palla
+        if(typeof poolMoveToken==='function') poolMoveToken(stealerKey, ballPos.x, ballPos.y);
+        // Rilascia il vecchio possessore
+        if(typeof poolReleaseBall==='function') poolReleaseBall();
+        _ballOwnerKey = null;
+        // La palla va verso il difensore che ha "rubato"
+        if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(ballPos.x, ballPos.y);
+        // Assegna possesso al ladro dopo breve cooldown (palla ha distanza quasi 0)
+        var launchBall2 = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:ballPos.x,y:ballPos.y};
+        _pendingReceiver = {
+          key: stealerKey, team: newTeam,
+          startX: launchBall2.x, startY: launchBall2.y,
+          totalDist: 0.001,   // distanza quasi zero: prende subito
+          ready: true,        // pronto immediatamente (è già lì)
+        };
+        _attack = newTeam;
+        return;
+      }
+    }
+
+    // Passaggio normale (stessa squadra o nessun possessore precedente)
+    var closest = _findClosestToken(newTeam, bx, by);
+    if(typeof poolReleaseBall==='function') poolReleaseBall();
+    _ballOwnerKey = null;
+    if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(bx, by);
+    if(closest) {
+      var lbN = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:bx,y:by};
+      var dNx = bx-lbN.x, dNy = by-lbN.y;
+      _pendingReceiver = {
+        key: closest, team: newTeam,
+        startX: lbN.x, startY: lbN.y,
+        totalDist: Math.max(0.02, Math.sqrt(dNx*dNx+dNy*dNy)),
+        ready: false,
+      };
+      _attack = newTeam;
     }
   }
 

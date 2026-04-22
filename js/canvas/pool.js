@@ -321,6 +321,21 @@ function poolAnimStep(dt, gameSpeed) {
   Object.values(_tokens).forEach(function(tok){
     if(tok.expelled)return;
     var dx=tok.tx-tok.x, dy=tok.ty-tok.y;
+
+    if(tok.isGK) {
+      // Portiere: x FISSA sulla linea di porta (snap istantaneo), solo y si muove
+      tok.x = tok.tx;   // x snap sempre
+      var ddy = tok.ty - tok.y;
+      if(Math.abs(ddy) < 0.001) { tok.y = tok.ty; }
+      else {
+        var gkSpd = (_tokenSpd[tok.team+'_GK'] || _BASE_SPD) * gameSpeed * 1.5;
+        var gs = gkSpd * f;
+        if(gs >= Math.abs(ddy)) { tok.y = tok.ty; }
+        else { tok.y += (ddy > 0 ? 1 : -1) * gs; }
+      }
+      return;
+    }
+
     var d=Math.sqrt(dx*dx+dy*dy);
     if(d<0.001){ tok.x=tok.tx; tok.y=tok.ty; return; }
     var spd=(_tokenSpd[tok.team+'_'+tok.pk]||_BASE_SPD) * gameSpeed;
