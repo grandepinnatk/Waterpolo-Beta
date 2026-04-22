@@ -622,7 +622,8 @@ var MovementController = (function() {
     _ballOwnerKey=null;
     if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(event.ballTarget.x,event.ballTarget.y);
 
-    var gkTeam=event.ballTarget.x<CX?'my':'opp';
+    // La parata avviene dal portiere della squadra IN DIFESA (quella che NON attacca)
+    var gkTeam = (_attack === 'my') ? 'opp' : 'my';
     setTimeout(function(){
       _ballOn(gkTeam+'_GK');
       setTimeout(function(){
@@ -644,15 +645,29 @@ var MovementController = (function() {
     if(!event||!event.ballTarget)return;
     var bx=event.ballTarget.x, by=event.ballTarget.y;
 
-    // Determina la squadra che prende possesso
-    var newTeam = bx > CX ? 'my' : 'opp';
-    // La squadra che PERDE possesso è quella attuale
-    var oldTeam = _attack;
+    // ── Determina la squadra che prende possesso ──────────────────────────────
+    // USA il moverKey dell'evento se disponibile (fonte più affidabile),
+    // poi il possessore corrente, poi come ultimo fallback la posizione x.
+    // NON usare solo bx>CX: la palla può trovarsi ovunque durante un passaggio.
+    var newTeam;
+    if(event.moverKey) {
+      // moverKey = 'my_3', 'opp_6', ecc. — indica chi muove/riceve
+      newTeam = event.moverKey.split('_')[0];
+    } else if(_ballOwnerKey) {
+      // Stesso team del possessore corrente (passaggio interno)
+      newTeam = _ballOwnerKey.split('_')[0];
+    } else {
+      // Fallback: il token più vicino alla destinazione
+      var closestMy  = _findClosestToken('my',  bx, by);
+      var closestOpp = _findClosestToken('opp', bx, by);
+      var tokMy  = closestMy  ? _tok(closestMy)  : null;
+      var tokOpp = closestOpp ? _tok(closestOpp) : null;
+      var dMy  = tokMy  ? _dist(tokMy.x,  tokMy.y,  bx, by) : 999;
+      var dOpp = tokOpp ? _dist(tokOpp.x, tokOpp.y, bx, by) : 999;
+      newTeam = (dMy <= dOpp) ? 'my' : 'opp';
+    }
 
-    // ── Simulazione furto palla ──────────────────────────────────────────────
-    // Se cambia il possesso (non è un semplice passaggio nella stessa squadra),
-    // il difensore più vicino alla palla "scatta" fisicamente su di essa
-    // per simulare visivamente il momento del contrasto/intercetto.
+    var oldTeam = _attack;
     var isStealing = (newTeam !== oldTeam) && _ballOwnerKey !== null;
 
     if(isStealing) {
