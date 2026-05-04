@@ -457,7 +457,7 @@ function generateMatchEvent(ms) {
       return {
         txt: '❌ Palla persa — ' + attacker.p.name + ' sbaglia il passaggio',
         cls: 'fl',
-        ballTarget: { x: 0.45 + rnd(-0.1, 0.1), y: 0.3 + rnd(0, 0.4) },
+        ballTarget: { x: 0.55 + rnd(-0.08, 0.08), y: 0.35 + rnd(0, 0.30) },
       };
     }
 
@@ -491,7 +491,7 @@ function generateMatchEvent(ms) {
         txt: '⚽ GOL! ' + attacker.p.name + ' (#' + (ms.shirtNumbers[attacker.pi] || '?') + ') segna!' +
              (ast ? ' Assist: ' + ast.p.name : ''),
         cls: 'myg',
-        ballTarget:  { x: 0.96, y: 0.40 + rnd(0, 0.20) },   // entra nella porta destra
+        ballTarget:  { x: 0.94, y: 0.40 + rnd(0, 0.20) },   // entra nella porta destra (dentro oppNet 0.91-0.98)
         moverKey:    'my_' + attacker.pk,
         moverTarget: { x: 0.80, y: 0.50 },
         goalScored:  true, goalTeam: 'my', goalScorer: attacker.p.name,
@@ -504,10 +504,11 @@ function generateMatchEvent(ms) {
       // Duel vinto per il nostro portiere se para l'avversario
       return {
         txt: 'Tiro di ' + attacker.p.name + ' — parata' + (oppGk ? ' di ' + oppGk.name : ''),
-        cls: '',
-        ballTarget:  { x: 0.78, y: 0.38 + rnd(0, 0.24) },   // tiro respinto dalla porta
+        cls: 'sv',
+        shotTeam:    'my',
+        ballTarget:  { x: 0.91, y: 0.40 + rnd(0, 0.20) },   // palla al portiere avversario
         moverKey:    'my_' + attacker.pk,
-        moverTarget: { x: 0.68, y: 0.50 },
+        moverTarget: { x: 0.75, y: 0.45 + rnd(0, 0.10) },
       };
     }
   }
@@ -554,7 +555,7 @@ function generateMatchEvent(ms) {
           }
         }
       }
-      return { txt: '⚽ ' + ms.oppTeam.name + ' segna! Gol subito' + (oppScorer ? ' (' + oppScorer + ')' : '') + '.', cls: 'og', ballTarget: { x: 0.04, y: 0.40 + rnd(0, 0.20) }, goalScored: true, goalTeam: 'opp', goalScorer: oppScorer || ms.oppTeam.abbr || ms.oppTeam.name };
+      return { txt: '⚽ ' + ms.oppTeam.name + ' segna! Gol subito' + (oppScorer ? ' (' + oppScorer + ')' : '') + '.', cls: 'og', ballTarget: { x: 0.05, y: 0.40 + rnd(0, 0.20) }, goalScored: true, goalTeam: 'opp', goalScorer: oppScorer || ms.oppTeam.abbr || ms.oppTeam.name };
     } else {
       const myGkIdx = ms.onField['GK'];
       const myGk = myGkIdx !== undefined ? ms.myRoster[myGkIdx] : null;
@@ -567,7 +568,7 @@ function generateMatchEvent(ms) {
       }
       return {
         txt: 'Parata' + (myGk ? ' di ' + myGk.name : '') + '!',
-        cls: 'sv', ballTarget: { x: 0.22, y: 0.38 + rnd(0, 0.24) },   // parata
+        cls: 'sv', shotTeam: 'opp', ballTarget: { x: 0.09, y: 0.40 + rnd(0, 0.20) },   // palla al portiere nostro
       };
     }
   }
@@ -609,7 +610,7 @@ function generateMatchEvent(ms) {
         txt: '🟡 Esp. temporanea (' + count + '/3) — ' + fp.p.name + ' (#' + shirt + ') — Inferiorità numerica!',
         cls: 'fl',
         inferiorityStart: true,
-        ballTarget: { x: 0.45 + rnd(-0.1, 0.1), y: 0.3 + rnd(0, 0.4) },
+        ballTarget: { x: 0.50 + rnd(-0.08, 0.08), y: 0.35 + rnd(0, 0.30) },
       };
     }
   }
@@ -626,11 +627,11 @@ function generateMatchEvent(ms) {
       txt: '🟡 Fallo ' + oppName + ' — Superiorità numerica! (20s)',
       cls: 'sv',  // usa sv per colorazione verde nel log
       superiorityStart: true,
-      ballTarget: { x: 0.55 + rnd(-0.05, 0.05), y: 0.5 + rnd(-0.1, 0.1) },
+      ballTarget: { x: 0.58 + rnd(-0.04, 0.04), y: 0.40 + rnd(0, 0.20) },
     };
   }
 
-  return { txt: pick(NEUTRAL_EVENTS), cls: '', ballTarget: { x: rnd(3, 7) / 10, y: rnd(3, 7) / 10 } };
+  return { txt: pick(NEUTRAL_EVENTS), cls: '', ballTarget: { x: 0.45 + rnd(0, 0.10), y: 0.38 + rnd(0, 0.24) } };
 }
 
 // ── Selezione pesata da array ─────────────────

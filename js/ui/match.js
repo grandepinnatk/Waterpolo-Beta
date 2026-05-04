@@ -237,7 +237,11 @@ function _animLoop(timestamp) {
     while (G.ms.lastActionTime >= G.ms.nextActionIn && !G.ms.finished) {
       G.ms.lastActionTime -= G.ms.nextActionIn;
       G.ms.nextActionIn    = rnd(7, 14);
-      const event = generateMatchEvent(G.ms);
+      // Usa il motore canvas-driven (live_engine.js) se disponibile,
+      // altrimenti fallback al motore statistico classico
+      const event = (typeof generateLiveEvent === 'function')
+        ? generateLiveEvent(G.ms)
+        : generateMatchEvent(G.ms);
       if (event) {
         const animType = _animTypeOf(event);
         const duration = ANIM_DURATIONS[animType] ?? ANIM_DURATIONS.neutral;

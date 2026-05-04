@@ -372,7 +372,7 @@ function drawPool(canvas, myTeamAbbr, oppTeamAbbr) {
     if(tok.expelled || tok.tempAbsent) return;  // nasconde espulsi e temporaneamente assenti
     var px=tok.x*W,py=tok.y*H;
     var isMy=tok.team==='my',isGK=tok.isGK;
-    var R=19;
+    var R = 15;   // raggio segnalino (-20% rispetto a 19)
     var isOwner=(ownerKey===tok.team+'_'+tok.pk);
     var isPressed=(_pressKey===tok.team+'_'+tok.pk);
 
@@ -413,26 +413,26 @@ function drawPool(canvas, myTeamAbbr, oppTeamAbbr) {
 
     // Testo dentro il cerchio
     ctx.textAlign='center';ctx.textBaseline='middle';
-    if(isGK){ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.fillText('P',px,py);}
+    if(isGK){ctx.fillStyle='#fff';ctx.font='bold '+Math.round(R*0.87)+'px sans-serif';ctx.fillText('P',px,py);}
     else if(isMy){
-      ctx.fillStyle='#111';ctx.font='bold 10px sans-serif';ctx.fillText(tok.shirt,px,py-3);
-      ctx.fillStyle='#666';ctx.font='7px sans-serif';ctx.fillText(tok.posLabel,px,py+6);
+      ctx.fillStyle='#111';ctx.font='bold '+Math.round(R*0.67)+'px sans-serif';ctx.fillText(tok.shirt,px,py-3);
+      ctx.fillStyle='#666';ctx.font=Math.round(R*0.47)+'px sans-serif';ctx.fillText(tok.posLabel,px,py+Math.round(R*0.40));
     } else {
-      ctx.fillStyle='#b3d9ff';ctx.font='bold 12px sans-serif';ctx.fillText(tok.posLabel,px,py);
+      ctx.fillStyle='#b3d9ff';ctx.font='bold '+Math.round(R*0.80)+'px sans-serif';ctx.fillText(tok.posLabel,px,py);
     }
 
     // Nome: solo sul possessore (dinamico)
     if(isOwner && tok.shortName){
-      ctx.font='bold 10px sans-serif';
-      var tw=ctx.measureText(tok.shortName).width+10;
+      ctx.font='bold '+Math.round(R*0.67)+'px sans-serif';
+      var tw=ctx.measureText(tok.shortName).width+8;
       ctx.fillStyle='rgba(0,0,0,0.72)';
       _pill(ctx,px-tw/2,py+R+3,tw,16,4);ctx.fill();
       ctx.fillStyle='#fdd835';ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillText(tok.shortName,px,py+R+3+8);
     } else if(isMy&&!isGK&&!isOwner&&tok.shortName){
       // Nome piccolo e semitrasparente per tutti gli altri
-      ctx.font='8px sans-serif';
-      var tw2=ctx.measureText(tok.shortName).width+6;
+      ctx.font=Math.round(R*0.53)+'px sans-serif';
+      var tw2=ctx.measureText(tok.shortName).width+5;
       ctx.fillStyle='rgba(0,0,0,0.35)';
       _pill(ctx,px-tw2/2,py+R+2,tw2,12,3);ctx.fill();
       ctx.fillStyle='rgba(255,255,255,0.6)';ctx.textAlign='center';ctx.textBaseline='middle';
