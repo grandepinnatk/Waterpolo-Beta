@@ -105,18 +105,26 @@ var MovementController = (function() {
   // ── Stato interno ─────────────────────────────────────────────
   var _ms          = null;
   var _active      = false;
-  var _phase       = 'idle';   // 'idle'|'sprint'|'play'|'goal_cel'|'kickoff_after'|'penalty'
-  var _attack      = 'my';     // chi ha il possesso
-  var _ballOwnerKey= null;     // chiave del possessore corrente
-  var _pressTarget = null;     // token avversario da pressare
+  var _phase       = 'idle';
+  var _attack      = 'my';
+  var _ballOwnerKey= null;
+  var _pressTarget = null;
 
-  // Timer per aggiornamenti periodici dei target (movimento continuo)
+  // Timer aggiornamenti tattici
   var _tacticalT   = 0;
-  var TACTICAL_INT = 0.8;   // secondi: target aggiornati frequentemente per movimento fluido
+  var TACTICAL_INT = 0.8;
 
-  // Timer passaggio automatico: ogni 1.5-2.5s il possessore passa a un compagno
+  // Timer passaggio automatico
   var _passT    = 0;
-  var _passNext = 0;   // prossima scadenza in secondi (tempo di gioco)
+  var _passNext = 0;
+
+  // ── Shot clock (30s regolamentari) ────────────────────────────
+  var SHOT_CLOCK_MAX = 30.0;
+  var _shotClock     = 0;   // secondi di possesso dell'azione corrente
+
+  // ── Giocatore libero → nuota verso porta ──────────────────────
+  // Se nessun avversario entro FREE_PLAYER_DIST, il possessore avanza
+  var FREE_PLAYER_DIST = 0.10;  // ~3m proporzionali
 
   // Micro-oscillazione: ogni giocatore ha una fase individuale
   var _microPhase  = {};    // key → float 0..2π
@@ -313,19 +321,16 @@ var MovementController = (function() {
     }
 
     // ── pos6 in difesa marca il pos3 avversario (centrovasca) ───────────────
-    // Simmetrico al blocco sopra: CB in difesa segue il centrovasca avversario.
-    var atkTeam6  = _attack;  // squadra in attacco
-    var defCB6Key = (atkTeam6 === 'my') ? 'opp_6' : 'my_6';  // CB della squadra in difesa
-    var atkC3Key  = (atkTeam6 === 'my') ? 'opp_3' : 'my_3';  // C avversario da marcare
+    var atkTeam6  = _attack;
+    var defCB6Key = (atkTeam6 === 'my') ? 'opp_6' : 'my_6';
+    var atkC3Key  = (atkTeam6 === 'my') ? 'opp_3' : 'my_3';
     var cb6Tok    = _tok(defCB6Key);
     var c3Tok     = _tok(atkC3Key);
     if(cb6Tok && c3Tok && !cb6Tok.expelled && !cb6Tok.tempAbsent && _ballOwnerKey !== defCB6Key) {
-      // Il CB difensore si posiziona tra il C avversario e la propria porta.
-      // Usa offset più lontano del pos3-marker (35%) per non sovrapporsi: 55%
+      // Sta tra il C avversario e la propria porta, al 30% → vicino al C
       var cb6GoalX = (atkTeam6 === 'my') ? 0.91 : 0.09;
-      var cb6MarkX = _clamp(c3Tok.x + (cb6GoalX - c3Tok.x) * 0.55, 0.13, 0.87);
-      // Offset verticale opposto al pos3-marker per non sovrapporsi
-      var cb6MarkY = _clamp(c3Tok.y + _rnd(0.018, 0.030), 0.14, 0.86);
+      var cb6MarkX = _clamp(c3Tok.x + (cb6GoalX - c3Tok.x) * 0.30, 0.13, 0.87);
+      var cb6MarkY = _clamp(c3Tok.y + _rnd(-0.018, 0.018), 0.14, 0.86);
       poolMoveToken(defCB6Key, cb6MarkX, cb6MarkY);
     }
   }
@@ -447,6 +452,7 @@ var MovementController = (function() {
     _prevSup=false;_prevInf=false;
     _pendingReceiver=null;
     _cbShotCooldown=false;
+    _shotClock=0;
     _seq=[];_seqActive=false;
   }
 
@@ -517,6 +523,54 @@ var MovementController = (function() {
 
       _applyPressure();
 
+      // ── Shot clock: 30 secondi per azione ───────────────────────────
+      // Il clock avanza solo quando c'è un possessore (azione in corso).
+      // Se scade: cambio palla con evento motivato.
+      if(_ballOwnerKey) {
+        _shotClock += eff;
+        if(_shotClock >= SHOT_CLOCK_MAX) {
+          _shotClock = 0;
+          // Cambio possesso per scadenza shot clock
+          var prevAttack = _attack;
+          _attack = (_attack === 'my') ? 'opp' : 'my';
+          if(typeof poolReleaseBall==='function') poolReleaseBall();
+          _ballOwnerKey = null;
+          _pendingReceiver = null;
+          _passT = 0; _passNext = _rnd(1.5, 2.5);
+          _repositionAll(0.022);
+          // Segnala al live engine per generare evento testuale motivato
+          if(typeof liveUpdateState==='function') liveUpdateState({shotClockExpired:true, prevAttack:prevAttack});
+        }
+      } else {
+        _shotClock = 0;   // reset quando palla è libera
+      }
+
+      // ── Giocatore libero → nuota verso porta ─────────────────────
+      // Se il possessore non ha nessun avversario entro FREE_PLAYER_DIST,
+      // non aspetta il passaggio automatico ma avanza direttamente verso
+      // la porta avversaria per concludere.
+      if(_ballOwnerKey && _phase==='play') {
+        var ownerTok2 = _tok(_ballOwnerKey);
+        var ownerTeam2 = _ballOwnerKey.split('_')[0];
+        var defTeam2   = ownerTeam2==='my'?'opp':'my';
+        if(ownerTok2 && !ownerTok2.expelled) {
+          var closestDef = 999;
+          ['1','2','3','4','5','6'].forEach(function(pk){
+            var dtok = _tok(defTeam2+'_'+pk);
+            if(!dtok||dtok.expelled||dtok.tempAbsent)return;
+            var dx=dtok.x-ownerTok2.x, dy=dtok.y-ownerTok2.y;
+            closestDef = Math.min(closestDef, Math.sqrt(dx*dx+dy*dy));
+          });
+          if(closestDef > FREE_PLAYER_DIST) {
+            // Nessun avversario vicino → avanza verso porta avversaria
+            var goalX2 = ownerTeam2==='my' ? 0.82 : 0.18;
+            poolMoveToken(_ballOwnerKey, goalX2, ownerTok2.ty + _rnd(-0.02,0.02));
+            // Forza un tiro anticipato (resetta il pass timer)
+            _passT = _passNext * 0.8;
+          }
+        }
+      }
+
       // ── Fix 4: assegna possesso quando palla arriva fisicamente al ricevitore ──
       // _pendingReceiver.minDist = distanza minima che la palla deve percorrere
       //   prima di poter essere raccolta (evita assegnazione immediata)
@@ -561,7 +615,7 @@ var MovementController = (function() {
   function onPeriodStart() {
     _phase='idle';_seq=[];_seqActive=false;_ballOwnerKey=null;
     _microPhase={};_tacticalT=0;_passT=0;_passNext=_rnd(1.5,2.5);
-    _pendingReceiver=null;_cbShotCooldown=false;
+    _pendingReceiver=null;_cbShotCooldown=false;_shotClock=0;
     if(typeof poolStartPeriod==='function')poolStartPeriod();
   }
 
@@ -853,6 +907,7 @@ var MovementController = (function() {
   // ── CAMBIO POSSESSO ───────────────────────────────────────────
   function onPossessChange(team) {
     _attack=team;
+    _shotClock=0;   // nuovo possesso → shot clock repart da 0
     if(_phase==='play')_repositionAll(0.022);
   }
 

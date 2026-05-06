@@ -52,11 +52,31 @@ function liveGetState() { return _liveState; }
 
 // ── Generatore eventi basato su canvas ───────────────────────────────────
 // Sostituisce generateMatchEvent per le partite giocate.
+
+// Evento per shot clock scaduto
+function generateShotClockEvent(ms, prevAttack) {
+  var newTeam = prevAttack === 'my' ? 'opp' : 'my';
+  var bPos = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:0.5,y:0.5};
+  return {
+    txt: '⏱ Fallo in attacco — Palla a ' + (newTeam==='my'?ms.myTeam.name:ms.oppTeam.name) + ' (30s scaduti)',
+    cls: 'fl',
+    ballTarget: { x: _clampX(bPos.x + (newTeam==='my'?0.03:-0.03)), y: _clampY(bPos.y) },
+    moverKey:   newTeam + '_3',
+  };
+}
 // Viene chiamato dal loop _animLoop quando nextActionIn scade.
 function generateLiveEvent(ms) {
   if (!ms) return null;
 
-  var st      = _liveState;
+  var st = _liveState;
+
+  // Shot clock scaduto → evento motivato immediatamente
+  if(st.shotClockExpired) {
+    liveUpdateState({shotClockExpired:false});
+    return generateShotClockEvent(ms, st.prevAttack || _liveState.attack);
+  }
+
+  st = _liveState;
   var attack  = st.attack || 'my';
   var ownerKey = st.ballOwnerKey;
   var ownerPk  = ownerKey ? ownerKey.split('_')[1] : null;
@@ -204,8 +224,8 @@ function _buildNeutralEvent(ms, attack, bx, by) {
   _liveState.passCount = (_liveState.passCount || 0) + 1;
   var NEUTRAL = [
     'Azione di attacco neutralizzata', 'Contrattacco sventato',
-    'Rimessa in gioco', 'Cambio possesso palla',
-    'Superiorità numerica gestita', 'Tiro fuori misura', 'Fallo in attacco',
+    'Rimessa in gioco', 'Superiorità numerica gestita',
+    'Tiro fuori misura', 'Fallo in attacco',
   ];
   var txt = NEUTRAL[Math.floor(Math.random() * NEUTRAL.length)];
   // Palla rimane vicino alla sua posizione attuale

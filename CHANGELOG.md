@@ -2,6 +2,32 @@
 
 ---
 
+## [0.9.4-beta] — 2026-05-06
+
+### Nuove funzionalità e fix
+
+**Shot clock 30 secondi (`movement.js`):**
+- Il contatore parte quando un giocatore prende possesso e avanza col tempo di gioco scalato.
+- Se scade senza una conclusione: cambio palla con evento testuale motivato ("⏱ Fallo in attacco — 30s scaduti").
+- La palla rimane ferma nel punto del fallo; il giocatore `moverKey` della squadra che batte nuota verso di essa.
+- Il clock si azzera ad ogni cambio possesso (`onPossessChange`) e ad ogni conclusione.
+
+**Giocatore libero → avanza verso porta:**
+- Se il possessore non ha nessun avversario entro ~3m (0.10 unità normalizzate), smette di aspettare il passaggio e avanza verso la porta avversaria per concludere.
+
+**Cambio possesso sempre motivato:**
+- Rimosso "Cambio possesso palla" dagli eventi neutri generati casualmente.
+- Il cambio possesso avviene solo per: shot clock scaduto, fallo, intercetto, parata, goal.
+
+**Palla ferma al punto del fallo:**
+- Per eventi `cls:'fl'`, la palla si ferma alle coordinate `ballTarget` (punto del fallo/out).
+- Il `moverKey` della squadra che batte nuota fisicamente verso la palla; il possesso si assegna a contatto.
+
+**Marcatura pos3/pos6 corretta:**
+- Il CB difensore (pos6) si posiziona al 30% tra il C avversario e la propria porta (era 55% → troppo lontano).
+
+---
+
 ## [0.9.3-beta] — 2026-05-06
 
 ### Fix — Corsa alla palla: un giocatore per squadra

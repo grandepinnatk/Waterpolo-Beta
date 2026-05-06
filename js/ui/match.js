@@ -132,8 +132,15 @@ function _dispatchCanvasEvent(event) {
     }
 
   } else if (event.cls === 'fl') {
-    if (event.ballTarget) poolMoveBall(event.ballTarget.x, event.ballTarget.y);
-    if (event.moverKey)   poolMoveToken(event.moverKey, event.moverTarget?.x || 0.5, event.moverTarget?.y || 0.5);
+    // La palla rimane dove è caduta (punto del fallo).
+    // La palla NON si muove verso il giocatore.
+    // Il giocatore che batte (moverKey) nuota verso la posizione della palla.
+    if (event.ballTarget) {
+      poolMoveBall(event.ballTarget.x, event.ballTarget.y);  // palla si ferma qui
+      // Il battitore nuota verso la palla
+      if (event.moverKey)
+        poolMoveToken(event.moverKey, event.ballTarget.x, event.ballTarget.y);
+    }
 
   } else if (event.ballTarget) {
     if (typeof MovementController !== 'undefined' && MovementController.onPassOrNeutral) {
