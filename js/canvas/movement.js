@@ -365,8 +365,7 @@ var MovementController = (function() {
     var pick = teammates[Math.floor(Math.random() * teammates.length)];
     var recTok = pick.tok;
 
-    // Palla va sulla posizione ATTUALE del ricevitore (no previsione futura:
-    // i target cambiano continuamente e la previsione manda la palla nel vuoto)
+    // La palla vola verso la posizione attuale del ricevitore (passaggio attivo)
     var futX = recTok.x + _rnd(-0.015, 0.015);
     var futY = recTok.y + _rnd(-0.010, 0.010);
 
@@ -374,16 +373,17 @@ var MovementController = (function() {
     _ballOwnerKey = null;
     if(typeof poolReleaseBall === 'function') poolReleaseBall();
 
-    // Ferma il ricevitore: il suo target diventa la posizione futura calcolata
-    // così si ferma ad aspettare la palla invece di continuare a nuotare via
+    // NON fermare il ricevitore — lui nuoterà verso la palla in volo.
+    // Il ricevitore riceve come target la posizione dove atterrerà la palla,
+    // così nuota incontro ad essa (comportamento naturale).
     if(typeof poolMoveToken === 'function')
-      poolMoveToken(pick.key, futX + _rnd(-0.008, 0.008), futY + _rnd(-0.006, 0.006));
+      poolMoveToken(pick.key, futX, futY);
 
-    // Lancia la palla verso la posizione futura
+    // Lancia la palla
     if(typeof poolMoveBallDirect === 'function')
       poolMoveBallDirect(futX, futY);
 
-    // Salva posizione di lancio per il cooldown (la palla deve percorrere almeno 40% prima di essere raccolta)
+    // Salva posizione di lancio per il cooldown (palla deve percorrere almeno 40%)
     var lBall = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:ownerTok.x, y:ownerTok.y};
     var _tdx = futX - lBall.x, _tdy = futY - lBall.y;
     _pendingReceiver = {
@@ -963,6 +963,7 @@ var MovementController = (function() {
     onPenaltyKick:   onPenaltyKick,
     onPossessChange:     onPossessChange,
     onNumericalChange:   onNumericalChange,
+    _hasPendingReceiver: function(){ return !!_pendingReceiver; },
   };
 
 })();

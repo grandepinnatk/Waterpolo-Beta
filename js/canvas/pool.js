@@ -93,6 +93,7 @@ var _bgImg=null, _bgReady=false, _ballImg=null, _ballReady=false;
 // ── Helpers ────────────────────────────────────────────────────────
 function _clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
 function _rnd(lo,hi){return lo+Math.random()*(hi-lo);}
+function _rndSmall(){return _rnd(-0.008,0.008);}  // piccolo jitter posizione
 function _shortName(p){return (p&&p.name)?p.name:'';}
 function _dist2d(x1,y1,x2,y2){var dx=x2-x1,dy=y2-y1;return Math.sqrt(dx*dx+dy*dy);}
 
@@ -119,18 +120,21 @@ function _ballOffsetForToken(tok) {
 // ── Inizializzazione ───────────────────────────────────────────────
 function poolInitTokens(ms) {
   _tokens={};_ball={x:PLAY.cx,y:PLAY.cy,tx:PLAY.cx,ty:PLAY.cy};
-  _ballOwner=null;_phase='idle';_attack='my';_goalAnim=null;_pendingGoal=null;_pressKey=null;
+  _ballOwner=null;_ballFreeTimer=0;_phase='idle';_attack='my';_goalAnim=null;_pendingGoal=null;_pressKey=null;_ballFly=null;
 
   Object.entries(ms.onField).forEach(function(e){
     var pk=e[0],pi=e[1],p=ms.myRoster[pi];
     var pos=KICKOFF_MY[pk]||{x:0.13,y:0.50};
-    _tokens['my_'+pk]={x:pos.x,y:pos.y,tx:pos.x,ty:pos.y,
+    // Il portiere parte sempre sulla linea di porta (x fisso)
+    var initX = (pk==='GK') ? PLAY.myGKX : pos.x;
+    _tokens['my_'+pk]={x:initX,y:pos.y,tx:initX,ty:pos.y,
       team:'my',pk:pk,pi:pi,isGK:pk==='GK',posLabel:pk==='GK'?'P':pk,
       shortName:_shortName(p),shirt:ms.shirtNumbers[pi]||'',yellows:0,expelled:false};
   });
   Object.keys(KICKOFF_OPP).forEach(function(pk){
     var pos=KICKOFF_OPP[pk];
-    _tokens['opp_'+pk]={x:pos.x,y:pos.y,tx:pos.x,ty:pos.y,
+    var initX = (pk==='GK') ? PLAY.oppGKX : pos.x;
+    _tokens['opp_'+pk]={x:initX,y:pos.y,tx:initX,ty:pos.y,
       team:'opp',pk:pk,pi:-1,isGK:pk==='GK',posLabel:pk==='GK'?'P':pk,
       shortName:'',shirt:'',yellows:0,expelled:false};
   });
@@ -236,7 +240,8 @@ function poolSetPressTarget(key) {_pressKey=key;}  // token avversario sotto pre
 
 // ── Inizio periodo ─────────────────────────────────────────────────
 function poolStartPeriod() {
-  _phase='idle';_goalAnim=null;_pendingGoal=null;_ballOwner=null;_pressKey=null;
+  _phase='idle';_goalAnim=null;_pendingGoal=null;_ballOwner=null;
+  _ballFreeTimer=0;_pressKey=null;_ballFly=null;
   _ball.tx=PLAY.cx;_ball.ty=PLAY.cy;
   Object.values(_tokens).forEach(function(tok){
     if(tok.expelled)return;
@@ -280,6 +285,11 @@ function poolUpdateKeepers(){_updateKeepers();}
 // ── Formazioni helper ──────────────────────────────────────────────
 function poolResetToken(key){}  // compat stub
 
+// Timer palla libera: se la palla non ha possessore per più di 1.5s,
+// il giocatore più vicino la raccoglie automaticamente
+var _ballFreeTimer = 0;
+var BALL_FREE_MAX  = 1.5;   // secondi prima del pickup automatico
+
 // ── Step animazione ────────────────────────────────────────────────
 // gameSpeed = G.ms.speed (1=normale, 2=doppio, 10x…)
 // I token nuotano SEMPRE — la velocità fisica scala con gameSpeed.
@@ -307,6 +317,61 @@ function poolAnimStep(dt, gameSpeed) {
   // Portieri seguono sempre la palla
   if(_phase!=='idle')_updateKeepers();
 
+  // ── Corsa alla palla libera: un giocatore per squadra nuota verso la palla ──
+  // Dopo 1s senza possessore, il giocatore più vicino di OGNI squadra scatta
+  // verso la palla. Chi arriva prima prende possesso; l'altro diventa il pressore.
+  // La palla rimane ferma — è raggiunta dai giocatori, non spostata.
+  if(_phase==='play' && !_ballOwner) {
+    var hasPending = (typeof MovementController !== 'undefined' &&
+      typeof MovementController._hasPendingReceiver === 'function' &&
+      MovementController._hasPendingReceiver());
+
+    if(!hasPending) {
+      _ballFreeTimer += f;
+
+      if(_ballFreeTimer >= 1.0) {
+        var bpx=_ball.x, bpy=_ball.y;
+
+        // Trova il più vicino per ciascuna squadra
+        var bestMy=null, bestMyDist=999, bestOpp=null, bestOppDist=999;
+        Object.values(_tokens).forEach(function(tok){
+          if(tok.expelled||tok.tempAbsent||tok.isGK)return;
+          var ddx=tok.x-bpx, ddy=tok.y-bpy;
+          var dd=Math.sqrt(ddx*ddx+ddy*ddy);
+          if(tok.team==='my'  && dd<bestMyDist) { bestMyDist=dd;  bestMy=tok;  }
+          if(tok.team==='opp' && dd<bestOppDist){ bestOppDist=dd; bestOpp=tok; }
+        });
+
+        // Entrambi scattano verso la palla
+        if(bestMy)  { bestMy.tx  = bpx + _rndSmall(); bestMy.ty  = bpy + _rndSmall(); }
+        if(bestOpp) { bestOpp.tx = bpx + _rndSmall(); bestOpp.ty = bpy + _rndSmall(); }
+
+        // Chi raggiunge prima prende possesso
+        var myReached  = bestMy  ? Math.sqrt(Math.pow(bestMy.x -bpx,2)+Math.pow(bestMy.y -bpy,2))  : 999;
+        var oppReached = bestOpp ? Math.sqrt(Math.pow(bestOpp.x-bpx,2)+Math.pow(bestOpp.y-bpy,2)) : 999;
+
+        var winner = null;
+        if(myReached  < 0.055 && myReached  <= oppReached) winner = bestMy;
+        else if(oppReached < 0.055 && oppReached < myReached) winner = bestOpp;
+
+        if(winner) {
+          _ballOwner     = winner.team+'_'+winner.pk;
+          _ballFreeTimer = 0;
+          var off2=_ballOffsetForToken(winner);
+          _ball.tx=_clamp(winner.x+off2.dx,PLAY.x0,PLAY.x1);
+          _ball.ty=_clamp(winner.y+off2.dy,PLAY.y0,PLAY.y1);
+          // Aggiorna possesso in MovementController
+          if(typeof MovementController!=='undefined' && MovementController.onPossessChange)
+            MovementController.onPossessChange(winner.team);
+        }
+      }
+    } else {
+      _ballFreeTimer = 0;
+    }
+  } else if(_ballOwner) {
+    _ballFreeTimer=0;
+  }
+
   // Palla segue il possessore (ogni frame)
   if(_ballOwner){
     var ow=_tokens[_ballOwner];
@@ -323,8 +388,10 @@ function poolAnimStep(dt, gameSpeed) {
     var dx=tok.tx-tok.x, dy=tok.ty-tok.y;
 
     if(tok.isGK) {
-      // Portiere: x FISSA sulla linea di porta (snap istantaneo), solo y si muove
-      tok.x = tok.tx;   // x snap sempre
+      // Portiere: x SEMPRE fissa sulla linea di porta, in ogni condizione
+      var gkFixedX = tok.team==='my' ? PLAY.myGKX : PLAY.oppGKX;
+      tok.x  = gkFixedX;   // posizione reale
+      tok.tx = gkFixedX;   // target (evita derive future)
       var ddy = tok.ty - tok.y;
       if(Math.abs(ddy) < 0.001) { tok.y = tok.ty; }
       else {
@@ -333,6 +400,9 @@ function poolAnimStep(dt, gameSpeed) {
         if(gs >= Math.abs(ddy)) { tok.y = tok.ty; }
         else { tok.y += (ddy > 0 ? 1 : -1) * gs; }
       }
+      // Clamp y tra i pali
+      tok.y  = _clamp(tok.y,  PLAY.myGoalY0+0.02, PLAY.myGoalY1-0.02);
+      tok.ty = _clamp(tok.ty, PLAY.myGoalY0+0.02, PLAY.myGoalY1-0.02);
       return;
     }
 

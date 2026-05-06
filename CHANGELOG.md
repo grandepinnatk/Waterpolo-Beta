@@ -2,6 +2,59 @@
 
 ---
 
+## [0.9.3-beta] — 2026-05-06
+
+### Fix — Corsa alla palla: un giocatore per squadra
+
+**Comportamento corretto:** quando la palla è libera, **il giocatore più vicino di ogni squadra** nuota verso di essa simultaneamente. Chi arriva prima prende possesso; l'avversario che ha corso verso la palla diventa automaticamente il pressore più vicino.
+
+- Dopo 1 secondo senza possessore, sia `bestMy` che `bestOpp` ricevono come target la posizione della palla e scattano verso di essa.
+- La palla rimane ferma.
+- La condizione di vittoria: distanza < 0.055 unità. In caso di parità vince il giocatore nostro (tie-break).
+- Al momento del possesso, `MovementController.onPossessChange(winner.team)` aggiorna formazione e marcatura.
+
+---
+
+## [0.9.2-beta] — 2026-05-06
+
+### Fix — Logica raccolta palla invertita
+
+**Principio corretto:** la palla non si sposta mai verso un giocatore. È sempre il giocatore che nuota verso la palla e la raccoglie fisicamente.
+
+**Palla libera (`pool.js`):**
+- Dopo 1 secondo senza possessore, il giocatore più vicino riceve come **target** la posizione della palla e nuota verso di essa.
+- La **palla rimane ferma** fino a quando il giocatore non la raggiunge (distanza < 0.055 unità).
+- Solo a contatto avvenuto, la palla viene assegnata al giocatore con l'offset corretto per la mano.
+- Il meccanismo è disattivato mentre `MovementController` ha un `_pendingReceiver` attivo (passaggio in volo).
+
+**Passaggio attivo (`movement.js`):**
+- Nel passaggio tra compagni, la palla vola verso la posizione del ricevitore (comportamento fisico corretto — la palla è lanciata).
+- Il ricevitore nuota verso il punto di atterraggio della palla (non si ferma ad aspettarla).
+- Rimosso il `poolMoveToken` che "fermava" artificialmente il ricevitore prima che la palla arrivasse.
+
+**Nuovo metodo esportato:** `MovementController._hasPendingReceiver()` — permette a `pool.js` di sapere se un passaggio è in corso.
+
+---
+
+## [0.9.1-beta] — 2026-05-06
+
+### Bugfix — Portieri sempre sulla linea + palla mai libera
+
+**Portieri sulla linea di porta (X fisso):**
+- `poolAnimStep`: la coordinata X del portiere viene forzata a `PLAY.myGKX` / `PLAY.oppGKX` ad ogni frame (sia `tok.x` che `tok.tx`), eliminando qualsiasi possibilità di deriva laterale.
+- `poolInitTokens`: i portieri nascono già sulla linea corretta (non sulla posizione kickoff generica).
+- La Y rimane clampata tra i pali (`myGoalY0+0.02` ↔ `myGoalY1-0.02`).
+
+**Palla sempre in possesso:**
+- Aggiunto `_ballFreeTimer` in `pool.js`: se la palla non ha possessore per più di **1.5 secondi** in fase di gioco (`_phase==='play'`), il giocatore di campo più vicino la raccoglie automaticamente.
+- Il timer si azzera ogni volta che un token prende possesso.
+- Reset in `poolInitTokens` e `poolStartPeriod`.
+
+### Promemoria per release future
+- Aggiornare sempre CHANGELOG.md e README.md ad ogni release.
+
+---
+
 ## [0.8.1-beta] — 2026-04-20
 
 ### Nuovo — Schemi di superiorità e inferiorità numerica
