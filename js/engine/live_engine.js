@@ -222,10 +222,12 @@ function _buildTurnoverEvent(ms, attack, bx, by) {
 
 function _buildNeutralEvent(ms, attack, bx, by) {
   _liveState.passCount = (_liveState.passCount || 0) + 1;
+  // Gli eventi neutri descrivono costruzione di gioco, non eventi impossibili.
+  // NON includere "Azione neutralizzata" o "Contrattacco sventato" come fallback
+  // perché vengono sparati anche quando non c'è nessuno vicino al possessore.
   var NEUTRAL = [
-    'Azione di attacco neutralizzata', 'Contrattacco sventato',
-    'Rimessa in gioco', 'Superiorità numerica gestita',
-    'Tiro fuori misura', 'Fallo in attacco',
+    'Rimessa in gioco', 'Passaggio in avanti',
+    'Manovra di attacco', 'Circolazione palla',
   ];
   var txt = NEUTRAL[Math.floor(Math.random() * NEUTRAL.length)];
   // Palla rimane vicino alla sua posizione attuale

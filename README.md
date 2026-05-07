@@ -1,6 +1,6 @@
 # Waterpolo Manager
 
-**Versione:** 0.9.6-beta  
+**Versione:** 0.9.7-beta  
 **Ultimo aggiornamento:** 2026-05-06  
 **Novità:** Portieri fissi sulla linea di porta; palla sempre in possesso (pickup automatico dopo 1.5s)
 **Campionato:** Serie A1 Maschile — Stagione 2025/26  

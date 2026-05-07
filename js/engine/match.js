@@ -103,9 +103,9 @@ const INJ_STAMINA_THRESHOLD = 30;  // stamina % sotto cui scatta il rischio
 const INJ_FITNESS_THRESHOLD = 75;  // forma % sotto cui scatta il rischio
 
 const NEUTRAL_EVENTS = [
-  'Azione di attacco neutralizzata', 'Contrattacco sventato',
   'Rimessa in gioco', 'Cambio possesso palla',
-  'Superiorità numerica gestita', 'Tiro fuori misura', 'Fallo in attacco',
+  'Manovra di attacco', 'Circolazione palla',
+  'Passaggio in avanti',
 ];
 
 // ── Crea lo stato iniziale ────────────────────

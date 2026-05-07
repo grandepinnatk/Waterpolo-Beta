@@ -2,6 +2,27 @@
 
 ---
 
+## [0.9.7-beta] — 2026-05-07
+
+### Fix — Sprint, strada libera, eventi neutralizzata
+
+**Fix 1 — CB passa subito dopo lo sprint:**
+- Dopo la sequenza di sprint, `_passNext` viene impostato a `0.3s` invece del normale `1.5-2.5s`.
+- Il CB passa la palla al C (pos3) praticamente immediatamente dopo averla ricevuta al centro.
+
+**Fix 2 — "Azione di attacco neutralizzata" rimossa dagli eventi fallback:**
+- Questo evento era hardcoded come fallback casuale in `NEUTRAL_EVENTS` sia in `match.js` che in `live_engine.js`.
+- Veniva sparato ogni ~7-14 secondi di gioco indipendentemente dalla situazione reale.
+- Rimosso e sostituito con eventi neutri descrittivi ma non fuorvianti: "Rimessa in gioco", "Manovra di attacco", "Circolazione palla", "Passaggio in avanti".
+
+**Fix 3 — Giocatore con strada libera avanza e tira:**
+- Se il possessore non ha avversari entro `FREE_PLAYER_DIST (~3m)`, NON passa la palla.
+- Il timer di passaggio viene bloccato (`_passNext=9999`) e il giocatore avanza verso i 2m dalla porta.
+- Quando arriva entro 15% dalla porta, il timer viene forzato oltre la soglia → tiro al prossimo tick.
+- Se un avversario si avvicina durante l'avanzata, il blocco viene rimosso e si torna al passaggio normale.
+
+---
+
 ## [0.9.6-beta] — 2026-05-07
 
 ### Principio fondamentale implementato: LA PALLA NON SI MUOVE MAI DA SOLA

@@ -560,11 +560,22 @@ var MovementController = (function() {
             closestDef = Math.min(closestDef, Math.sqrt(dx*dx+dy*dy));
           });
           if(closestDef > FREE_PLAYER_DIST) {
-            // Nessun avversario vicino → avanza verso porta avversaria
-            var goalX2 = ownerTeam2==='my' ? 0.82 : 0.18;
-            poolMoveToken(_ballOwnerKey, goalX2, ownerTok2.ty + _rnd(-0.02,0.02));
-            // Forza un tiro anticipato (resetta il pass timer)
-            _passT = _passNext * 0.8;
+            // Strada libera: avanza verso la porta e NON passa
+            // Il giocatore nuota fino ai 2m dalla porta (oppTwoMeterX ≈ 0.80)
+            var twoMX = ownerTeam2==='my' ? 0.79 : 0.21;
+            poolMoveToken(_ballOwnerKey, twoMX, ownerTok2.ty + _rnd(-0.015,0.015));
+            // Blocca il passaggio automatico finché non è vicino alla porta
+            var distToGoal = Math.abs(ownerTok2.x - (ownerTeam2==='my'?0.91:0.09));
+            if(distToGoal < 0.15) {
+              // Ai 2m: tira subito
+              _passT = _passNext + 1;  // forza tiro al prossimo tick
+            } else {
+              // In avvicinamento: non passare
+              _passT = 0; _passNext = 9999;
+            }
+          } else {
+            // Avversario vicino: ripristina il timer normale se era bloccato
+            if(_passNext === 9999) { _passT=0; _passNext=_rnd(1.5,2.5); }
           }
         }
       }
@@ -668,6 +679,8 @@ var MovementController = (function() {
     });
     _qA(sprintDur+0.8, function(){
       _repositionAll(0.025);_phase='play';_tacticalT=0;_microPhase={};
+      // Dopo lo sprint il CB passa subito: timer a 0 → passa al primo tick
+      _passT=0; _passNext=0.3;
       if(prevSpeed&&typeof setSpeed==='function')setSpeed(prevSpeed);
     });
     _startSeq();
