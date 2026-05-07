@@ -378,17 +378,7 @@ var MovementController = (function() {
     _ballOwnerKey = null;
     if(typeof poolReleaseBall === 'function') poolReleaseBall();
 
-    // NON fermare il ricevitore — lui nuoterà verso la palla in volo.
-    // Il ricevitore riceve come target la posizione dove atterrerà la palla,
-    // così nuota incontro ad essa (comportamento naturale).
-    if(typeof poolMoveToken === 'function')
-      poolMoveToken(pick.key, futX, futY);
-
-    // Lancia la palla
-    if(typeof poolMoveBallDirect === 'function')
-      poolMoveBallDirect(futX, futY);
-
-    // Salva posizione di lancio per il cooldown (palla deve percorrere almeno 40%)
+    // Registra il ricevitore PRIMA del lancio (blocca pool.js dalla raccolta libera)
     var lBall = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:ownerTok.x, y:ownerTok.y};
     var _tdx = futX - lBall.x, _tdy = futY - lBall.y;
     _pendingReceiver = {
@@ -397,6 +387,14 @@ var MovementController = (function() {
       totalDist: Math.max(0.02, Math.sqrt(_tdx*_tdx + _tdy*_tdy)),
       ready: false,
     };
+
+    // Il ricevitore nuota verso il punto di atterraggio della palla
+    if(typeof poolMoveToken === 'function')
+      poolMoveToken(pick.key, futX, futY);
+
+    // Lancia la palla (ora _pendingReceiver è già impostato)
+    if(typeof poolMoveBallDirect === 'function')
+      poolMoveBallDirect(futX, futY);
   }
 
   // ── Pressione sul possessore avversario ───────────────────────

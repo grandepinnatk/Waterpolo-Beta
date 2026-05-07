@@ -2,6 +2,26 @@
 
 ---
 
+## [0.9.5-beta] — 2026-05-06
+
+### Fix critici — Portieri e palla mai teletrasportata
+
+**Portieri: posizione corretta**
+- `myGKX` spostato da `0.09` a `0.115` e `oppGKX` da `0.91` a `0.885`: i portieri ora stanno ~2m davanti alla linea di porta, dentro il campo come da regolamento.
+- Margine Y aumentato da `±0.02` a `±0.07` (≈2m proporzionali): i portieri non scendono mai fino ai pali, restano nella zona centrale della porta.
+
+**Palla mai teletrasportata — `_ballInFlight`**
+- Aggiunta variabile di stato `_ballInFlight` in `pool.js`.
+- Quando `poolMoveBallDirect` viene chiamato (lancio/passaggio), `_ballInFlight=true`.
+- La palla non può essere raccolta dal meccanismo "corsa alla palla libera" finché è in volo.
+- `_ballInFlight=false` quando la palla raggiunge la destinazione (distanza < 0.002) o quando un giocatore la raccoglie (`poolSetBallOn`).
+- In `_autoPass`: il `_pendingReceiver` viene ora registrato **prima** di chiamare `poolMoveBallDirect`, così il flag è già attivo nel momento del lancio.
+
+**Perché le modifiche precedenti non funzionavano:**
+Il conflitto era tra `movement.js` (che imposta `_pendingReceiver` dopo il lancio) e `pool.js` (che ogni frame assegnava la palla al giocatore più vicino senza sapere che era in volo). Ora il `_pendingReceiver` viene impostato prima del lancio e il flag `_ballInFlight` blocca la raccolta libera durante il volo.
+
+---
+
 ## [0.9.4-beta] — 2026-05-06
 
 ### Nuove funzionalità e fix

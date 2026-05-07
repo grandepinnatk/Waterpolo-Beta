@@ -16,8 +16,8 @@ const PLAY = {
   myGoalY0: 0.38, myGoalY1: 0.62,
   oppGoalY0: 0.38, oppGoalY1: 0.62,
   // Portiere: rimane SULLA linea di porta (x fisso, solo y varia tra i pali)
-  myGKX:    0.09,   // x fisso portiere nostro
-  oppGKX:   0.91,   // x fisso portiere avversario
+  myGKX:    0.115,  // x fisso portiere: 2m avanti dalla linea di porta
+  oppGKX:   0.885,  // x fisso portiere avversario: 2m avanti dalla linea
   myGKminX: 0.08,  myGKmaxX: 0.10,   // range strettissimo attorno alla linea
   oppGKminX: 0.90, oppGKmaxX: 0.92,
   // Zona dei 2 metri: area vietata agli attaccanti (regolamento Art.8)
@@ -120,7 +120,7 @@ function _ballOffsetForToken(tok) {
 // ── Inizializzazione ───────────────────────────────────────────────
 function poolInitTokens(ms) {
   _tokens={};_ball={x:PLAY.cx,y:PLAY.cy,tx:PLAY.cx,ty:PLAY.cy};
-  _ballOwner=null;_ballFreeTimer=0;_phase='idle';_attack='my';_goalAnim=null;_pendingGoal=null;_pressKey=null;_ballFly=null;
+  _ballOwner=null;_ballFreeTimer=0;_ballInFlight=false;_phase='idle';_attack='my';_goalAnim=null;_pendingGoal=null;_pressKey=null;_ballFly=null;
 
   Object.entries(ms.onField).forEach(function(e){
     var pk=e[0],pi=e[1],p=ms.myRoster[pi];
@@ -190,7 +190,7 @@ function poolMoveToken(key,tx,ty) {
   if(tok.isGK){
     // Portiere: x fisso sulla linea di porta, y solo tra i pali
     tok.tx = tok.team==='my' ? PLAY.myGKX : PLAY.oppGKX;
-    tok.ty = _clamp(ty, PLAY.myGoalY0+0.02, PLAY.myGoalY1-0.02);
+    tok.ty = _clamp(ty, PLAY.myGoalY0+0.07, PLAY.myGoalY1-0.07);
     return;
   }
   // Regola 2 metri (Art.8): il CB (pos6) in attacco non può entrare nell'area dei 2m avversari
@@ -207,19 +207,25 @@ function poolMoveBall(tx,ty) {
   _ball.tx=_clamp(tx,PLAY.x0,PLAY.x1);_ball.ty=_clamp(ty,PLAY.y0,PLAY.y1);
 }
 function poolMoveBallDirect(tx,ty) {
-  // Registra la traiettoria di volo partendo dalla posizione corrente
+  // LANCIO: la palla parte dalla posizione corrente verso tx,ty.
+  // La palla è "in volo" fino a quando non viene raccolta fisicamente.
   var fx=_ball.x, fy=_ball.y;
   var ftx=_clamp(tx,PLAY.x0,PLAY.x1), fty=_clamp(ty,PLAY.y0,PLAY.y1);
   var dx=ftx-fx, dy=fty-fy;
   var dist=Math.sqrt(dx*dx+dy*dy);
   _ballOwner=null;
   _ball.tx=ftx; _ball.ty=fty;
-  _ballFly=(dist>0.01)?{x0:fx,y0:fy,x1:ftx,y1:fty,dist:dist}:null;
+  _ballFly=(dist>0.005)?{x0:fx,y0:fy,x1:ftx,y1:fty,dist:dist}:null;
+  // La palla è in volo: il timer di raccolta libera si azzera
+  // (non si può raccogliere prima che arrivi a destinazione)
+  _ballFreeTimer=0;
+  _ballInFlight=true;
 }
 function poolSetBallOn(key) {
-  if(_tokens[key]){_ballOwner=key; _ballFly=null;}  // possessore: nessuna parabola
+  if(_tokens[key]){_ballOwner=key; _ballFly=null; _ballInFlight=false;}
 }
 function poolReleaseBall() {
+  _ballInFlight=false;  // il lancio avviene subito dopo con poolMoveBallDirect
   // Quando la palla viene rilasciata con un target già impostato, inizia il volo
   if(_ballOwner){
     var tok=_tokens[_ballOwner];
@@ -272,12 +278,12 @@ function _updateKeepers() {
   if(myGK && !myGK.expelled) {
     // Portiere SEMPRE sulla linea di porta (x fisso), solo y segue la palla tra i pali
     myGK.tx = PLAY.myGKX;
-    myGK.ty = _clamp(by, PLAY.myGoalY0 + 0.02, PLAY.myGoalY1 - 0.02);
+    myGK.ty = _clamp(by, PLAY.myGoalY0 + 0.07, PLAY.myGoalY1 - 0.07);
   }
   var oppGK = _tokens['opp_GK'];
   if(oppGK && !oppGK.expelled) {
     oppGK.tx = PLAY.oppGKX;
-    oppGK.ty = _clamp(by, PLAY.oppGoalY0 + 0.02, PLAY.oppGoalY1 - 0.02);
+    oppGK.ty = _clamp(by, PLAY.oppGoalY0 + 0.07, PLAY.oppGoalY1 - 0.07);
   }
 }
 function poolUpdateKeepers(){_updateKeepers();}
@@ -288,7 +294,8 @@ function poolResetToken(key){}  // compat stub
 // Timer palla libera: se la palla non ha possessore per più di 1.5s,
 // il giocatore più vicino la raccoglie automaticamente
 var _ballFreeTimer = 0;
-var BALL_FREE_MAX  = 1.5;   // secondi prima del pickup automatico
+var _ballInFlight  = false; // true mentre la palla è in volo (lanciata)
+var BALL_FREE_MAX  = 1.5;
 
 // ── Step animazione ────────────────────────────────────────────────
 // gameSpeed = G.ms.speed (1=normale, 2=doppio, 10x…)
@@ -326,7 +333,7 @@ function poolAnimStep(dt, gameSpeed) {
       typeof MovementController._hasPendingReceiver === 'function' &&
       MovementController._hasPendingReceiver());
 
-    if(!hasPending) {
+    if(!hasPending && !_ballInFlight) {
       _ballFreeTimer += f;
 
       if(_ballFreeTimer >= 1.0) {
@@ -401,8 +408,8 @@ function poolAnimStep(dt, gameSpeed) {
         else { tok.y += (ddy > 0 ? 1 : -1) * gs; }
       }
       // Clamp y tra i pali
-      tok.y  = _clamp(tok.y,  PLAY.myGoalY0+0.02, PLAY.myGoalY1-0.02);
-      tok.ty = _clamp(tok.ty, PLAY.myGoalY0+0.02, PLAY.myGoalY1-0.02);
+      tok.y  = _clamp(tok.y,  PLAY.myGoalY0+0.07, PLAY.myGoalY1-0.07);
+      tok.ty = _clamp(tok.ty, PLAY.myGoalY0+0.07, PLAY.myGoalY1-0.07);
       return;
     }
 
@@ -419,8 +426,8 @@ function poolAnimStep(dt, gameSpeed) {
     var bspd=_BASE_SPD*15.0*gameSpeed;  // palla molto veloce: ~1m/s reale = percorre campo in ~0.8s
     var bdx=_ball.tx-_ball.x, bdy=_ball.ty-_ball.y;
     var bd=Math.sqrt(bdx*bdx+bdy*bdy);
-    if(bd<0.002){ _ball.x=_ball.tx; _ball.y=_ball.ty; _ballFly=null; }
-    else{ var bs=bspd*f; if(bs>=bd){_ball.x=_ball.tx;_ball.y=_ball.ty;_ballFly=null;}else{_ball.x+=bdx/bd*bs;_ball.y+=bdy/bd*bs;} }
+    if(bd<0.002){ _ball.x=_ball.tx; _ball.y=_ball.ty; _ballFly=null; _ballInFlight=false; }
+    else{ var bs=bspd*f; if(bs>=bd){_ball.x=_ball.tx;_ball.y=_ball.ty;_ballFly=null;_ballInFlight=false;}else{_ball.x+=bdx/bd*bs;_ball.y+=bdy/bd*bs;} }
   } else {
     _ball.x=_ball.tx; _ball.y=_ball.ty;
   }
