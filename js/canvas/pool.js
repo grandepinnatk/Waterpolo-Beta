@@ -204,7 +204,8 @@ function poolMoveToken(key,tx,ty) {
 
 // ── Palla ──────────────────────────────────────────────────────────
 function poolMoveBall(tx,ty) {
-  _ball.tx=_clamp(tx,PLAY.x0,PLAY.x1);_ball.ty=_clamp(ty,PLAY.y0,PLAY.y1);
+  // Alias di poolMoveBallDirect — imposta sempre _ballInFlight
+  poolMoveBallDirect(tx,ty);
 }
 function poolMoveBallDirect(tx,ty) {
   // LANCIO: la palla parte dalla posizione corrente verso tx,ty.

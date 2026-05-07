@@ -2,6 +2,30 @@
 
 ---
 
+## [0.9.6-beta] — 2026-05-07
+
+### Principio fondamentale implementato: LA PALLA NON SI MUOVE MAI DA SOLA
+
+**`_dispatchCanvasEvent` riscritto (`match.js`):**
+- Rimosso ogni `poolMoveBall(ballTarget)` diretto per eventi neutri, falli, e superiorità.
+- Per ogni tipo di evento, la palla si muove SOLO se un giocatore specifico la porta o la lancia.
+- Routing pulito: goal→`onGoalEvent`, parata→`onSave`, tiro→`onShot`, fallo→giocatore va sulla palla, neutro→`onPassOrNeutral`.
+
+**`onPassOrNeutral` riscritto (`movement.js`):**
+- Non chiama più `poolMoveBallDirect`. La palla rimane ferma.
+- Il `moverKey` (o il giocatore più vicino) riceve come target la posizione della palla e ci nuota.
+- Il possesso si assegna quando il giocatore arriva fisicamente.
+
+**`poolMoveBall` → alias di `poolMoveBallDirect`:**
+- Ora entrambe le funzioni impostano `_ballInFlight=true`.
+- Nessun percorso aggira più la protezione anti-teletrasporto.
+
+**Sprint: squadra in attacco immediata:**
+- Quando il CB vincitore prende la palla, `_attack` viene aggiornato immediatamente.
+- `poolSetAttack` viene chiamato così `live_engine.js` legge subito il team corretto.
+
+---
+
 ## [0.9.5-beta] — 2026-05-06
 
 ### Fix critici — Portieri e palla mai teletrasportata

@@ -96,58 +96,51 @@ function _dispatchCanvasEvent(event) {
   poolSyncTokens(G.ms);
   if (typeof poolSetSpeeds === 'function') poolSetSpeeds(G.ms);
 
-  // ── Superiorità/inferiorità: riposiziona tutti i token ─────────────────
+  // REGOLA FONDAMENTALE: la palla non si muove mai da sola.
+  // Ogni movimento di palla deve essere causato da un giocatore.
+  // Gli unici casi in cui la palla si sposta sono:
+  //   1. Un giocatore la lancia (onShot, onSave, _autoPass, onGoalEvent)
+  //   2. Un giocatore la porta con sé (poolSetBallOn)
+  //   3. Fallo/battuta: il giocatore va sulla palla, poi la palla si muove
+
   if (event.superiorityStart || event.inferiorityStart) {
-    if (typeof MovementController !== 'undefined' && MovementController.onNumericalChange) {
+    if (typeof MovementController !== 'undefined' && MovementController.onNumericalChange)
       MovementController.onNumericalChange(event.superiorityStart ? 'superiority' : 'inferiority');
-    }
-    if (event.ballTarget) poolMoveBall(event.ballTarget.x, event.ballTarget.y);
+    // La palla NON si sposta per superiorità — il giocatore ci nuota sopra
+    if (event.moverKey && event.ballTarget)
+      poolMoveToken(event.moverKey, event.ballTarget.x, event.ballTarget.y);
     return;
   }
 
   if (event.goalScored) {
-    if (typeof MovementController !== 'undefined' && MovementController.onGoalEvent) {
+    // Goal: MovementController gestisce tutto (tiro + celebrazione)
+    if (typeof MovementController !== 'undefined' && MovementController.onGoalEvent)
       MovementController.onGoalEvent(event);
-    } else {
-      showGoalAnimation(event.goalScorer || '', event.goalTeam || 'my', G.ms);
-    }
+    else showGoalAnimation(event.goalScorer||'', event.goalTeam||'my', G.ms);
 
   } else if (event.cls === 'sv') {
-    if (typeof MovementController !== 'undefined' && MovementController.onSave) {
+    // Parata: MovementController gestisce il tiro verso il portiere
+    if (typeof MovementController !== 'undefined' && MovementController.onSave)
       MovementController.onSave(event);
-    } else if (event.ballTarget) {
-      poolMoveBall(event.ballTarget.x, event.ballTarget.y);
-    }
-    if (typeof MovementController !== 'undefined')
-      MovementController.onPossessChange(
-        event.ballTarget && event.ballTarget.x < 0.5 ? 'my' : 'opp'
-      );
 
   } else if (event.moverKey && event.ballTarget) {
-    if (typeof MovementController !== 'undefined' && MovementController.onShot) {
+    // Tiro/evento con giocatore esplicito: MovementController gestisce
+    if (typeof MovementController !== 'undefined' && MovementController.onShot)
       MovementController.onShot(event);
-    } else {
-      poolMoveBall(event.ballTarget.x, event.ballTarget.y);
-      poolMoveToken(event.moverKey, event.moverTarget?.x || 0.5, event.moverTarget?.y || 0.5);
-    }
 
   } else if (event.cls === 'fl') {
-    // La palla rimane dove è caduta (punto del fallo).
-    // La palla NON si muove verso il giocatore.
-    // Il giocatore che batte (moverKey) nuota verso la posizione della palla.
-    if (event.ballTarget) {
-      poolMoveBall(event.ballTarget.x, event.ballTarget.y);  // palla si ferma qui
-      // Il battitore nuota verso la palla
-      if (event.moverKey)
-        poolMoveToken(event.moverKey, event.ballTarget.x, event.ballTarget.y);
-    }
+    // Fallo: la palla RIMANE FERMA dove è caduta.
+    // Il giocatore moverKey nuota verso la palla per batterla.
+    if (event.moverKey && event.ballTarget)
+      poolMoveToken(event.moverKey, event.ballTarget.x, event.ballTarget.y);
+    // _pendingReceiver si attiverà quando il giocatore raggiunge la palla in pool.js
 
   } else if (event.ballTarget) {
-    if (typeof MovementController !== 'undefined' && MovementController.onPassOrNeutral) {
+    // Evento neutro/passaggio: MovementController gestisce (il giocatore più vicino
+    // va sulla palla, non la palla va dal giocatore)
+    if (typeof MovementController !== 'undefined' && MovementController.onPassOrNeutral)
       MovementController.onPassOrNeutral(event);
-    } else {
-      poolMoveBall(event.ballTarget.x, event.ballTarget.y);
-    }
+    // NON chiamare poolMoveBall qui — onPassOrNeutral decide se/come muovere la palla
   }
 
   if (event.expelled !== undefined) _handleExpulsion(event.expelled, event.moverKey);

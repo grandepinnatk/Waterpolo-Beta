@@ -649,7 +649,11 @@ var MovementController = (function() {
     _mv('my_6',  CX-0.015, CY);
     _mv('opp_6', CX+0.015, CY);
 
-    _qA(sprintDur, function(){_ballOn(_cbWinner+'_6');});
+    _qA(sprintDur, function(){
+      _ballOn(_cbWinner+'_6');
+      _attack = _cbWinner;  // La squadra che prende la palla attacca
+      if(typeof poolSetAttack==='function') poolSetAttack(_cbWinner);
+    });
     _qA(sprintDur+0.3, function(){
       if(typeof poolReleaseBall==='function')poolReleaseBall();
       var tar3=_cbWinner==='my'?ATK_MY['3']:ATK_OPP['3'];
@@ -805,26 +809,17 @@ var MovementController = (function() {
     if(!event||!event.ballTarget)return;
     var bx=event.ballTarget.x, by=event.ballTarget.y;
 
-    // ── Determina la squadra che prende possesso ──────────────────────────────
-    // USA il moverKey dell'evento se disponibile (fonte più affidabile),
-    // poi il possessore corrente, poi come ultimo fallback la posizione x.
-    // NON usare solo bx>CX: la palla può trovarsi ovunque durante un passaggio.
+    // Determina la squadra in base a moverKey o possessore corrente
     var newTeam;
     if(event.moverKey) {
-      // moverKey = 'my_3', 'opp_6', ecc. — indica chi muove/riceve
       newTeam = event.moverKey.split('_')[0];
     } else if(_ballOwnerKey) {
-      // Stesso team del possessore corrente (passaggio interno)
       newTeam = _ballOwnerKey.split('_')[0];
     } else {
-      // Fallback: il token più vicino alla destinazione
-      var closestMy  = _findClosestToken('my',  bx, by);
-      var closestOpp = _findClosestToken('opp', bx, by);
-      var tokMy  = closestMy  ? _tok(closestMy)  : null;
-      var tokOpp = closestOpp ? _tok(closestOpp) : null;
-      var dMy  = tokMy  ? _dist(tokMy.x,  tokMy.y,  bx, by) : 999;
-      var dOpp = tokOpp ? _dist(tokOpp.x, tokOpp.y, bx, by) : 999;
-      newTeam = (dMy <= dOpp) ? 'my' : 'opp';
+      var cmY=_findClosestToken('my',bx,by), cmO=_findClosestToken('opp',bx,by);
+      var tmY=cmY?_tok(cmY):null, tmO=cmO?_tok(cmO):null;
+      var dY=tmY?_dist(tmY.x,tmY.y,bx,by):999, dO=tmO?_dist(tmO.x,tmO.y,bx,by):999;
+      newTeam=(dY<=dO)?'my':'opp';
     }
 
     var oldTeam = _attack;
@@ -862,21 +857,23 @@ var MovementController = (function() {
       }
     }
 
-    // Passaggio normale (stessa squadra o nessun possessore precedente)
-    var closest = _findClosestToken(newTeam, bx, by);
-    if(typeof poolReleaseBall==='function') poolReleaseBall();
-    _ballOwnerKey = null;
-    if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(bx, by);
+    // Il giocatore più vicino NUOTA verso la palla — la palla NON si muove
+    var closest = event.moverKey || _findClosestToken(newTeam, bx, by);
+    if(!closest) closest = _findClosestToken(oldTeam, bx, by);
+
     if(closest) {
-      var lbN = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:bx,y:by};
-      var dNx = bx-lbN.x, dNy = by-lbN.y;
+      // Manda il giocatore sulla palla
+      if(typeof poolMoveToken==='function') poolMoveToken(closest, bx, by);
+      // Libera il possesso corrente
+      if(typeof poolReleaseBall==='function') poolReleaseBall();
+      _ballOwnerKey = null;
+      _attack = newTeam;
+      // Possesso assegnato quando il giocatore arriva (ready:true = distanza già 0)
       _pendingReceiver = {
         key: closest, team: newTeam,
-        startX: lbN.x, startY: lbN.y,
-        totalDist: Math.max(0.02, Math.sqrt(dNx*dNx+dNy*dNy)),
-        ready: false,
+        startX: bx, startY: by,
+        totalDist: 0.001, ready: true,
       };
-      _attack = newTeam;
     }
   }
 
