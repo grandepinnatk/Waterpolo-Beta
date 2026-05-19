@@ -76,6 +76,16 @@ function generateLiveEvent(ms) {
     return generateShotClockEvent(ms, st.prevAttack || _liveState.attack);
   }
 
+  // Intercettazione → evento testuale
+  if(st.interceptionEvent) {
+    liveUpdateState({interceptionEvent:false});
+    var interceptorName = (st.interceptTeam==='my') ? ms.myTeam.name : ms.oppTeam.name;
+    return {
+      txt: '⚡ Palla intercettata — ' + interceptorName + ' guadagna il possesso',
+      cls: 'sv',
+    };
+  }
+
   st = _liveState;
   var attack  = st.attack || 'my';
   var ownerKey = st.ballOwnerKey;

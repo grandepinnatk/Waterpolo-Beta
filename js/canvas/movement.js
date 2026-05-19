@@ -580,27 +580,56 @@ var MovementController = (function() {
         }
       }
 
-      // ── Fix 4: assegna possesso quando palla arriva fisicamente al ricevitore ──
-      // _pendingReceiver.minDist = distanza minima che la palla deve percorrere
-      //   prima di poter essere raccolta (evita assegnazione immediata)
+      // ── Fix 4: assegna possesso quando palla arriva al ricevitore ──────────
+      // Se un avversario intercetta il passaggio in volo → evento intercetto
       if(_pendingReceiver) {
         var recTok = _tok(_pendingReceiver.key);
         if(recTok && !recTok.expelled) {
           var ballPos = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:0.5,y:0.5};
 
-          // Aggiorna la distanza minima percorsa dalla palla
+          // Aggiorna progressione volo
           if(_pendingReceiver.startX !== undefined) {
             var sdx = ballPos.x - _pendingReceiver.startX;
             var sdy = ballPos.y - _pendingReceiver.startY;
             var traveled = Math.sqrt(sdx*sdx + sdy*sdy);
-            // Pronto a raccogliere solo dopo aver percorso almeno il 40% della distanza totale
             _pendingReceiver.ready = (traveled >= _pendingReceiver.totalDist * 0.40);
           }
 
           if(_pendingReceiver.ready) {
+            var recTeam = _pendingReceiver.team;
+            var oppTeamP = recTeam === 'my' ? 'opp' : 'my';
             var prDx = recTok.x - ballPos.x, prDy = recTok.y - ballPos.y;
             var prDist = Math.sqrt(prDx*prDx + prDy*prDy);
-            if(prDist < 0.060) {
+
+            // Controlla se un avversario è più vicino alla palla del ricevitore
+            var closestOppKey = null, closestOppDist = prDist;
+            ['1','2','3','4','5','6'].forEach(function(pk){
+              var oppTok = _tok(oppTeamP+'_'+pk);
+              if(!oppTok||oppTok.expelled||oppTok.tempAbsent)return;
+              var dx=oppTok.x-ballPos.x, dy=oppTok.y-ballPos.y;
+              var d=Math.sqrt(dx*dx+dy*dy);
+              if(d < closestOppDist && d < 0.060) { closestOppDist=d; closestOppKey=oppTeamP+'_'+pk; }
+            });
+
+            if(closestOppKey && closestOppDist < prDist) {
+              // ── INTERCETTAZIONE: avversario prende la palla ──
+              if(typeof poolReleaseBall==='function') poolReleaseBall();
+              _ballOwnerKey = null;
+              _pendingReceiver = null;
+              _attack = oppTeamP;
+              _passT = 0; _passNext = _rnd(1.5, 2.5);
+              // Il giocatore che intercetta va sulla palla
+              if(typeof poolMoveToken==='function') poolMoveToken(closestOppKey, ballPos.x, ballPos.y);
+              _pendingReceiver = {
+                key: closestOppKey, team: oppTeamP,
+                startX: ballPos.x, startY: ballPos.y,
+                totalDist: 0.001, ready: true,
+              };
+              // Aggiorna liveState per evento testuale
+              if(typeof liveUpdateState==='function')
+                liveUpdateState({ interceptionEvent: true, interceptTeam: oppTeamP });
+            } else if(prDist < 0.060) {
+              // Ricevitore previsto prende la palla normalmente
               _ballOn(_pendingReceiver.key);
               _attack = _pendingReceiver.team;
               _pendingReceiver = null;
@@ -799,15 +828,21 @@ var MovementController = (function() {
       if(typeof poolMoveToken==='function') poolMoveToken(gkTeam+'_GK', gkX, gkY);
       _ballOn(gkTeam+'_GK');
 
-      // Dopo 0.7s il portiere rilancia verso il proprio C (pos3)
+      // Dopo 0.7s il portiere rilancia verso la posizione ATTUALE del pos3
       setTimeout(function(){
         if(typeof poolReleaseBall==='function')poolReleaseBall();
         _ballOwnerKey=null;
-        var tar3=gkTeam==='my'?ATK_MY['3']:ATK_OPP['3'];
-        if(typeof poolMoveBallDirect==='function')
-          poolMoveBallDirect(tar3.x+_rnd(-0.04,0.04), tar3.y+_rnd(-0.03,0.03));
+        var c3Tok=_tok(gkTeam+'_3');
+        var launchX,launchY;
+        if(c3Tok&&!c3Tok.expelled){
+          launchX=c3Tok.x+_rnd(-0.03,0.03);launchY=c3Tok.y+_rnd(-0.025,0.025);
+        } else {
+          var t3fb=gkTeam==='my'?ATK_MY['3']:ATK_OPP['3'];
+          launchX=t3fb.x;launchY=t3fb.y;
+        }
+        if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(launchX,launchY);
         var lbS=typeof poolGetBallPos==='function'?poolGetBallPos():{x:gkX,y:gkY};
-        var dSx=tar3.x-lbS.x, dSy=tar3.y-lbS.y;
+        var dSx=launchX-lbS.x,dSy=launchY-lbS.y;
         _pendingReceiver={key:gkTeam+'_3',team:gkTeam,
           startX:lbS.x,startY:lbS.y,
           totalDist:Math.max(0.02,Math.sqrt(dSx*dSx+dSy*dSy)),ready:false};

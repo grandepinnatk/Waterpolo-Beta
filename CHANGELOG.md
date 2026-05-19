@@ -2,6 +2,22 @@
 
 ---
 
+## [0.9.8-beta] — 2026-05-19
+
+### Fix — Intercettazioni e rilancio portiere
+
+**Intercettazioni passaggi:**
+- Introdotto il meccanismo di intercettazione: durante il volo della palla, se un avversario è più vicino alla palla del ricevitore previsto, il passaggio viene intercettato.
+- Genera evento testuale "⚡ Palla intercettata — [squadra] guadagna il possesso".
+- Il giocatore che intercetta nuota verso la posizione della palla e ne prende possesso.
+- La squadra in attacco cambia di conseguenza.
+
+**Portiere rilancia sul pos3 attuale:**
+- `onSave`: il portiere ora rilancia verso la **posizione attuale** del pos3, non la posizione tattica fissa `ATK_MY['3']`.
+- Questo risolve il bug dove la palla atterrava in una zona vuota perché il pos3 era lontano dalla posizione tattica.
+
+---
+
 ## [0.9.7-beta] — 2026-05-07
 
 ### Fix — Sprint, strada libera, eventi neutralizzata
