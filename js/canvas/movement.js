@@ -492,7 +492,7 @@ var MovementController = (function() {
         _tacticalT = 0;
         _updateAllTargets(dt);
 
-        // ── Pubblica stato canvas al live engine ─────────────────────────
+        // ── FASE A: Pubblica stato canvas + FASE corrente al live engine ──
         if(typeof liveUpdateState === 'function') {
           var ballPos = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:0.5,y:0.5};
           var cbKey   = _attack+'_6';
@@ -501,20 +501,67 @@ var MovementController = (function() {
           var markTok = _tok(markKey);
           var cbDist  = (cbTok && markTok)
             ? _dist(cbTok.x, cbTok.y, markTok.x, markTok.y) : 999;
-          var oppShotZone = 0.72, myShotZone = 0.28;
+          var oppShotZone = 0.74, myShotZone = 0.26;
           var cbInZone = _attack==='my'
             ? (cbTok && cbTok.x > oppShotZone)
             : (cbTok && cbTok.x < myShotZone);
+
+          // Rileva la fase canvas corrente
+          var ownerPk = _ballOwnerKey ? _ballOwnerKey.split('_')[1] : null;
+          var ownerTokP = _ballOwnerKey ? _tok(_ballOwnerKey) : null;
+
+          // Distanza avversario più vicino al possessore
+          var closestDef = 999;
+          if(_ballOwnerKey && ownerTokP) {
+            var defTm = _attack==='my'?'opp':'my';
+            ['1','2','3','4','5','6'].forEach(function(pk){
+              var dt2=_tok(defTm+'_'+pk);
+              if(!dt2||dt2.expelled||dt2.tempAbsent)return;
+              var ddx=dt2.x-ownerTokP.x,ddy=dt2.y-ownerTokP.y;
+              closestDef=Math.min(closestDef,Math.sqrt(ddx*ddx+ddy*ddy));
+            });
+          }
+
+          // Determina CANVAS_PHASE
+          var newPhase;
+          if(!_ballOwnerKey && !_pendingReceiver) {
+            newPhase = 'LOOSE_BALL';
+          } else if(_ms && _ms.superiorityActive) {
+            newPhase = 'SUPERIORITY';
+          } else if(_ms && _ms.inferiorityActive) {
+            newPhase = 'INFERIORITY';
+          } else if(ownerPk==='6' && cbInZone && cbDist < 0.12) {
+            newPhase = 'ATTACK_CB';
+          } else if(closestDef > (FREE_PLAYER_DIST||0.10)) {
+            newPhase = 'FREE_PLAYER';
+          } else if((ownerPk==='1'||ownerPk==='5') && _ballOwnerKey) {
+            newPhase = 'ATTACK_WING';
+          } else {
+            newPhase = 'BUILD_UP';
+          }
+
+          // Nome possessore per telecronaca
+          var ownerName = '';
+          if(_ballOwnerKey && ownerTokP && _ms) {
+            var pi2 = ownerTokP.pi;
+            if(_attack==='my' && _ms.myRoster && _ms.myRoster[pi2])
+              ownerName = _ms.myRoster[pi2].name || '';
+          }
+
           liveUpdateState({
-            attack:       _attack,
-            ballOwnerKey: _ballOwnerKey,
-            ballX:        ballPos.x,
-            ballY:        ballPos.y,
-            ballFree:     !_ballOwnerKey && !_pendingReceiver,
-            cbInShotZone: !!cbInZone,
-            cbMarkerDist: cbDist,
-            passCount:    _passT > 0 ? Math.floor(_passT / 1.5) : 0,
-            phaseTime:    _tacticalT,
+            canvasPhase:    newPhase,
+            attack:         _attack,
+            ballOwnerKey:   _ballOwnerKey,
+            ballOwnerPk:    ownerPk,
+            ballOwnerName:  ownerName,
+            ballX:          ballPos.x,
+            ballY:          ballPos.y,
+            ballFree:       !_ballOwnerKey && !_pendingReceiver,
+            cbInShotZone:   !!cbInZone,
+            cbMarkerDist:   cbDist,
+            closestDefDist: closestDef,
+            passCount:      _passT > 0 ? Math.floor(_passT / 1.5) : 0,
+            phaseTime:      _shotClock,
           });
         }
       }

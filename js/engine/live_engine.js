@@ -1,356 +1,463 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// engine/live_engine.js  —  Motore partita GIOCATA  v0.9.0
+// engine/live_engine.js  —  Motore partita GIOCATA  v1.0.0
 //
-// ARCHITETTURA: il canvas guida il motore.
-// Il motore non genera eventi random indipendenti — legge lo stato del canvas
-// (posizioni token, possesso palla, fase di gioco) e decide quale evento
-// è fisicamente plausibile in quel momento.
+// ARCHITETTURA — 3 FASI:
 //
-// Separato da engine/match.js che continua a gestire:
-//   - createMatchState / advanceTime
-//   - simNextRound (partite simulate senza canvas)
-//   - simulateMatchStats (statistiche simulate)
+//   FASE A: "stato di fase" esplicito del canvas
+//     Il canvas pubblica ogni 0.8s uno stato strutturato con la fase corrente
+//     (BUILD_UP, ATTACK_CB, FREE_PLAYER, SHOT, SAVE, LOOSE_BALL, COUNTER…)
+//
+//   FASE B: il motore genera eventi SOLO quando la fase canvas cambia
+//     Non più ogni 7-14s random. Genera quando il canvas transita a una
+//     nuova fase significativa, o quando le frequenze reali lo richiedono.
+//
+//   FASE C: telecronaca descrive CIÒ CHE IL CANVAS STA MOSTRANDO
+//     Tutte le stringhe sono i18n (js/i18n/commentary_it.js ecc.)
+//     Il testo è generato DOPO che l'animazione è già in corso.
+//
+// FREQUENZE REALI (calibrate su pallanuoto d'élite, 8 minuti per tempo):
+//   • ~18-22 tiri per tempo (≈1 ogni 22s di possesso)
+//   • ~8-10 falli per tempo (≈1 ogni 48s)
+//   • ~3-5 goal per tempo (conversion rate ~18-22%)
+//   • ~4-6 azioni di superiorità per tempo
+//   • Azione media: 6-12 passaggi prima del tiro
+//   • Shot clock: 30s, media utilizzo ~20-24s
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Costanti geometria (specchio di pool.js) ──────────────────────────────
+// ── FASE A: Tipi di fase canvas ───────────────────────────────────────────
+var CANVAS_PHASE = {
+  BUILD_UP:    'BUILD_UP',    // circolazione palla in costruzione
+  ATTACK_WING: 'ATTACK_WING', // azione da ala (pos1/5 con palla)
+  ATTACK_CB:   'ATTACK_CB',   // centroboa (pos6) in zona 2m con palla
+  FREE_PLAYER: 'FREE_PLAYER', // giocatore libero in avanzata verso porta
+  SHOT:        'SHOT',        // tiro in corso
+  SAVE:        'SAVE',        // parata
+  LOOSE_BALL:  'LOOSE_BALL',  // palla libera contesa
+  COUNTER:     'COUNTER',     // contrattacco (cambio veloce di possesso)
+  PENALTY:     'PENALTY',     // rigore
+  SUPERIORITY: 'SUPERIORITY', // 6 vs 5
+  INFERIORITY: 'INFERIORITY', // 5 vs 6
+};
+
+// ── Geometria (specchio di pool.js) ───────────────────────────────────────
 var LIVE = {
-  cx: 0.50, cy: 0.50,
-  myGKX:  0.09,  oppGKX: 0.91,
-  myGoalY0: 0.38, myGoalY1: 0.62,
-  // Zona tiro: entro questi X dalla porta
-  MY_SHOT_ZONE:  0.28,   // attaccanti avv in zona tiro se x < 0.28
-  OPP_SHOT_ZONE: 0.72,   // nostri attaccanti in zona tiro se x > 0.72
-  // Zona pericolo CB (5m proporzionali)
-  FIVE_M: 0.16,
-  // Distanza "contatto" per furto palla / duello
-  DUEL_DIST: 0.08,
+  cx: 0.50,
+  myGKX: 0.115, oppGKX: 0.885,
+  MY_SHOT_ZONE:  0.26,   // zona tiro avversario (x < 0.26)
+  OPP_SHOT_ZONE: 0.74,   // zona tiro nostro (x > 0.74)
+  FIVE_M: 0.165,          // ~5m dalla porta
+  TWO_M:  0.08,           // ~2m dalla porta
 };
 
-// ── Tipi di evento canvas ─────────────────────────────────────────────────
-// Il canvas chiama generateLiveEvent(ms, canvasState) invece di generateMatchEvent(ms)
-// canvasState viene popolato da movement.js ogni frame
-
+// ── Stato live (pubblicato da movement.js via liveUpdateState) ────────────
 var _liveState = {
-  attack:        'my',     // chi ha il possesso
-  ballOwnerKey:  null,     // es. 'my_3'
-  ballX:         0.5,
-  ballY:         0.5,
-  ballFree:      false,    // palla libera (dopo tiro)
-  cbInShotZone:  false,    // my_6 è in zona tiro
-  cbMarkerDist:  999,      // distanza tra CB e suo marcatore
-  passCount:     0,        // passaggi consecutivi senza tiro
-  phaseTime:     0,        // secondi con lo stesso possesso
+  // Fase corrente (CANVAS_PHASE)
+  canvasPhase:   CANVAS_PHASE.BUILD_UP,
+  prevPhase:     null,
+  phaseChanged:  false,
+
+  // Possesso
+  attack:        'my',
+  ballOwnerKey:  null,
+  ballOwnerPk:   null,
+  ballX: 0.5, ballY: 0.5,
+  ballFree:      false,
+  ballInFlight:  false,
+
+  // Distanze per rilevamento fase
+  cbInShotZone:  false,
+  cbMarkerDist:  999,
+  closestDefDist: 999,
+
+  // Contatori azione
+  passCount:     0,
+  phaseTime:     0,
+  actionTime:    0,   // secondi totali nell'azione corrente
+
+  // Eventi speciali pending
+  shotClockExpired:  false,
+  interceptionEvent: false,
+  interceptTeam:     null,
+  prevAttack:        null,
+
+  // Nomi giocatori (per telecronaca)
+  ballOwnerName: '',
+  gkMyName:      '',
+  gkOppName:     '',
 };
 
-// Chiamato da movement.js ogni frame per aggiornare lo stato canvas
 function liveUpdateState(patch) {
   if (!patch) return;
+  var prev = _liveState.canvasPhase;
   Object.keys(patch).forEach(function(k) { _liveState[k] = patch[k]; });
+  // Rileva cambio di fase
+  if (patch.canvasPhase && patch.canvasPhase !== prev) {
+    _liveState.prevPhase   = prev;
+    _liveState.phaseChanged = true;
+  }
 }
 
 function liveGetState() { return _liveState; }
 
-// ── Generatore eventi basato su canvas ───────────────────────────────────
-// Sostituisce generateMatchEvent per le partite giocate.
+// ── FASE B: Frequenze eventi calibrate ────────────────────────────────────
+// Basate su analisi pallanuoto d'élite (LEN Champions League, Mondiali):
+// 8 minuti per tempo → 480s di gioco
+// Tiri: 18-22 per tempo → ogni 22-27s in possesso
+// Falli: 8-10 per tempo → prob ~0.018 per secondo di gioco
+// Goal: ~20% dei tiri
+// Passaggi medi per azione: 5-9
+var FREQ = {
+  MIN_PASSES_BEFORE_SHOT: 3,    // minimo passaggi prima che si possa tirare
+  SHOT_PROB_PER_PASS: 0.14,     // prob tiro ad ogni passaggio (sale con zona)
+  SHOT_PROB_IN_ZONE: 0.35,      // prob tiro quando si è in zona 5m
+  FOUL_PROB_PER_SEC: 0.018,     // prob fallo per secondo di gioco
+  COUNTER_PASS_MAX: 2,           // max passaggi in contropiede prima del tiro
+  SHOT_CLOCK: 30,                // secondi
+};
 
-// Evento per shot clock scaduto
-function generateShotClockEvent(ms, prevAttack) {
-  var newTeam = prevAttack === 'my' ? 'opp' : 'my';
-  var bPos = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:0.5,y:0.5};
-  return {
-    txt: '⏱ Fallo in attacco — Palla a ' + (newTeam==='my'?ms.myTeam.name:ms.oppTeam.name) + ' (30s scaduti)',
-    cls: 'fl',
-    ballTarget: { x: _clampX(bPos.x + (newTeam==='my'?0.03:-0.03)), y: _clampY(bPos.y) },
-    moverKey:   newTeam + '_3',
-  };
+// ── i18n telecronaca ─────────────────────────────────────────────────────
+function _getLang() {
+  if (typeof window !== 'undefined' && window.LANG_COMMENTARY) {
+    var lang = (typeof G !== 'undefined' && G.settings && G.settings.lang) || 'it';
+    return window.LANG_COMMENTARY[lang] || window.LANG_COMMENTARY['it'];
+  }
+  return null;
 }
-// Viene chiamato dal loop _animLoop quando nextActionIn scade.
+
+function _pick(arr) {
+  if (!arr || !arr.length) return '';
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+// Sostituisce {player}, {passer}, {receiver}, {scorer}, {gk}, {team}, {opp}, {shirt}
+function _fmt(template, vars) {
+  if (!template) return '';
+  return template.replace(/\{(\w+)\}/g, function(_, k) {
+    return vars[k] !== undefined ? vars[k] : '{' + k + '}';
+  });
+}
+
+function _txt(key, subkey, vars) {
+  var lang = _getLang();
+  if (!lang || !lang[key]) {
+    // Fallback italiano hardcoded se i18n non è caricato
+    return vars ? JSON.stringify(vars) : key + '.' + (subkey || '');
+  }
+  var pool = subkey ? lang[key][subkey] : lang[key];
+  if (!pool) return key;
+  var tpl = Array.isArray(pool) ? _pick(pool) : pool;
+  return vars ? _fmt(tpl, vars) : tpl;
+}
+
+// ── FASE C: Generatore eventi sincronizzato con canvas ────────────────────
 function generateLiveEvent(ms) {
   if (!ms) return null;
 
   var st = _liveState;
 
-  // Shot clock scaduto → evento motivato immediatamente
-  if(st.shotClockExpired) {
-    liveUpdateState({shotClockExpired:false});
-    return generateShotClockEvent(ms, st.prevAttack || _liveState.attack);
+  // ── Priorità 1: eventi speciali pendenti ──────────────────────────────
+  if (st.shotClockExpired) {
+    liveUpdateState({ shotClockExpired: false });
+    return _buildShotClockEvent(ms);
   }
 
-  // Intercettazione → evento testuale
-  if(st.interceptionEvent) {
-    liveUpdateState({interceptionEvent:false});
-    var interceptorName = (st.interceptTeam==='my') ? ms.myTeam.name : ms.oppTeam.name;
+  if (st.interceptionEvent) {
+    liveUpdateState({ interceptionEvent: false });
+    var intTeam = st.interceptTeam === 'my' ? ms.myTeam.name : ms.oppTeam.name;
     return {
-      txt: '⚡ Palla intercettata — ' + interceptorName + ' guadagna il possesso',
+      txt: _txt('interception', null, { team: intTeam }),
       cls: 'sv',
     };
   }
 
-  st = _liveState;
-  var attack  = st.attack || 'my';
-  var ownerKey = st.ballOwnerKey;
-  var ownerPk  = ownerKey ? ownerKey.split('_')[1] : null;
+  // ── Priorità 2: cambio di fase canvas → evento sincronizzato ──────────
+  if (st.phaseChanged) {
+    liveUpdateState({ phaseChanged: false });
+    var phaseEvent = _buildPhaseEvent(ms, st);
+    if (phaseEvent) return phaseEvent;
+  }
+
+  var attack = st.attack || 'my';
   var bx = st.ballX || 0.5, by = st.ballY || 0.5;
+  var myEff  = _calcMyEffective(ms);
+  var oppStr = ms.oppTeam.str * (ms.oppTeam._staminaFactor || 1.0);
 
-  // ── Calcola forza attuale (come generateMatchEvent) ──────────────────
-  var myEffective = _calcMyEffective(ms);
-  var oppStr      = ms.oppTeam.str * (ms.oppTeam._staminaFactor || 1.0);
+  // ── Priorità 3: logica fase corrente ──────────────────────────────────
+  switch (st.canvasPhase) {
 
-  // ── Selezione evento basata sullo stato canvas ────────────────────────
+    case CANVAS_PHASE.ATTACK_CB:
+      // CB in zona 2m: alta probabilità di tiro
+      if (st.passCount >= 2 || Math.random() < FREQ.SHOT_PROB_IN_ZONE) {
+        return attack === 'my'
+          ? _buildMyShotEvent(ms, myEff, oppStr, bx, by)
+          : _buildOppShotEvent(ms, myEff, oppStr, bx, by);
+      }
+      break;
 
-  // 1. CB avversario in zona tiro con marcatore vicino → tiro (evento visivo già
-  //    triggerato da movement.js, ma il motore deve registrarlo statisticamente)
-  if (st.cbInShotZone && st.cbMarkerDist < 0.07 && attack !== 'my') {
-    return _buildOppShotEvent(ms, myEffective, oppStr, bx, by);
+    case CANVAS_PHASE.FREE_PLAYER:
+      // Giocatore libero → tiro molto probabile
+      if (Math.random() < 0.55) {
+        return attack === 'my'
+          ? _buildMyShotEvent(ms, myEff, oppStr, bx, by)
+          : _buildOppShotEvent(ms, myEff, oppStr, bx, by);
+      }
+      break;
+
+    case CANVAS_PHASE.COUNTER:
+      // Contrattacco: pochi passaggi poi tiro
+      if (st.passCount >= FREQ.COUNTER_PASS_MAX) {
+        return attack === 'my'
+          ? _buildMyShotEvent(ms, myEff, oppStr, bx, by)
+          : _buildOppShotEvent(ms, myEff, oppStr, bx, by);
+      }
+      break;
+
+    case CANVAS_PHASE.BUILD_UP:
+    case CANVAS_PHASE.ATTACK_WING:
+      // Costruzione: tiro dopo N passaggi, frequenza calibrata
+      var zoneMult = (attack === 'my' && bx > LIVE.OPP_SHOT_ZONE) ||
+                     (attack === 'opp' && bx < LIVE.MY_SHOT_ZONE) ? 2.5 : 1.0;
+      var shotProb = st.passCount >= FREQ.MIN_PASSES_BEFORE_SHOT
+        ? FREQ.SHOT_PROB_PER_PASS * zoneMult : 0;
+      if (shotProb > 0 && Math.random() < shotProb) {
+        return attack === 'my'
+          ? _buildMyShotEvent(ms, myEff, oppStr, bx, by)
+          : _buildOppShotEvent(ms, myEff, oppStr, bx, by);
+      }
+      break;
   }
-  if (st.cbInShotZone && st.cbMarkerDist < 0.07 && attack === 'my') {
-    return _buildMyShotEvent(ms, myEffective, oppStr, bx, by);
-  }
 
-  // 2. Palla in zona tiro nostra (x > OPP_SHOT_ZONE) e attaccanti nostri → tiro
-  if (attack === 'my' && bx > LIVE.OPP_SHOT_ZONE && st.passCount >= 2) {
-    return _buildMyShotEvent(ms, myEffective, oppStr, bx, by);
-  }
-
-  // 3. Palla in zona tiro avversaria (x < MY_SHOT_ZONE) → tiro avversario
-  if (attack === 'opp' && bx < LIVE.MY_SHOT_ZONE && st.passCount >= 2) {
-    return _buildOppShotEvent(ms, myEffective, oppStr, bx, by);
-  }
-
-  // 4. Possesso lungo (> 8s) → probabilità crescente di perdere palla o tirare
-  if (st.phaseTime > 8) {
-    var shotProb = Math.min(0.60, (st.phaseTime - 8) * 0.07);
-    if (Math.random() < shotProb) {
-      return attack === 'my'
-        ? _buildMyShotEvent(ms, myEffective, oppStr, bx, by)
-        : _buildOppShotEvent(ms, myEffective, oppStr, bx, by);
-    }
-    // Possesso molto lungo → palla persa
-    if (st.phaseTime > 30 && Math.random() < 0.4) {
-      return _buildTurnoverEvent(ms, attack, bx, by);
-    }
-  }
-
-  // 5. Fallo: basato su probabilità tattica (come prima)
+  // ── Priorità 4: fallo (frequenza calibrata) ───────────────────────────
   var foulEvent = _tryFoulEvent(ms, attack, bx, by);
   if (foulEvent) return foulEvent;
 
-  // 6. Evento neutro: azione di costruzione
-  return _buildNeutralEvent(ms, attack, bx, by);
+  // ── Priorità 5: evento neutro descrittivo (telecronaca in fase C) ─────
+  return _buildNeutralEvent(ms, attack, bx, by, st.canvasPhase);
+}
+
+// ── Builder fase A → evento ───────────────────────────────────────────────
+function _buildPhaseEvent(ms, st) {
+  var attack = st.attack || 'my';
+  var vars = _buildVars(ms, attack, null);
+
+  switch (st.canvasPhase) {
+    case CANVAS_PHASE.FREE_PLAYER:
+      if (st.ballOwnerName) vars.player = st.ballOwnerName;
+      return { txt: _txt('free_advance', null, vars), cls: '', _phaseOnly: true };
+
+    case CANVAS_PHASE.COUNTER:
+      if (st.ballOwnerName) vars.player = st.ballOwnerName;
+      return { txt: _txt('counter', null, vars), cls: '', _phaseOnly: true };
+
+    case CANVAS_PHASE.SUPERIORITY:
+      return { txt: _txt('sup_start', null, vars), cls: 'sv', _phaseOnly: true };
+
+    case CANVAS_PHASE.INFERIORITY:
+      return { txt: _txt('inf_start', null, vars), cls: 'fl', _phaseOnly: true };
+
+    case CANVAS_PHASE.LOOSE_BALL:
+      return null; // palla libera → nessun testo finché qualcuno la prende
+
+    default:
+      return null; // altri cambi di fase → nessun testo
+  }
 }
 
 // ── Builder eventi specifici ──────────────────────────────────────────────
-
 function _buildMyShotEvent(ms, myEff, oppStr, bx, by) {
-  ms.myShots++;
+  ms.myShots = (ms.myShots||0) + 1;
   var activePlayers = _getActivePlayers(ms);
   if (!activePlayers.length) return _buildNeutralEvent(ms, 'my', bx, by);
 
-  var attacker = _weightedPick(activePlayers, function(x) { return x.eff; });
+  var attacker = _weightedPick(activePlayers, function(x){ return x.eff; });
   var tec = (attacker.p.stats && attacker.p.stats.tec) ? attacker.p.stats.tec : 50;
-  var tecBonus = (tec - 50) / 100 * 0.08;
-  var goalProb = 0.18 + ((myEff - oppStr) / 500) + tecBonus * 0.5;
+  var goalProb = 0.19 + (myEff - oppStr) / 600 + (tec - 50) / 400;
+  goalProb = Math.max(0.10, Math.min(0.38, goalProb));
 
-  // Usa posizione canvas reale della palla per il target
-  var shotY = _clampY(by + _rnd(-0.06, 0.06));
+  var shotY = _clampY(by + _rnd(-0.07, 0.07));
+  var oppGk = ms.oppRoster && ms.oppRoster.find(function(p){ return p.role==='POR'; });
+  var gkName = oppGk ? oppGk.name : '';
+  var vars = { shooter: attacker.p.name, gk: gkName, team: ms.myTeam.name };
+
+  liveUpdateState({ passCount: 0 });
 
   if (Math.random() < goalProb) {
     ms.myScore++;
-    attacker.p.goals = (attacker.p.goals || 0) + 1;
-    ms.matchGoals[attacker.pi] = (ms.matchGoals[attacker.pi] || 0) + 1;
-    if (ms.periodScores && ms.period >= 1 && ms.period <= 4)
-      ms.periodScores[ms.period - 1].my++;
-    if (!ms.matchDuels[attacker.pi]) ms.matchDuels[attacker.pi] = {won:0,lost:0};
-    ms.matchDuels[attacker.pi].won++;
-    _liveState.passCount = 0;
+    attacker.p.goals = (attacker.p.goals||0) + 1;
+    if (ms.matchGoals) ms.matchGoals[attacker.pi] = (ms.matchGoals[attacker.pi]||0)+1;
+    if (ms.periodScores && ms.period>=1 && ms.period<=4) ms.periodScores[ms.period-1].my++;
+    vars.scorer = attacker.p.name;
     return {
-      txt: '⚽ GOL! ' + attacker.p.name + ' (#' + (ms.shirtNumbers[attacker.pi] || '?') + ') segna!',
-      cls: 'myg',
-      shotTeam:    'my',
+      txt: _txt('goal_my', null, vars),
+      cls: 'myg', shotTeam: 'my',
       ballTarget:  { x: 0.94, y: shotY },
-      moverKey:    'my_' + attacker.pk,
-      moverTarget: { x: Math.min(bx + 0.05, 0.88), y: by },
-      goalScored:  true, goalTeam: 'my', goalScorer: attacker.p.name,
+      moverKey:    'my_'+attacker.pk,
+      moverTarget: { x: Math.min(bx+0.05,0.88), y: by },
+      goalScored: true, goalTeam: 'my', goalScorer: attacker.p.name,
     };
   } else {
-    var oppGk = ms.oppRoster.find(function(p){ return p.role === 'POR'; });
-    if (!ms.matchDuels[attacker.pi]) ms.matchDuels[attacker.pi] = {won:0,lost:0};
-    ms.matchDuels[attacker.pi].lost++;
-    _liveState.passCount = 0;
+    var wide = Math.random() < 0.25;
     return {
-      txt: 'Tiro di ' + attacker.p.name + ' — parata' + (oppGk ? ' di ' + oppGk.name : ''),
-      cls: 'sv',
-      shotTeam:    'my',
+      txt: wide ? _txt('shot_wide', null, vars) : _txt('shot_saved', null, vars),
+      cls: 'sv', shotTeam: 'my',
       ballTarget:  { x: LIVE.oppGKX, y: shotY },
-      moverKey:    'my_' + attacker.pk,
-      moverTarget: { x: Math.max(bx - 0.05, 0.12), y: by },
+      moverKey:    'my_'+attacker.pk,
+      moverTarget: { x: Math.max(bx-0.05,0.12), y: by },
     };
   }
 }
 
 function _buildOppShotEvent(ms, myEff, oppStr, bx, by) {
-  ms.oppShots++;
-  var goalProb = 0.18 + ((oppStr - myEff) / 500);
-  var shotY = _clampY(by + _rnd(-0.06, 0.06));
+  ms.oppShots = (ms.oppShots||0) + 1;
+  var goalProb = 0.19 + (oppStr - myEff) / 600;
+  goalProb = Math.max(0.10, Math.min(0.38, goalProb));
+  var shotY = _clampY(by + _rnd(-0.07, 0.07));
+  var myGk = ms.myRoster && ms.myRoster[ms.onField['GK']];
+  var gkName = myGk ? myGk.name : '';
+  var vars = { gk: gkName, team: ms.oppTeam.name };
+
+  liveUpdateState({ passCount: 0 });
 
   if (Math.random() < goalProb) {
     ms.oppScore++;
-    if (ms.periodScores && ms.period >= 1 && ms.period <= 4)
-      ms.periodScores[ms.period - 1].opp++;
-    var oppScorer = _pickOppScorer(ms);
-    _liveState.passCount = 0;
+    if (ms.periodScores && ms.period>=1 && ms.period<=4) ms.periodScores[ms.period-1].opp++;
+    var scorer = _pickOppScorer(ms);
+    vars.scorer = scorer;
     return {
-      txt: '⚽ ' + ms.oppTeam.name + ' segna!' + (oppScorer ? ' (' + oppScorer + ')' : ''),
-      cls: 'og',
-      shotTeam:    'opp',
-      ballTarget:  { x: 0.05, y: shotY },
-      goalScored:  true, goalTeam: 'opp', goalScorer: oppScorer || ms.oppTeam.name,
+      txt: _txt('goal_opp', null, vars),
+      cls: 'og', shotTeam: 'opp',
+      ballTarget: { x: 0.05, y: shotY },
+      goalScored: true, goalTeam: 'opp', goalScorer: scorer || ms.oppTeam.name,
     };
   } else {
-    var myGk = ms.myRoster[ms.onField['GK']];
-    _liveState.passCount = 0;
     return {
-      txt: 'Parata' + (myGk ? ' di ' + myGk.name : '') + '!',
-      cls: 'sv',
-      shotTeam:    'opp',
-      ballTarget:  { x: LIVE.myGKX, y: shotY },
+      txt: _txt('save', null, vars),
+      cls: 'sv', shotTeam: 'opp',
+      ballTarget: { x: LIVE.myGKX, y: shotY },
     };
   }
 }
 
-function _buildTurnoverEvent(ms, attack, bx, by) {
-  _liveState.passCount = 0;
-  _liveState.phaseTime = 0;
-  var newTeam = attack === 'my' ? 'opp' : 'my';
+function _buildShotClockEvent(ms) {
+  var newTeam = _liveState.prevAttack === 'my' ? 'opp' : 'my';
+  var teamName = newTeam==='my' ? ms.myTeam.name : ms.oppTeam.name;
+  var bPos = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:0.5,y:0.5};
   return {
-    txt: 'Cambio possesso palla',
-    cls: '',
-    moverKey: newTeam + '_3',
-    ballTarget: { x: bx + (newTeam === 'my' ? 0.05 : -0.05), y: by },
+    txt: _txt('shot_clock_expired', null, { team: teamName }),
+    cls: 'fl',
+    ballTarget: { x: _clampX(bPos.x+(newTeam==='my'?0.03:-0.03)), y: _clampY(bPos.y) },
+    moverKey: newTeam+'_3',
   };
 }
 
-function _buildNeutralEvent(ms, attack, bx, by) {
-  _liveState.passCount = (_liveState.passCount || 0) + 1;
-  // Gli eventi neutri descrivono costruzione di gioco, non eventi impossibili.
-  // NON includere "Azione neutralizzata" o "Contrattacco sventato" come fallback
-  // perché vengono sparati anche quando non c'è nessuno vicino al possessore.
-  var NEUTRAL = [
-    'Rimessa in gioco', 'Passaggio in avanti',
-    'Manovra di attacco', 'Circolazione palla',
-  ];
-  var txt = NEUTRAL[Math.floor(Math.random() * NEUTRAL.length)];
-  // Palla rimane vicino alla sua posizione attuale
+function _buildNeutralEvent(ms, attack, bx, by, phase) {
+  liveUpdateState({ passCount: (_liveState.passCount||0)+1 });
+  var vars = _buildVars(ms, attack, null);
   return {
-    txt: txt, cls: '',
-    moverKey: attack + '_3',
-    ballTarget: { x: _clampX(bx + _rnd(-0.06, 0.06)), y: _clampY(by + _rnd(-0.04, 0.04)) },
+    txt: _txt('neutral', null, vars),
+    cls: '',
+    moverKey: attack+'_3',
+    ballTarget: { x: _clampX(bx+_rnd(-0.05,0.05)), y: _clampY(by+_rnd(-0.03,0.03)) },
   };
 }
 
 function _tryFoulEvent(ms, attack, bx, by) {
-  var tactic = (ms.tactic || 'balanced');
-  var foulMult = { defense:0.40, balanced:0.75, counter:0.90, attack:1.00, press:1.10 };
-  var prob = 0.050 * (foulMult[tactic] || 0.75);
-
+  // Frequenza calibrata: ~8-10 falli per tempo (480s) → prob ~0.018/s
+  // Il motore è chiamato ogni ~7-12s → prob per chiamata ≈ 0.018 * 9 ≈ 0.16
+  var prob = 0.016 * 9;
   if (Math.random() >= prob) return null;
 
-  // Fallo sulla nostra squadra → espulsione temporanea nostra
-  var foulCandidates = Object.entries(ms.onField)
-    .filter(function(e){ return e[0] !== 'GK' && !ms.expelled.has(e[1]); })
+  var myFoulCandidates = Object.entries(ms.onField)
+    .filter(function(e){ return e[0]!=='GK' && !ms.expelled.has(e[1]); })
     .map(function(e){
-      var pk=e[0], pi=e[1], p=ms.myRoster[pi];
-      return p ? { pk, pi, p } : null;
+      var pk=e[0],pi=e[1],p=ms.myRoster[pi];
+      return p?{pk,pi,p}:null;
     }).filter(Boolean);
 
-  if (foulCandidates.length && Math.random() < 0.5) {
-    var fp = foulCandidates[Math.floor(Math.random() * foulCandidates.length)];
-    var shirt = ms.shirtNumbers[fp.pi] || '?';
-    ms.myFouls++;
-    ms.tempExp[fp.pi] = (ms.tempExp[fp.pi] || 0) + 1;
+  // 50% fallo su di noi, 50% fallo avversario
+  if (myFoulCandidates.length && Math.random() < 0.50) {
+    var fp = myFoulCandidates[Math.floor(Math.random()*myFoulCandidates.length)];
+    var shirt = ms.shirtNumbers[fp.pi]||'?';
+    ms.myFouls = (ms.myFouls||0)+1;
+    ms.tempExp[fp.pi] = (ms.tempExp[fp.pi]||0)+1;
     var count = ms.tempExp[fp.pi];
-    if (count >= 3) {
+    var vars = { shirt: shirt, team: ms.myTeam.name };
+    if (count>=3) {
       ms.expelled.add(fp.pi);
-      return { txt: '🔴 ESPULSO! ' + fp.p.name + ' (#' + shirt + ')', cls: 'exp',
-               expelled: fp.pi, moverKey: 'my_'+fp.pk };
+      return { txt: _txt('foul_perm_exp',null,vars), cls:'exp', expelled:fp.pi, moverKey:'my_'+fp.pk };
     }
-    ms.inferiorityActive = true;
-    ms.inferiorityTimer = 20;
-    return { txt: '🟡 Esp. temp. ('+count+'/3) — ' + fp.p.name + ' — Inferiorità!',
-             cls: 'fl', inferiorityStart: true,
-             ballTarget: { x: _clampX(bx+0.05), y: _clampY(by) } };
+    ms.inferiorityActive=true; ms.inferiorityTimer=20;
+    return { txt:_txt('foul_temp_exp',null,vars), cls:'fl', inferiorityStart:true,
+             ballTarget:{x:_clampX(bx+0.05),y:_clampY(by)} };
   }
 
-  // Fallo avversario → nostra superiorità
-  if (!ms.superiorityActive && Math.random() < 0.5) {
-    ms.oppTempExp = (ms.oppTempExp||0)+1;
-    ms.superiorityActive = true;
-    ms.superiorityTimer = 20;
-    return { txt: '🟡 Fallo ' + (ms.oppTeam.abbr||ms.oppTeam.name) + ' — Superiorità! (20s)',
-             cls: 'sv', superiorityStart: true,
-             ballTarget: { x: _clampX(bx-0.05), y: _clampY(by) } };
+  if (!ms.superiorityActive && Math.random()<0.50) {
+    ms.oppTempExp=(ms.oppTempExp||0)+1;
+    ms.superiorityActive=true; ms.superiorityTimer=20;
+    var varsF = { opp: ms.oppTeam.abbr||ms.oppTeam.name, team: ms.myTeam.name };
+    return { txt:_txt('foul_opp_exp',null,varsF), cls:'sv', superiorityStart:true,
+             ballTarget:{x:_clampX(bx-0.05),y:_clampY(by)} };
   }
 
   return null;
 }
 
-// ── Helpers interni ───────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────
+function _buildVars(ms, attack, player) {
+  var myGk = ms.myRoster && ms.myRoster[ms.onField && ms.onField['GK']];
+  var oppGk = ms.oppRoster && ms.oppRoster.find(function(p){ return p&&p.role==='POR'; });
+  return {
+    team:     attack==='my' ? ms.myTeam.name : ms.oppTeam.name,
+    opp:      attack==='my' ? ms.oppTeam.name : ms.myTeam.name,
+    gk:       attack==='my' ? (oppGk?oppGk.name:'') : (myGk?myGk.name:''),
+    player:   player || (_liveState.ballOwnerName||''),
+    passer:   _liveState.ballOwnerName||'',
+    receiver: '',
+    shooter:  _liveState.ballOwnerName||'',
+    scorer:   _liveState.ballOwnerName||'',
+  };
+}
 
 function _calcMyEffective(ms) {
-  var myEff = 0;
-  var activePlayers = _getActivePlayers(ms);
-  activePlayers.forEach(function(x){ myEff += x.eff; });
-  var activeCount = Object.entries(ms.onField)
-    .filter(function(e){ return !ms.expelled.has(e[1]); }).length;
-  var shortage = Math.max(0, 7 - activeCount);
-  myEff = (myEff / Math.max(1, activeCount)) * activeCount / 7 * Math.pow(0.80, shortage);
-  var tactic = ms.tactic || 'balanced';
-  var boosts = { balanced:0, attack:8, defense:-5, counter:3, press:5 };
-  myEff += (boosts[tactic] || 0);
-  if (ms.isHome && ms.attendance > 0 && ms.capacity > 0)
-    myEff *= (1 + Math.min(0.05, ms.attendance/ms.capacity*0.05));
-  return myEff;
+  var act = _getActivePlayers(ms);
+  var tot = 0; act.forEach(function(x){tot+=x.eff;});
+  var cnt = act.length; if(!cnt) return 50;
+  var base = (tot/cnt) * (cnt/7);
+  var boost = {balanced:0,attack:8,defense:-5,counter:3,press:5};
+  return base + (boost[ms.tactic||'balanced']||0);
 }
 
 function _getActivePlayers(ms) {
-  var result = [];
-  Object.entries(ms.onField).forEach(function(e) {
-    var pk=e[0], pi=e[1];
-    if (pk === 'GK' || ms.expelled.has(pi)) return;
-    var p = ms.myRoster[pi]; if (!p) return;
-    var eff = _calcPlayerEff(p, pk, ms);
-    result.push({ pk, pi, p, eff });
+  var r=[];
+  Object.entries(ms.onField).forEach(function(e){
+    var pk=e[0],pi=e[1];
+    if(pk==='GK'||ms.expelled.has(pi))return;
+    var p=ms.myRoster[pi]; if(!p)return;
+    var ovr=p.ovr||50;
+    var sta=(ms.stamina&&ms.stamina[pi])||p.fitness||50;
+    r.push({pk,pi,p,eff:ovr*(0.5+sta/200)});
   });
-  return result;
-}
-
-function _calcPlayerEff(p, pk, ms) {
-  var ovr = p.ovr || 50;
-  var sta = (ms.stamina && ms.stamina[Object.entries(ms.onField).find(function(e){return e[0]===pk;})?.[1]])
-    || p.fitness || 50;
-  return ovr * (0.5 + sta/200);
+  return r;
 }
 
 function _pickOppScorer(ms) {
-  if (!ms.oppRoster) return '';
-  var fp = ms._oppOnField
-    ? ms._oppOnField.map(function(i){ return ms.oppRoster[i]; }).filter(function(p){ return p && p.role!=='POR'; })
-    : ms.oppRoster.filter(function(p){ return p && p.role!=='POR'; });
-  if (!fp.length) return '';
-  var w = fp.map(function(p){ return p.role==='ATT'?4:p.role==='CB'?2:p.role==='CEN'?3:1; });
-  var tot = w.reduce(function(s,v){ return s+v; }, 0);
-  var r = Math.random()*tot;
-  for (var i=0; i<fp.length; i++) { r-=w[i]; if(r<=0){ fp[i].goals=(fp[i].goals||0)+1; return fp[i].name; } }
-  return fp[0] ? fp[0].name : '';
+  if(!ms.oppRoster)return'';
+  var fp=ms.oppRoster.filter(function(p){return p&&p.role!=='POR';});
+  if(!fp.length)return'';
+  var w=fp.map(function(p){return p.role==='ATT'?4:p.role==='CB'?2:p.role==='CEN'?3:1;});
+  var tot=w.reduce(function(s,v){return s+v;},0);
+  var r=Math.random()*tot;
+  for(var i=0;i<fp.length;i++){r-=w[i];if(r<=0){fp[i].goals=(fp[i].goals||0)+1;return fp[i].name;}}
+  return fp[0]?fp[0].name:'';
 }
 
-function _weightedPick(arr, weightFn) {
-  var tot=0; arr.forEach(function(x){ tot+=weightFn(x); });
-  var r=Math.random()*tot;
-  for (var i=0;i<arr.length;i++){ r-=weightFn(arr[i]); if(r<=0) return arr[i]; }
+function _weightedPick(arr,wFn){
+  var t=0;arr.forEach(function(x){t+=wFn(x);});
+  var r=Math.random()*t;
+  for(var i=0;i<arr.length;i++){r-=wFn(arr[i]);if(r<=0)return arr[i];}
   return arr[arr.length-1];
 }
 
-function _rnd(lo,hi){ return lo+Math.random()*(hi-lo); }
-function _clampX(x){ return Math.max(0.11, Math.min(0.89, x)); }
-function _clampY(y){ return Math.max(0.13, Math.min(0.87, y)); }
+function _rnd(lo,hi){return lo+Math.random()*(hi-lo);}
+function _clampX(x){return Math.max(0.11,Math.min(0.89,x));}
+function _clampY(y){return Math.max(0.13,Math.min(0.87,y));}
