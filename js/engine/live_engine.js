@@ -138,15 +138,47 @@ function _fmt(template, vars) {
 }
 
 function _txt(key, subkey, vars) {
+  // Prova a usare il file i18n commentary se caricato
   var lang = _getLang();
-  if (!lang || !lang[key]) {
-    // Fallback italiano hardcoded se i18n non è caricato
-    return vars ? JSON.stringify(vars) : key + '.' + (subkey || '');
+  if (lang && lang[key]) {
+    var pool = subkey ? lang[key][subkey] : lang[key];
+    if (pool) {
+      var tpl = Array.isArray(pool) ? _pick(pool) : pool;
+      return vars ? _fmt(tpl, vars) : tpl;
+    }
   }
-  var pool = subkey ? lang[key][subkey] : lang[key];
-  if (!pool) return key;
-  var tpl = Array.isArray(pool) ? _pick(pool) : pool;
-  return vars ? _fmt(tpl, vars) : tpl;
+
+  // ── Fallback italiano hardcoded (usato se commentary_it.js non è caricato) ──
+  var v = vars || {};
+  var team    = v.team    || '';
+  var opp     = v.opp     || '';
+  var player  = v.player  || v.shooter || v.scorer || v.passer || '';
+  var gk      = v.gk      || '';
+  var shirt   = v.shirt   || '';
+
+  var FALLBACK = {
+    goal_my:            '⚽ GOL! ' + (v.scorer||player) + ' segna per ' + team + '!',
+    goal_opp:           '⚽ ' + team + ' segna' + (v.scorer ? ' con ' + v.scorer : '') + '.',
+    shot_saved:         'Tiro di ' + player + (gk ? ' — parata di ' + gk : ' — parata!'),
+    shot_wide:          'Tiro di ' + player + ' — fuori!',
+    shot_blocked:       'Tiro di ' + player + ' — murato.',
+    save:               'Parata' + (gk ? ' di ' + gk : '') + '!',
+    pass:               player ? player + ' in possesso.' : 'Circolazione palla.',
+    free_advance:       (player||'Attaccante') + ' libero — avanza verso la porta!',
+    counter:            'Contrattacco di ' + team + '!',
+    gk_launch:          (gk||'Portiere') + ' rilancia.',
+    foul_temp_exp:      '🟡 Esp. temporanea #' + shirt + ' — ' + team + ' in inferiorità.',
+    foul_opp_exp:       '🟡 Fallo di ' + opp + ' — ' + team + ' in superiorità!',
+    foul_perm_exp:      '🔴 Espulso definitivamente #' + shirt + '.',
+    shot_clock_expired: '⏱ 30 secondi scaduti — palla a ' + team + '.',
+    interception:       '⚡ Palla intercettata da ' + team + '!',
+    loose_ball_won:     (player||'Giocatore') + ' raccoglie la palla.',
+    sup_start:          '🔵 ' + team + ' in superiorità numerica.',
+    inf_start:          '🔴 ' + team + ' in inferiorità numerica.',
+    neutral:            'Manovra di attacco.',
+  };
+
+  return FALLBACK[key] || (player ? player + '.' : 'Azione di gioco.');
 }
 
 // ── FASE C: Generatore eventi sincronizzato con canvas ────────────────────
