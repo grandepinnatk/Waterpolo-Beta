@@ -120,7 +120,7 @@ function _ballOffsetForToken(tok) {
 // ── Inizializzazione ───────────────────────────────────────────────
 function poolInitTokens(ms) {
   _tokens={};_ball={x:PLAY.cx,y:PLAY.cy,tx:PLAY.cx,ty:PLAY.cy};
-  _ballOwner=null;_ballFreeTimer=0;_ballInFlight=false;_phase='idle';_attack='my';_goalAnim=null;_pendingGoal=null;_pressKey=null;_ballFly=null;
+  _ballOwner=null;_ballFreeTimer=0;_ballInFlight=false;_ballStuckTimer=0;_phase='idle';_attack='my';_goalAnim=null;_pendingGoal=null;_pressKey=null;_ballFly=null;
 
   Object.entries(ms.onField).forEach(function(e){
     var pk=e[0],pi=e[1],p=ms.myRoster[pi];
@@ -248,7 +248,7 @@ function poolSetPressTarget(key) {_pressKey=key;}  // token avversario sotto pre
 // ── Inizio periodo ─────────────────────────────────────────────────
 function poolStartPeriod() {
   _phase='idle';_goalAnim=null;_pendingGoal=null;_ballOwner=null;
-  _ballFreeTimer=0;_pressKey=null;_ballFly=null;
+  _ballFreeTimer=0;_ballInFlight=false;_ballStuckTimer=0;_pressKey=null;_ballFly=null;
   _ball.tx=PLAY.cx;_ball.ty=PLAY.cy;
   Object.values(_tokens).forEach(function(tok){
     if(tok.expelled)return;
@@ -294,9 +294,11 @@ function poolResetToken(key){}  // compat stub
 
 // Timer palla libera: se la palla non ha possessore per più di 1.5s,
 // il giocatore più vicino la raccoglie automaticamente
-var _ballFreeTimer = 0;
-var _ballInFlight  = false; // true mentre la palla è in volo (lanciata)
-var BALL_FREE_MAX  = 1.5;
+var _ballFreeTimer   = 0;
+var _ballInFlight    = false; // true mentre la palla è in volo (lanciata)
+var _ballStuckTimer  = 0;     // safety: forza pickup se palla è bloccata troppo a lungo
+var BALL_FREE_MAX    = 1.5;
+var BALL_STUCK_MAX   = 2.5;   // secondi massimi senza possessore prima del reset forzato
 
 // ── Step animazione ────────────────────────────────────────────────
 // gameSpeed = G.ms.speed (1=normale, 2=doppio, 10x…)
@@ -324,6 +326,22 @@ function poolAnimStep(dt, gameSpeed) {
 
   // Portieri seguono sempre la palla
   if(_phase!=='idle')_updateKeepers();
+
+  // ── Safety timer: palla bloccata troppo a lungo → forza reset ──────────
+  if(_phase==='play' && !_ballOwner) {
+    _ballStuckTimer += f;
+    if(_ballStuckTimer >= BALL_STUCK_MAX) {
+      // Palla ferma da troppo tempo: azzera tutti i flag e forza corsa immediata
+      _ballInFlight = false;
+      _ballFreeTimer = 1.0;  // triggera subito la corsa
+      _ballStuckTimer = 0;
+      // Notifica movement.js di resettare pendingReceiver
+      if(typeof MovementController !== 'undefined' && MovementController.clearPendingReceiver)
+        MovementController.clearPendingReceiver();
+    }
+  } else {
+    _ballStuckTimer = 0;
+  }
 
   // ── Corsa alla palla libera: un giocatore per squadra nuota verso la palla ──
   // Dopo 1s senza possessore, il giocatore più vicino di OGNI squadra scatta

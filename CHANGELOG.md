@@ -464,7 +464,23 @@ Capienza base 500 posti. Bonus spettatori sul risultato. Spettatori in calendari
 
 ---
 
-**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.1] — 2026-09-20
+**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.2] — 2026-09-20
+
+### Bugfix — Palla bloccata a fondo campo
+
+**Causa:** quando la palla andava verso la porta avversaria (dopo un tiro o una parata), `_ballInFlight` poteva rimanere `true` bloccando la "corsa alla palla libera" in `pool.js`. Oppure `_pendingReceiver` rimaneva attivo con un ricevitore troppo lontano dalla palla (prDist > 0.060) e non scattava mai.
+
+**Fix — tre meccanismi di sicurezza:**
+
+1. **`_ballStuckTimer` in `pool.js`:** se la palla è senza possessore per più di 2.5s, forza `_ballInFlight=false`, `_ballFreeTimer=1.0` (corsa immediata) e chiama `MovementController.clearPendingReceiver()`.
+
+2. **`_pendingReceiver._age` in `movement.js`:** se `_pendingReceiver` è attivo da più di 3s senza che il ricevitore raggiunga la palla, forza il pickup al giocatore più vicino della stessa squadra.
+
+3. **`MovementController.clearPendingReceiver()`:** nuovo metodo pubblico che azzera `_pendingReceiver` e resetta i timer di passaggio.
+
+---
+
+## [1.1.1] — 2026-09-20
 
 ### Bugfix critico — Palla congelata dopo v1.1.0
 

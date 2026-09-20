@@ -689,6 +689,9 @@ var MovementController = (function() {
       // ── Fix 4: assegna possesso quando palla arriva al ricevitore ──────────
       // Se un avversario intercetta il passaggio in volo → evento intercetto
       if(_pendingReceiver) {
+        // Safety: se pendingReceiver è attivo da troppo tempo, forza pickup
+        _pendingReceiver._age = (_pendingReceiver._age || 0) + eff;
+
         var recTok = _tok(_pendingReceiver.key);
         if(recTok && !recTok.expelled) {
           var ballPos = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:0.5,y:0.5};
@@ -734,8 +737,20 @@ var MovementController = (function() {
             }
           }
         } else {
+          // Ricevitore scaduto o espulso
           _pendingReceiver = null;
         }
+      }
+
+      // Safety: pendingReceiver attivo da più di 3s → forza pickup al giocatore più vicino
+      if(_pendingReceiver && _pendingReceiver._age > 3.0) {
+        var bpSafe = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:0.5,y:0.5};
+        var closestSafe = _findClosestToken(_pendingReceiver.team, bpSafe.x, bpSafe.y);
+        if(closestSafe) {
+          _ballOn(closestSafe);
+          _attack = _pendingReceiver.team;
+        }
+        _pendingReceiver = null;
       }
 
       if(_ballOwnerKey){
@@ -1170,6 +1185,7 @@ var MovementController = (function() {
     onPossessChange:     onPossessChange,
     onNumericalChange:   onNumericalChange,
     _hasPendingReceiver: function(){ return !!_pendingReceiver; },
+    clearPendingReceiver: function(){ _pendingReceiver=null; _passT=0; _passNext=_rnd(1.5,2.5); },
   };
 
 })();
