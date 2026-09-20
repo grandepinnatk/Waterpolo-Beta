@@ -464,7 +464,27 @@ Capienza base 500 posti. Bonus spettatori sul risultato. Spettatori in calendari
 
 ---
 
-**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.3] — 2026-09-20
+**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.4] — 2026-09-20
+
+### Bugfix — Tiri mancanti, intercettazioni false, commento spam
+
+**Bug 1+4 — Nessun tiro con giocatore libero (logica non simmetrica):**
+- `_emitComment('free_advance')` veniva emesso ogni 0.8s invece che una sola volta. Fix: emette solo quando `_passNext` transita da normale a 9999.
+- `distToGoal` calcolava la distanza dalla porta PROPRIA invece che avversaria per la squadra `opp`. Fix: `oppGoalXfp = ownerTeam==='my' ? 0.91 : 0.09`.
+- Quando `_passT >= 9999+1`, invece di chiamare `_autoPass()` (che passa a un compagno), chiama la nuova `_autoShot()`.
+
+**`_autoShot()` — nuova funzione tiro automatico:**
+- Lancia la palla verso la porta avversaria (simmetrica per entrambe le squadre).
+- Esito: 20% goal (aggiorna punteggio), 80% parata (GK prende palla e rilancia a pos3).
+- Usa `_qA` (tempo di gioco scalato) per la sequenza post-tiro.
+
+**Bug 3 — Intercettazioni false (check distanza vs traiettoria):**
+- Prima: intercettava se un difensore era entro 0.060 unità dalla palla, indipendentemente dalla direzione.
+- Ora: intercetta solo se il difensore è sulla **traiettoria** del passaggio (proiezione perpendicolare < 0.055, `t ∈ [0.10, 0.90]` sul segmento). Un difensore accanto al passante non intercetta se il passaggio va dall'altra parte.
+
+---
+
+## [1.1.3] — 2026-09-20
 
 ### Bugfix — Gioco bloccato dopo la parata
 

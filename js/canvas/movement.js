@@ -448,6 +448,83 @@ var MovementController = (function() {
       poolMoveBallDirect(futX, futY);
   }
 
+
+  // ── Tiro automatico (giocatore libero arriva in zona) ─────────────────
+  function _autoShot() {
+    if(!_ballOwnerKey) return;
+    var ownerTeam = _ballOwnerKey.split('_')[0];
+    var ownerTok  = _tok(_ballOwnerKey);
+    if(!ownerTok) return;
+
+    // Porta avversaria
+    var shotX = ownerTeam==='my' ? 0.95 : 0.05;
+    var shotY  = 0.42 + Math.random() * 0.16;  // tra i pali
+
+    // Telecronaca tiro
+    var shooterName = '';
+    if(_ms && ownerTeam==='my' && _ms.myRoster && ownerTok.pi!==undefined)
+      shooterName = (_ms.myRoster[ownerTok.pi]||{}).name||'';
+    var gkName = '';
+    if(ownerTeam==='my' && _ms && _ms.oppRoster)
+      gkName = ((_ms.oppRoster.find(function(p){return p&&p.role==='POR';})||{}).name)||'';
+    var teamName = ownerTeam==='my'?(_ms&&_ms.myTeam&&_ms.myTeam.name)||'':(_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'';
+
+    // Ripristina timer normale
+    _passT=0; _passNext=_rnd(1.5,2.5);
+
+    // Lancia la palla verso la porta
+    _ballOwnerKey=null;
+    _pendingReceiver=null;
+    if(typeof poolReleaseBall==='function') poolReleaseBall();
+    if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(shotX, shotY);
+
+    // Esito: 20% goal, 80% parata
+    var isGoal = Math.random() < 0.20;
+    _emitComment(isGoal?'goal_my':'shot_saved', { shooter:shooterName, scorer:shooterName, gk:gkName, team:teamName });
+
+    // Usa la sequenza _qA per gestire l'esito
+    _seq=[];_seqActive=false;
+    if(isGoal) {
+      // Simulazione goal: aggiorna punteggio e reset
+      if(_ms) {
+        if(ownerTeam==='my') {
+          _ms.myScore++;
+          if(_ms.periodScores&&_ms.period>=1&&_ms.period<=4) _ms.periodScores[_ms.period-1].my++;
+        } else {
+          _ms.oppScore++;
+          if(_ms.periodScores&&_ms.period>=1&&_ms.period<=4) _ms.periodScores[_ms.period-1].opp++;
+        }
+        _ms.myShots = (_ms.myShots||0)+1;
+      }
+      // Breve pausa poi reset
+      _qA(1.0, function(){
+        _repositionAll(0.022);
+        _passT=0; _passNext=_rnd(1.5,2.5);
+        _phase='play';
+      });
+    } else {
+      // Parata: il portiere avversario prende la palla
+      var gkTeam = ownerTeam==='my' ? 'opp' : 'my';
+      var gkX = gkTeam==='my' ? 0.115 : 0.885;
+      _qA(0.5, function(){
+        if(typeof poolMoveToken==='function') poolMoveToken(gkTeam+'_GK', gkX, shotY);
+        _pendingReceiver={key:gkTeam+'_GK',team:gkTeam,startX:shotX,startY:shotY,totalDist:0.001,ready:true};
+      });
+      _qA(1.2, function(){
+        if(typeof poolReleaseBall==='function') poolReleaseBall();
+        _ballOwnerKey=null; _pendingReceiver=null;
+        var c3T=_tok(gkTeam+'_3');
+        var lX=c3T?c3T.x+_rnd(-0.03,0.03):(gkTeam==='my'?0.55:0.45);
+        var lY=c3T?c3T.y+_rnd(-0.025,0.025):0.50;
+        if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(lX,lY);
+        _pendingReceiver={key:gkTeam+'_3',team:gkTeam,startX:gkX,startY:shotY,totalDist:0.001,ready:true};
+        _attack=gkTeam;
+        _repositionAll(0.022);
+      });
+    }
+    _startSeq();
+  }
+
   // ── Pressione sul possessore avversario ───────────────────────
   // 1-2 difensori si avvicinano a chi ha la palla
   function _applyPressure() {
@@ -659,28 +736,32 @@ var MovementController = (function() {
             closestDef = Math.min(closestDef, Math.sqrt(dx*dx+dy*dy));
           });
           if(closestDef > FREE_PLAYER_DIST) {
-            // Strada libera: avanza verso la porta e NON passa
+            // Strada libera: avanza verso la PORTA AVVERSARIA e non passa
+            // my attacca verso dx (porta avv a 0.91), opp attacca verso sx (porta avv a 0.09)
             var twoMX = ownerTeam2==='my' ? 0.79 : 0.21;
             poolMoveToken(_ballOwnerKey, twoMX, ownerTok2.ty + _rnd(-0.015,0.015));
-            // Telecronaca: commento giocatore libero (solo alla prima rilevazione)
-            if(_passNext === 9999 || closestDef > FREE_PLAYER_DIST * 1.5) {
+
+            // Telecronaca: solo quando _passNext passa da normale a 9999 (prima rilevazione)
+            if(_passNext !== 9999) {
               var fpName = '';
               if(_ms && ownerTeam2==='my' && _ms.myRoster && ownerTok2.pi!==undefined)
                 fpName = (_ms.myRoster[ownerTok2.pi]||{}).name||'';
               _emitComment('free_advance', { player: fpName,
                 team: ownerTeam2==='my'?(_ms&&_ms.myTeam&&_ms.myTeam.name)||'':(_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'' });
             }
-            // Blocca il passaggio automatico finché non è vicino alla porta
-            var distToGoal = Math.abs(ownerTok2.x - (ownerTeam2==='my'?0.91:0.09));
-            if(distToGoal < 0.15) {
-              // Ai 2m: tira subito
-              _passT = _passNext + 1;  // forza tiro al prossimo tick
+
+            // Porta avversaria: my→dx (0.91), opp→sx (0.09)
+            var oppGoalXfp = ownerTeam2==='my' ? 0.91 : 0.09;
+            var distToGoalfp = Math.abs(ownerTok2.x - oppGoalXfp);
+            if(distToGoalfp < 0.15) {
+              // Entro ~5m dalla porta avversaria → tira subito
+              _passT = _passNext + 1;
             } else {
-              // In avvicinamento: non passare
+              // Ancora in avvicinamento → blocca i passaggi
               _passT = 0; _passNext = 9999;
             }
           } else {
-            // Avversario vicino: ripristina il timer normale se era bloccato
+            // Avversario rientra → ripristina passaggi normali
             if(_passNext === 9999) { _passT=0; _passNext=_rnd(1.5,2.5); }
           }
         }
@@ -702,17 +783,36 @@ var MovementController = (function() {
             var prDx = recTok.x - ballPos.x, prDy = recTok.y - ballPos.y;
             var prDist = Math.sqrt(prDx*prDx + prDy*prDy);
 
-            // Controlla se un avversario è più vicino alla palla del ricevitore
-            var closestOppKey = null, closestOppDist = prDist;
-            ['1','2','3','4','5','6'].forEach(function(pk){
-              var oppTok = _tok(oppTeamP+'_'+pk);
-              if(!oppTok||oppTok.expelled||oppTok.tempAbsent)return;
-              var dx=oppTok.x-ballPos.x, dy=oppTok.y-ballPos.y;
-              var d=Math.sqrt(dx*dx+dy*dy);
-              if(d < closestOppDist && d < 0.060) { closestOppDist=d; closestOppKey=oppTeamP+'_'+pk; }
-            });
+            // ── Intercettazione vera: avversario sulla TRAIETTORIA del passaggio ──
+            // La traiettoria va da ballPos verso recTok.
+            // Un avversario intercetta se:
+            //   1. Si trova sulla linea (proiezione perpendicolare < INTERCEPT_WIDTH)
+            //   2. La sua proiezione è tra ballPos e recTok (t in [0.1, 0.9])
+            var INTERCEPT_WIDTH = 0.055;  // ~1.5m di apertura laterale
+            var closestOppKey = null, closestOppDist = 999;
+            var trajDx = recTok.x - ballPos.x, trajDy = recTok.y - ballPos.y;
+            var trajLen = Math.sqrt(trajDx*trajDx + trajDy*trajDy);
+            if(trajLen > 0.005) {
+              ['1','2','3','4','5','6'].forEach(function(pk){
+                var oppTok = _tok(oppTeamP+'_'+pk);
+                if(!oppTok||oppTok.expelled||oppTok.tempAbsent)return;
+                // Proiezione del difensore sulla traiettoria
+                var vx=oppTok.x-ballPos.x, vy=oppTok.y-ballPos.y;
+                var t=(vx*trajDx+vy*trajDy)/(trajLen*trajLen);
+                if(t < 0.10 || t > 0.90) return;  // fuori dal segmento
+                // Distanza perpendicolare dalla traiettoria
+                var perpDist = Math.abs(vx*trajDy - vy*trajDx) / trajLen;
+                if(perpDist < INTERCEPT_WIDTH) {
+                  var totalDist = Math.sqrt(vx*vx+vy*vy);
+                  if(totalDist < closestOppDist) {
+                    closestOppDist = totalDist;
+                    closestOppKey  = oppTeamP+'_'+pk;
+                  }
+                }
+              });
+            }
 
-            if(closestOppKey && closestOppDist < prDist) {
+            if(closestOppKey) {
               // ── INTERCETTAZIONE: avversario prende la palla ──
               if(typeof poolReleaseBall==='function') poolReleaseBall();
               _ballOwnerKey = null;
@@ -755,7 +855,14 @@ var MovementController = (function() {
 
       if(_ballOwnerKey){
         _passT += eff;
-        if(_passT >= _passNext && !_pendingReceiver) _autoPass();
+        if(_passT >= _passNext && !_pendingReceiver) {
+          // Se _passNext era 9999 (giocatore libero in avanzata), tira invece di passare
+          if(_passNext >= 9999) {
+            _autoShot();
+          } else {
+            _autoPass();
+          }
+        }
       }
 
       if(typeof poolUpdateKeepers==='function')poolUpdateKeepers();
