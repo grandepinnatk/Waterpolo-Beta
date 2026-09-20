@@ -141,8 +141,12 @@ var MovementController = (function() {
   var _commentaryPassCount = 0;  // conta i passaggi per commentarne solo 1 ogni 3
 
   function _emitComment(type, data) {
-    if (typeof dispatchCommentary === 'function') {
-      dispatchCommentary(type, data || {});
+    try {
+      if (typeof dispatchCommentary === 'function') {
+        dispatchCommentary(type, data || {});
+      }
+    } catch(e) {
+      // Mai interrompere il flusso di gioco per un errore di telecronaca
     }
   }
 
@@ -426,11 +430,13 @@ var MovementController = (function() {
     // Registra il ricevitore PRIMA del lancio (blocca pool.js dalla raccolta libera)
     var lBall = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:ownerTok.x, y:ownerTok.y};
     var _tdx = futX - lBall.x, _tdy = futY - lBall.y;
+    // ready:true — pool.js garantisce già che la palla sia in volo tramite _ballInFlight
+    // Non serve il check 40%: quello causava freeze quando la palla arrivava troppo veloce
     _pendingReceiver = {
       key: pick.key, team: ownerTeam,
       startX: lBall.x, startY: lBall.y,
       totalDist: Math.max(0.02, Math.sqrt(_tdx*_tdx + _tdy*_tdy)),
-      ready: false,
+      ready: true,
     };
 
     // Il ricevitore nuota verso il punto di atterraggio della palla
@@ -687,14 +693,6 @@ var MovementController = (function() {
         if(recTok && !recTok.expelled) {
           var ballPos = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:0.5,y:0.5};
 
-          // Aggiorna progressione volo
-          if(_pendingReceiver.startX !== undefined) {
-            var sdx = ballPos.x - _pendingReceiver.startX;
-            var sdy = ballPos.y - _pendingReceiver.startY;
-            var traveled = Math.sqrt(sdx*sdx + sdy*sdy);
-            _pendingReceiver.ready = (traveled >= _pendingReceiver.totalDist * 0.40);
-          }
-
           if(_pendingReceiver.ready) {
             var recTeam = _pendingReceiver.team;
             var oppTeamP = recTeam === 'my' ? 'opp' : 'my';
@@ -742,7 +740,7 @@ var MovementController = (function() {
 
       if(_ballOwnerKey){
         _passT += eff;
-        if(_passT >= _passNext) _autoPass();
+        if(_passT >= _passNext && !_pendingReceiver) _autoPass();
       }
 
       if(typeof poolUpdateKeepers==='function')poolUpdateKeepers();
@@ -799,12 +797,12 @@ var MovementController = (function() {
       var tar3=_cbWinner==='my'?ATK_MY['3']:ATK_OPP['3'];
       var tX3=tar3.x+_rnd(-0.02,0.02), tY3=tar3.y+_rnd(-0.02,0.02);
       if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(tX3,tY3);
-      // Usa pendingReceiver con dati di lancio per il cooldown
       var lb3=typeof poolGetBallPos==='function'?poolGetBallPos():{x:CX,y:CY};
       var d3x=tX3-lb3.x, d3y=tY3-lb3.y;
+      // ready:true — palla velocissima (x15), arriva in pochi frame
       _pendingReceiver={key:_cbWinner+'_3',team:_cbWinner,
         startX:lb3.x,startY:lb3.y,
-        totalDist:Math.max(0.02,Math.sqrt(d3x*d3x+d3y*d3y)),ready:false};
+        totalDist:Math.max(0.02,Math.sqrt(d3x*d3x+d3y*d3y)),ready:true};
     });
     _qA(sprintDur+0.8, function(){
       _repositionAll(0.025);_phase='play';_tacticalT=0;_microPhase={};

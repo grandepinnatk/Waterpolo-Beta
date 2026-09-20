@@ -464,7 +464,27 @@ Capienza base 500 posti. Bonus spettatori sul risultato. Spettatori in calendari
 
 ---
 
-**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.0] — 2026-08-24
+**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.1] — 2026-09-20
+
+### Bugfix critico — Palla congelata dopo v1.1.0
+
+**Causa:** tre bug introdotti insieme in v1.1.0:
+
+1. `_emitComment` non era in try-catch → un errore nella telecronaca propagava fino a `_autoPass` interrompendola. La palla non veniva mai lanciata.
+
+2. `_pendingReceiver.ready:false` con verifica `traveled >= totalDist * 0.40` — la palla è così veloce (×15) che arriva a destinazione in 1-2 frame. In quei frame il check `40%` poteva non scattare, lasciando `_pendingReceiver` attivo per sempre e bloccando i passaggi successivi.
+
+3. `_autoPass` veniva chiamata anche con `_pendingReceiver` attivo → sovrascriveva il ricevitore del passaggio in volo con uno nuovo.
+
+**Fix:**
+- `_emitComment` racchiuso in try-catch: errori di telecronaca non rompono mai il gameplay.
+- `_pendingReceiver.ready` impostato a `true` in tutti i punti di creazione — `pool.js` garantisce già `_ballInFlight` come protezione durante il volo.
+- `_autoPass` chiamata solo se `!_pendingReceiver`.
+- Rimossa la verifica `traveled >= 0.40` (fragile e ridondante con `_ballInFlight`).
+
+---
+
+## [1.1.0] — 2026-08-24
 
 ### Sincronizzazione completa telecronaca-canvas
 
