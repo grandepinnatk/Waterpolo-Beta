@@ -464,4 +464,34 @@ Capienza base 500 posti. Bonus spettatori sul risultato. Spettatori in calendari
 
 ---
 
-**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.
+**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.0.3] — 2026-08-24
+
+### Aggiornamento loghi squadre
+
+| Squadra | Logo precedente | Logo nuovo |
+|---------|----------------|------------|
+| Olympic Roma | training-academy.gif | **olympicteam.gif** |
+| S.S. Lazio Nuoto | rn-salerno.gif | **sslazionuotopallanuoto.gif** |
+| Chiavari Nuoto | onda-forte.gif | **chiavari.gif** |
+
+---
+
+## [1.0.2] — 2026-08-24
+
+### Aggiornamento roster squadre Serie A1 2025/26
+
+Sette nomi aggiornati per rispecchiare la rosa ufficiale del campionato:
+
+| Prima | Dopo | Abbr |
+|-------|------|------|
+| AN Brescia | **AN Brescia Team** | BRE |
+| Iren G. Quinto | **S.C. Quinto** | QUI |
+| De Akker Bologna | **De Akker Team** | DAK |
+| Canottieri Napoli | **C.C. Napoli** | CAN |
+| Training Academy | **Olympic Roma** | OLY |
+| R.N. Salerno | **S.S. Lazio Nuoto** | LAZ *(era SAL)* |
+| Onda Forte | **Chiavari Nuoto** | CHI *(era OND)* |
+
+---
+
+
