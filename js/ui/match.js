@@ -232,16 +232,18 @@ function _animLoop(timestamp) {
       _canvasPlaying = false;
     }
 
-    // ── Genera eventi motore → accoda nella coda canvas ──────────────────────
+    // ── Nota: il loop 7-14s è stato eliminato (Cambiamento 3).
+    // Gli eventi ora arrivano direttamente da movement.js via dispatchCommentary().
+    // La coda canvas è mantenuta solo per goal, parate e superiorità da live_engine.
+    // Genera solo gli eventi speciali pending da live_engine (goal, parata, falli)
     G.ms.lastActionTime += rawDt * (G.ms.speed || 1);
-    while (G.ms.lastActionTime >= G.ms.nextActionIn && !G.ms.finished) {
-      G.ms.lastActionTime -= G.ms.nextActionIn;
-      G.ms.nextActionIn    = rnd(7, 14);
-      // Usa il motore canvas-driven (live_engine.js) se disponibile,
-      // altrimenti fallback al motore statistico classico
-      const event = (typeof generateLiveEvent === 'function')
-        ? generateLiveEvent(G.ms)
-        : generateMatchEvent(G.ms);
+    if (G.ms.lastActionTime >= G.ms.nextActionIn && !G.ms.finished) {
+      G.ms.lastActionTime = 0;
+      G.ms.nextActionIn = 999; // praticamente disabilitato
+      // Solo falli e superiorità dal motore statistico (non hanno trigger canvas)
+      const event = (typeof generateFoulEvent === 'function')
+        ? generateFoulEvent(G.ms)
+        : null;
       if (event) {
         const animType = _animTypeOf(event);
         const duration = ANIM_DURATIONS[animType] ?? ANIM_DURATIONS.neutral;
@@ -489,6 +491,37 @@ function _setBar(idHPct, idAPct, idHBar, idABar, hLabel, aLabel, hPct) {
 }
 
 // ── Aggiunge riga al log ──────────────────────
+
+// ── Telecronaca canvas-driven (Cambiamento 2) ─────────────────────────────
+// Chiamata da movement.js ogni volta che avviene un'azione visibile.
+// Produce il testo tramite live_engine._txt() e lo appende al log.
+// Il motore non genera più eventi su timer — questa è l'unica fonte di testo.
+function dispatchCommentary(type, data) {
+  if (!G.ms || !G.ms.running) return;
+  // Evita commenti a velocità molto alta (≥10x) — log troppo veloce
+  if ((G.ms.speed || 1) >= 10) return;
+
+  var txt = '';
+  if (typeof liveCommentaryText === 'function') {
+    txt = liveCommentaryText(type, data);
+  }
+  if (!txt || txt.trim() === '') return;
+
+  // Classi CSS per colorazione
+  var cls = '';
+  if (type === 'goal_my')           cls = 'myg';
+  else if (type === 'goal_opp')     cls = 'og';
+  else if (type === 'save')         cls = 'sv';
+  else if (type === 'shot_saved' || type === 'shot_wide' || type === 'shot_blocked') cls = 'sv';
+  else if (type === 'interception') cls = 'sv';
+  else if (type === 'shot_clock_expired')  cls = 'fl';
+  else if (type === 'foul_temp_exp' || type === 'foul_opp_exp') cls = 'fl';
+  else if (type === 'sup_start')    cls = 'sv';
+  else if (type === 'inf_start')    cls = 'fl';
+
+  _appendLog(txt, cls);
+}
+
 function _appendLog(txt, cls) {
   const ms = G.ms; if (!ms) return;
   ms.actions.push({ t: formatMatchTime(ms.totalSeconds), txt, cls });

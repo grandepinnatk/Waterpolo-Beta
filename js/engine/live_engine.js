@@ -493,3 +493,25 @@ function _weightedPick(arr,wFn){
 function _rnd(lo,hi){return lo+Math.random()*(hi-lo);}
 function _clampX(x){return Math.max(0.11,Math.min(0.89,x));}
 function _clampY(y){return Math.max(0.13,Math.min(0.87,y));}
+
+// ── API pubblica (Cambiamento 4) ──────────────────────────────────────────
+// live_engine non è più chiamato su timer. Espone:
+//   liveCommentaryText(type, data) → stringa i18n per dispatchCommentary()
+//   generateFoulEvent(ms)          → solo falli e superiorità (nessun altro evento)
+
+function liveCommentaryText(type, data) {
+  return _txt(type, null, data || {});
+}
+
+// Genera SOLO falli/superiorità — tutto il resto viene da movement.js
+function generateFoulEvent(ms) {
+  if (!ms) return null;
+  var st = _liveState;
+
+  // Intercettazione pending → testo (già emesso da movement.js, ma log duplica)
+  // Non fare nulla: movement.js già chiama dispatchCommentary()
+
+  var attack = st.attack || 'my';
+  var bx = st.ballX || 0.5, by = st.ballY || 0.5;
+  return _tryFoulEvent(ms, attack, bx, by);
+}

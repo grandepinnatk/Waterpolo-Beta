@@ -133,6 +133,19 @@ var MovementController = (function() {
   // Coda azioni sequenziali (per sprint, rimessa, rigore)
   var _seq=[], _seqT=0, _seqIdx=0, _seqActive=false;
 
+
+  // ── Telecronaca canvas-driven ───────────────────────────────────────────
+  // Chiama dispatchCommentary() ogni volta che avviene un'azione visibile.
+  // Il commento appare esattamente nel frame in cui l'azione è eseguita.
+  // Solo eventi significativi: passaggi saltuari (1/3), tiri, goal, intercetti.
+  var _commentaryPassCount = 0;  // conta i passaggi per commentarne solo 1 ogni 3
+
+  function _emitComment(type, data) {
+    if (typeof dispatchCommentary === 'function') {
+      dispatchCommentary(type, data || {});
+    }
+  }
+
   // CB vincitore dello sprint
   var _cbWinner='my', _myCBSpd=BASE_SPD, _oppCBSpd=BASE_SPD;
   // Stile difesa in inferiorità: alterna pressing/zonaM a ogni episodio
@@ -303,6 +316,18 @@ var MovementController = (function() {
           // CB in zona pericolosa con marcatore vicino → triggerare tiro
           if(!_cbShotCooldown) {
             _cbShotCooldown = true;
+            // Telecronaca tiro CB
+            var cbShooterName = '';
+            if(_ms && _attack==='my' && _ms.myRoster && cbTok3.pi!==undefined)
+              cbShooterName = (_ms.myRoster[cbTok3.pi]||{}).name||'';
+            var cbGkName = '';
+            if(_attack==='my' && _ms && _ms.oppRoster)
+              cbGkName = ((_ms.oppRoster.find(function(p){return p&&p.role==='POR';})||{}).name)||'';
+            // Calcola outcome (20% goal, 80% parata)
+            var cbIsGoal = Math.random() < 0.20;
+            var cbTeamN = _attack==='my'?(_ms&&_ms.myTeam&&_ms.myTeam.name)||'':(_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'';
+            _emitComment(cbIsGoal?'goal_my':'shot_saved',
+              { shooter:cbShooterName, scorer:cbShooterName, gk:cbGkName, team:cbTeamN });
             // Crea evento tiro sintetico verso la porta
             var shotY = _rnd(0.40, 0.60);
             var shotX = (_attack === 'my') ? 0.95 : 0.05;
@@ -369,6 +394,26 @@ var MovementController = (function() {
 
     var pick = teammates[Math.floor(Math.random() * teammates.length)];
     var recTok = pick.tok;
+
+    // ── Telecronaca passaggio (1 ogni 3 per non saturare il log) ──────────
+    _commentaryPassCount++;
+    if(_commentaryPassCount >= 3) {
+      _commentaryPassCount = 0;
+      // Nomi per telecronaca
+      var passerName = '', receiverName = '';
+      if(_ms) {
+        if(ownerTeam==='my' && _ms.myRoster && ownerTok.pi!==undefined)
+          passerName = (_ms.myRoster[ownerTok.pi]||{}).name||'';
+        var recPk = pick.key.split('_')[1];
+        var recTm = pick.key.split('_')[0];
+        if(recTm==='my' && _ms.myRoster) {
+          var recOnField = _ms.onField[recPk];
+          receiverName = recOnField!==undefined ? ((_ms.myRoster[recOnField]||{}).name||'') : '';
+        }
+      }
+      _emitComment('pass', { passer: passerName, receiver: receiverName,
+                              team: ownerTeam==='my' ? (_ms&&_ms.myTeam&&_ms.myTeam.name)||'' : (_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'' });
+    }
 
     // La palla vola verso la posizione attuale del ricevitore (passaggio attivo)
     var futX = recTok.x + _rnd(-0.015, 0.015);
@@ -583,8 +628,9 @@ var MovementController = (function() {
           _pendingReceiver = null;
           _passT = 0; _passNext = _rnd(1.5, 2.5);
           _repositionAll(0.022);
-          // Segnala al live engine per generare evento testuale motivato
-          if(typeof liveUpdateState==='function') liveUpdateState({shotClockExpired:true, prevAttack:prevAttack});
+          // Telecronaca shot clock diretta
+          var scTeamName = _attack==='my'?(_ms&&_ms.myTeam&&_ms.myTeam.name)||'':(_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'';
+          _emitComment('shot_clock_expired', { team: scTeamName });
         }
       } else {
         _shotClock = 0;   // reset quando palla è libera
@@ -608,9 +654,16 @@ var MovementController = (function() {
           });
           if(closestDef > FREE_PLAYER_DIST) {
             // Strada libera: avanza verso la porta e NON passa
-            // Il giocatore nuota fino ai 2m dalla porta (oppTwoMeterX ≈ 0.80)
             var twoMX = ownerTeam2==='my' ? 0.79 : 0.21;
             poolMoveToken(_ballOwnerKey, twoMX, ownerTok2.ty + _rnd(-0.015,0.015));
+            // Telecronaca: commento giocatore libero (solo alla prima rilevazione)
+            if(_passNext === 9999 || closestDef > FREE_PLAYER_DIST * 1.5) {
+              var fpName = '';
+              if(_ms && ownerTeam2==='my' && _ms.myRoster && ownerTok2.pi!==undefined)
+                fpName = (_ms.myRoster[ownerTok2.pi]||{}).name||'';
+              _emitComment('free_advance', { player: fpName,
+                team: ownerTeam2==='my'?(_ms&&_ms.myTeam&&_ms.myTeam.name)||'':(_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'' });
+            }
             // Blocca il passaggio automatico finché non è vicino alla porta
             var distToGoal = Math.abs(ownerTok2.x - (ownerTeam2==='my'?0.91:0.09));
             if(distToGoal < 0.15) {
@@ -672,9 +725,9 @@ var MovementController = (function() {
                 startX: ballPos.x, startY: ballPos.y,
                 totalDist: 0.001, ready: true,
               };
-              // Aggiorna liveState per evento testuale
-              if(typeof liveUpdateState==='function')
-                liveUpdateState({ interceptionEvent: true, interceptTeam: oppTeamP });
+              // Telecronaca intercettazione diretta
+              var intTeamName = oppTeamP==='my'?(_ms&&_ms.myTeam&&_ms.myTeam.name)||'':(_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'';
+              _emitComment('interception', { team: intTeamName });
             } else if(prDist < 0.060) {
               // Ricevitore previsto prende la palla normalmente
               _ballOn(_pendingReceiver.key);
@@ -778,6 +831,10 @@ var MovementController = (function() {
         var tn=scorerTeam==='my'?(_ms&&_ms.myTeam?_ms.myTeam.name:''):(_ms&&_ms.oppTeam?_ms.oppTeam.name:'');
         poolTriggerGoalAnim(event.goalScorer||'',scorerTeam,tn);
       }
+      // Telecronaca goal sincrona con l'animazione
+      var goalTN=scorerTeam==='my'?(_ms&&_ms.myTeam&&_ms.myTeam.name)||'':(_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'';
+      _emitComment(scorerTeam==='my'?'goal_my':'goal_opp',
+        { scorer:event.goalScorer||'', team:goalTN });
       showGoalAnimation(event.goalScorer||'',scorerTeam,_ms);
       // Compagni corrono verso il marcatore
       var st=_tok(scorerKey);
@@ -859,10 +916,16 @@ var MovementController = (function() {
     if(typeof poolReleaseBall==='function')poolReleaseBall();
     _ballOwnerKey=null;
 
-    // La parata avviene dal portiere della squadra IN DIFESA
-    // event.shotTeam indica chi ha tirato → il portiere avversario para
     var shooterTeam = event.shotTeam || (_attack === 'my' ? 'my' : 'opp');
     var gkTeam = (shooterTeam === 'my') ? 'opp' : 'my';
+    // Telecronaca parata sincrona
+    var saveGkName = '';
+    if(gkTeam==='my' && _ms && _ms.myRoster && _ms.onField)
+      saveGkName = (_ms.myRoster[_ms.onField['GK']]||{}).name||'';
+    else if(gkTeam==='opp' && _ms && _ms.oppRoster)
+      saveGkName = ((_ms.oppRoster.find(function(p){return p&&p.role==='POR';})||{}).name)||'';
+    _emitComment('save', { gk: saveGkName,
+      team: gkTeam==='my'?(_ms&&_ms.myTeam&&_ms.myTeam.name)||'':(_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'' });
 
     // Palla vola verso la porta del GK che para
     var gkX = (gkTeam === 'my') ? 0.09 : 0.91;

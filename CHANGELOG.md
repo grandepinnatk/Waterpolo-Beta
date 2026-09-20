@@ -464,7 +464,36 @@ Capienza base 500 posti. Bonus spettatori sul risultato. Spettatori in calendari
 
 ---
 
-**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.0.3] — 2026-08-24
+**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.0] — 2026-08-24
+
+### Sincronizzazione completa telecronaca-canvas
+
+Implementati i 4 cambiamenti tecnici per la sincronizzazione canvas-driven.
+
+**Cambiamento 1 — `movement.js` è la fonte di tutti gli eventi:**
+`_emitComment(type, data)` viene chiamato nel momento esatto in cui l'azione avviene sul canvas:
+- `_autoPass`: commento passaggio ogni 3 passaggi ("X per Y.")
+- Giocatore libero (`closestDef > FREE_PLAYER_DIST`): "X libero — avanza verso la porta!"
+- CB shot trigger: "Tiro di X — parata di Y." / "GOL! X segna!"
+- `onGoalEvent`: "⚽ GOL! X segna per [team]!" — sincrono con l'animazione goal
+- `onSave`: "Parata di Y!" — sincrono con il movimento del portiere
+- Intercettazione (`_pendingReceiver`): "⚡ Palla intercettata da [team]!" — diretto, senza passare per `liveUpdateState`
+- Shot clock scaduto: "⏱ 30 secondi scaduti — palla a [team]" — diretto
+
+**Cambiamento 2 — `dispatchCommentary(type, data)` in `match.js`:**
+Funzione globale chiamata da `movement.js`. Riceve il tipo di evento e i dati, produce il testo tramite `liveCommentaryText()` e lo appende al log nel frame corrente. Soppressa a velocità ≥10x (log illeggibile ad alta velocità).
+
+**Cambiamento 3 — Loop 7-14s eliminato:**
+`_animLoop` non chiama più `generateLiveEvent` su timer. La coda canvas è mantenuta solo per falli e superiorità (eventi senza trigger canvas diretto), con `generateFoulEvent(ms)` e timer praticamente disabilitato (999s).
+
+**Cambiamento 4 — `live_engine.js` diventa libreria pura:**
+- `liveCommentaryText(type, data)` → stringa i18n per `dispatchCommentary()`
+- `generateFoulEvent(ms)` → unica funzione ancora su timer (falli/superiorità non hanno trigger canvas)
+- `generateLiveEvent()` non viene più chiamata dal loop principale
+
+---
+
+## [1.0.3] — 2026-08-24
 
 ### Aggiornamento loghi squadre
 
