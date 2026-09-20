@@ -894,43 +894,53 @@ var MovementController = (function() {
   }
 
   // ── TIRO ──────────────────────────────────────────────────────
+  // Usa _qA (tempo di gioco scalato) invece di setTimeout (tempo reale)
   function onShot(event) {
     if(!event||!event.ballTarget)return;
     if(event.moverKey)_ballOn(event.moverKey);
-    setTimeout(function(){
+    _pendingReceiver=null;
+    var shotX=event.ballTarget.x, shotY=event.ballTarget.y;
+    _seq=[];_seqActive=false;
+    _qA(0.25, function(){
       if(typeof poolReleaseBall==='function')poolReleaseBall();
       _ballOwnerKey=null;
-      var shotX=event.ballTarget.x, shotY=event.ballTarget.y;
       if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(shotX,shotY);
-      if(event.moverKey&&event.moverTarget)_mv(event.moverKey,event.moverTarget.x,event.moverTarget.y,0.015);
-      // Fallback: se dopo 2s la palla è ancora libera, il difensore più vicino la raccoglie
-      setTimeout(function(){
-        if(_ballOwnerKey===null&&_pendingReceiver===null&&_phase==='play'){
-          var defTeam=_attack==='my'?'opp':'my';
-          var bPos=typeof poolGetBallPos==='function'?poolGetBallPos():{x:shotX,y:shotY};
-          var closest=_findClosestToken(defTeam,bPos.x,bPos.y)||_findClosestToken(_attack,bPos.x,bPos.y);
-          if(closest){
-            var recTok=_tok(closest);
-            if(recTok){
-              if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(recTok.x,recTok.y);
-              _pendingReceiver={key:closest,team:closest.split('_')[0],
-                startX:bPos.x,startY:bPos.y,totalDist:0.001,ready:true};
-              _attack=closest.split('_')[0];
-            }
+      if(event.moverKey&&event.moverTarget)
+        _mv(event.moverKey,event.moverTarget.x,event.moverTarget.y,0.015);
+    });
+    // Fallback (2s di gioco): se palla ancora libera, difensore più vicino la prende
+    _qA(2.25, function(){
+      if(_ballOwnerKey===null&&_pendingReceiver===null&&_phase==='play'){
+        var defTeam=_attack==='my'?'opp':'my';
+        var bPos=typeof poolGetBallPos==='function'?poolGetBallPos():{x:shotX,y:shotY};
+        var closest=_findClosestToken(defTeam,bPos.x,bPos.y)||_findClosestToken(_attack,bPos.x,bPos.y);
+        if(closest){
+          var recTok=_tok(closest);
+          if(recTok){
+            if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(recTok.x,recTok.y);
+            _pendingReceiver={key:closest,team:closest.split('_')[0],
+              startX:bPos.x,startY:bPos.y,totalDist:0.001,ready:true};
+            _attack=closest.split('_')[0];
           }
         }
-      },2000);
-    },230);
+      }
+    });
+    _startSeq();
   }
 
   // ── PARATA ────────────────────────────────────────────────────
+  // Usa _qA (tempo di gioco scalato) invece di setTimeout (tempo reale).
+  // Questo evita la race condition ad alta velocità dove _autoPass
+  // scatta sul GK prima che il relaunch avvenga.
   function onSave(event) {
     if(!event)return;
     if(typeof poolReleaseBall==='function')poolReleaseBall();
     _ballOwnerKey=null;
+    _pendingReceiver=null;
 
     var shooterTeam = event.shotTeam || (_attack === 'my' ? 'my' : 'opp');
     var gkTeam = (shooterTeam === 'my') ? 'opp' : 'my';
+
     // Telecronaca parata sincrona
     var saveGkName = '';
     if(gkTeam==='my' && _ms && _ms.myRoster && _ms.onField)
@@ -940,39 +950,45 @@ var MovementController = (function() {
     _emitComment('save', { gk: saveGkName,
       team: gkTeam==='my'?(_ms&&_ms.myTeam&&_ms.myTeam.name)||'':(_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'' });
 
-    // Palla vola verso la porta del GK che para
-    var gkX = (gkTeam === 'my') ? 0.09 : 0.91;
+    // Palla vola verso il portiere che ha parato
+    var gkX = (gkTeam==='my') ? (typeof PLAY!=='undefined'?PLAY.myGKX:0.115)
+                               : (typeof PLAY!=='undefined'?PLAY.oppGKX:0.885);
     var gkY = event.ballTarget ? event.ballTarget.y : 0.50;
     if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(gkX, gkY);
 
-    // Il GK prende la palla sulla propria linea di porta
-    setTimeout(function(){
-      // Assicura che il GK sia sulla linea
+    // Step 1 (0.5s di gioco): GK prende la palla
+    _seq=[];_seqActive=false;
+    _qA(0.5, function(){
       if(typeof poolMoveToken==='function') poolMoveToken(gkTeam+'_GK', gkX, gkY);
-      _ballOn(gkTeam+'_GK');
+      // NON chiamare _ballOn (evita che _autoPass scatti sul GK)
+      // Teniamo _ballOwnerKey=null e usiamo pendingReceiver per il GK
+      var lbGK=typeof poolGetBallPos==='function'?poolGetBallPos():{x:gkX,y:gkY};
+      _pendingReceiver={key:gkTeam+'_GK',team:gkTeam,
+        startX:lbGK.x,startY:lbGK.y,totalDist:0.001,ready:true};
+    });
 
-      // Dopo 0.7s il portiere rilancia verso la posizione ATTUALE del pos3
-      setTimeout(function(){
-        if(typeof poolReleaseBall==='function')poolReleaseBall();
-        _ballOwnerKey=null;
-        var c3Tok=_tok(gkTeam+'_3');
-        var launchX,launchY;
-        if(c3Tok&&!c3Tok.expelled){
-          launchX=c3Tok.x+_rnd(-0.03,0.03);launchY=c3Tok.y+_rnd(-0.025,0.025);
-        } else {
-          var t3fb=gkTeam==='my'?ATK_MY['3']:ATK_OPP['3'];
-          launchX=t3fb.x;launchY=t3fb.y;
-        }
-        if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(launchX,launchY);
-        var lbS=typeof poolGetBallPos==='function'?poolGetBallPos():{x:gkX,y:gkY};
-        var dSx=launchX-lbS.x,dSy=launchY-lbS.y;
-        _pendingReceiver={key:gkTeam+'_3',team:gkTeam,
-          startX:lbS.x,startY:lbS.y,
-          totalDist:Math.max(0.02,Math.sqrt(dSx*dSx+dSy*dSy)),ready:false};
-        _attack=gkTeam;
-        _repositionAll(0.022);
-      },700);
-    },500);
+    // Step 2 (1.2s di gioco): GK rilancia verso il pos3 della propria squadra
+    _qA(1.2, function(){
+      if(typeof poolReleaseBall==='function')poolReleaseBall();
+      _ballOwnerKey=null;
+      _pendingReceiver=null;
+
+      var c3Tok=_tok(gkTeam+'_3');
+      var launchX,launchY;
+      if(c3Tok&&!c3Tok.expelled){
+        launchX=c3Tok.x+_rnd(-0.03,0.03);launchY=c3Tok.y+_rnd(-0.025,0.025);
+      } else {
+        var t3fb=gkTeam==='my'?ATK_MY['3']:ATK_OPP['3'];
+        launchX=t3fb.x;launchY=t3fb.y;
+      }
+      if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(launchX,launchY);
+      // ready:true — rimuovere check 40% (già rimosso in v1.1.1)
+      _pendingReceiver={key:gkTeam+'_3',team:gkTeam,
+        startX:gkX,startY:gkY,totalDist:0.001,ready:true};
+      _attack=gkTeam;
+      _repositionAll(0.022);
+    });
+    _startSeq();
   }
 
   // ── PASSAGGIO / NEUTRO ────────────────────────────────────────

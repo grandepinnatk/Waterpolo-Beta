@@ -464,7 +464,24 @@ Capienza base 500 posti. Bonus spettatori sul risultato. Spettatori in calendari
 
 ---
 
-**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.2] — 2026-09-20
+**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.3] — 2026-09-20
+
+### Bugfix — Gioco bloccato dopo la parata
+
+**Causa radice:** `onSave` e `onShot` usavano `setTimeout` (tempo reale) invece di `_qA` (tempo di gioco scalato). A velocità 10x, 700ms reali corrispondono a 7s di gioco. Nel frattempo `_passT` raggiungeva `_passNext` (1.5-2.5s di gioco) e `_autoPass` scattava sul portiere prima che il relaunch avvenisse. La palla finiva assegnata a un giocatore casuale, con `_pendingReceiver` mai ripulito. Inoltre `ready:false` nell'`onSave` non veniva mai aggiornato (il codice che lo faceva era stato rimosso in v1.1.1).
+
+**Fix — `onSave` riscritta con `_qA`:**
+- Step 1 (0.5s di gioco): GK prende la palla senza chiamare `_ballOn` (evita che `_autoPass` scatti sul GK)
+- Step 2 (1.2s di gioco): GK rilancia verso il pos3 con `_pendingReceiver {ready:true}`
+- Il tempo scala con `gameSpeed` → funziona correttamente a tutte le velocità
+
+**Fix — `onShot` riscritta con `_qA`:**
+- Step 1 (0.25s): tiro lanciato
+- Step 2 (2.25s): fallback raccolta palla se ancora libera
+
+---
+
+## [1.1.2] — 2026-09-20
 
 ### Bugfix — Palla bloccata a fondo campo
 
