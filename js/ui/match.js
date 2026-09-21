@@ -232,15 +232,11 @@ function _animLoop(timestamp) {
       _canvasPlaying = false;
     }
 
-    // ── Nota: il loop 7-14s è stato eliminato (Cambiamento 3).
-    // Gli eventi ora arrivano direttamente da movement.js via dispatchCommentary().
-    // La coda canvas è mantenuta solo per goal, parate e superiorità da live_engine.
-    // Genera solo gli eventi speciali pending da live_engine (goal, parata, falli)
+    // ── Falli e superiorità da live_engine (ogni ~45s di gioco) ─────────────
     G.ms.lastActionTime += rawDt * (G.ms.speed || 1);
     if (G.ms.lastActionTime >= G.ms.nextActionIn && !G.ms.finished) {
       G.ms.lastActionTime = 0;
-      G.ms.nextActionIn = 999; // praticamente disabilitato
-      // Solo falli e superiorità dal motore statistico (non hanno trigger canvas)
+      G.ms.nextActionIn = 40 + Math.random() * 20;  // 40-60s tra un fallo e l'altro
       const event = (typeof generateFoulEvent === 'function')
         ? generateFoulEvent(G.ms)
         : null;

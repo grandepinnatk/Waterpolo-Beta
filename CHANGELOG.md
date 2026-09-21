@@ -464,7 +464,30 @@ Capienza base 500 posti. Bonus spettatori sul risultato. Spettatori in calendari
 
 ---
 
-**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.5] — 2026-09-21
+**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.6] — 2026-09-21
+
+### Bugfix sistemici — Freeze, stats, falli, rimessa
+
+**Fix 1 — Freeze dopo parata in sequenza (_seq):**
+Quando `_seqActive=true`, `update()` fa `return` subito, quindi `_pendingReceiver` non viene mai processato. Conseguenza: il portiere non riceveva mai la palla. Soluzione: sostituito `_pendingReceiver` con `_ballOn()` diretto in tutte le sequenze `_qA` (`_autoShot` e `onSave`). La palla viene assegnata direttamente al portiere e poi al pos3 senza passare dal check `_pendingReceiver`.
+
+**Fix 2 — Statistiche tiri/parate:**
+- `oppShots` non veniva mai incrementato (solo `myShots`). Ora entrambi vengono aggiornati.
+- `mySaves` e `oppSaves` mai aggiornati. Ora incrementati nel path parata di `_autoShot` e `onSave`.
+- Il tiro viene contato sempre (goal o parata), non solo in caso di goal.
+
+**Fix 3 — "Libero — avanza" ripetuto ogni 0.8s:**
+Aggiunto `_freeAdvanceCooldown` (4s di gioco): il commento viene emesso al massimo ogni 4 secondi, non ogni ciclo tattico.
+
+**Fix 4 — Post-goal: aspetta il riposizionamento:**
+Aumentati i tempi della sequenza post-goal: 3.5s→5.0s (riposizionamento), 4.3s→6.0s (rimessa). Dà tempo sufficiente a tutti i segnalini di tornare nella propria metà.
+
+**Fix 5 — Nessuna espulsione:**
+Il timer falli era stato impostato a `999` (praticamente disabilitato). Riabilitato con intervallo **40-60s di gioco** → ~8-10 falli per tempo (frequenza realistica), incluse superiorità numerica.
+
+---
+
+## [1.1.5] — 2026-09-21
 
 ### Bugfix — Freeze dopo il goal + rimessa corretta
 

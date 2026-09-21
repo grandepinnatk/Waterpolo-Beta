@@ -138,7 +138,9 @@ var MovementController = (function() {
   // Chiama dispatchCommentary() ogni volta che avviene un'azione visibile.
   // Il commento appare esattamente nel frame in cui l'azione è eseguita.
   // Solo eventi significativi: passaggi saltuari (1/3), tiri, goal, intercetti.
-  var _commentaryPassCount = 0;  // conta i passaggi per commentarne solo 1 ogni 3
+  var _commentaryPassCount   = 0;   // conta i passaggi per commentarne solo 1 ogni 3
+  var _freeAdvanceCooldown   = 0;   // cooldown globale tra commenti 'libero' (s di gioco)
+  var FREE_ADVANCE_CD_SEC    = 4.0; // almeno 4s tra un commento e l'altro
 
   function _emitComment(type, data) {
     try {
@@ -485,6 +487,11 @@ var MovementController = (function() {
 
     // Esito: 20% goal, 80% parata
     var isGoal = Math.random() < 0.20;
+    // Conta sempre il tiro indipendentemente dall'esito
+    if(_ms) {
+      if(ownerTeam==='my') _ms.myShots=(_ms.myShots||0)+1;
+      else                  _ms.oppShots=(_ms.oppShots||0)+1;
+    }
     _emitComment(isGoal?(ownerTeam==='my'?'goal_my':'goal_opp'):'shot_saved',
       { shooter:shooterName, scorer:shooterName, gk:gkName, team:teamName });
 
@@ -500,11 +507,13 @@ var MovementController = (function() {
         if(scorerTeam==='my'){
           _ms.myScore++;
           if(_ms.periodScores&&_ms.period>=1&&_ms.period<=4) _ms.periodScores[_ms.period-1].my++;
-          _ms.myShots=(_ms.myShots||0)+1;
         } else {
           _ms.oppScore++;
           if(_ms.periodScores&&_ms.period>=1&&_ms.period<=4) _ms.periodScores[_ms.period-1].opp++;
         }
+        // Conta il tiro per entrambe le squadre
+        if(scorerTeam==='my') _ms.myShots=(_ms.myShots||0)+1;
+        else                   _ms.oppShots=(_ms.oppShots||0)+1;
       }
 
       // Step 1 (0.5s): animazione goal + festeggiamento
@@ -523,7 +532,7 @@ var MovementController = (function() {
 
       // Step 2 (3.5s): rimessa — squadra che ha subito il goal batte da centrocampo
       // In pallanuoto: chi ha subito il goal prende possesso e si schiera nella propria metà
-      _qA(3.5, function(){
+      _qA(5.0, function(){  // aspetta che tutti tornino nelle rispettive metà
         var batter = scorerTeam==='my' ? 'opp' : 'my';  // chi ha subito batte
         // Formazioni rimessa: attaccante in metà campo, difensore arretra
         var myL = batter==='my' ? RESET_MY_ATK : RESET_MY_DEF;
@@ -542,7 +551,7 @@ var MovementController = (function() {
       });
 
       // Step 3 (4.3s): il CB di chi ha subito passa subito al proprio C → gioco riprende
-      _qA(4.3, function(){
+      _qA(6.0, function(){
         var batter = scorerTeam==='my' ? 'opp' : 'my';
         if(typeof poolReleaseBall==='function') poolReleaseBall();
         _ballOwnerKey=null;
@@ -558,13 +567,19 @@ var MovementController = (function() {
 
     } else {
       // ── PARATA: portiere avversario prende e rilancia ─────────────────
+      // USA _ballOn direttamente (non _pendingReceiver) perché siamo in _seq
+      // e _seqActive=true fa uscire update() prima del check _pendingReceiver
       var gkTeamP = ownerTeam==='my' ? 'opp' : 'my';
       var gkXP = gkTeamP==='my' ? 0.115 : 0.885;
+      // Aggiorna stats parate
+      if(_ms) {
+        if(gkTeamP==='my') _ms.mySaves=(_ms.mySaves||0)+1;
+        else               _ms.oppSaves=(_ms.oppSaves||0)+1;
+      }
 
       _qA(0.5, function(){
         if(typeof poolMoveToken==='function') poolMoveToken(gkTeamP+'_GK', gkXP, shotY);
-        _pendingReceiver={key:gkTeamP+'_GK', team:gkTeamP,
-          startX:shotX, startY:shotY, totalDist:0.001, ready:true};
+        _ballOn(gkTeamP+'_GK');  // assegna direttamente, no pendingReceiver
       });
 
       _qA(1.2, function(){
@@ -574,10 +589,12 @@ var MovementController = (function() {
         var lX=c3T ? c3T.x+_rnd(-0.03,0.03) : (gkTeamP==='my'?0.55:0.45);
         var lY=c3T ? c3T.y+_rnd(-0.025,0.025) : 0.50;
         if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(lX, lY);
-        _pendingReceiver={key:gkTeamP+'_3', team:gkTeamP,
-          startX:gkXP, startY:shotY, totalDist:0.001, ready:true};
-        _attack=gkTeamP;
-        _repositionAll(0.022);
+        // Assegna direttamente al pos3 (la palla è già lì)
+        _qA(0.4, function(){
+          _ballOn(gkTeamP+'_3');
+          _attack=gkTeamP;
+          _repositionAll(0.022);
+        });
       });
     }
 
@@ -638,6 +655,7 @@ var MovementController = (function() {
     _pendingReceiver=null;
     _cbShotCooldown=false;
     _shotClock=0;
+    _freeAdvanceCooldown=0;
     _seq=[];_seqActive=false;
   }
 
@@ -674,6 +692,8 @@ var MovementController = (function() {
       var eff = dt * gameSpeed;
       _tacticalT += eff;
       _tickMicro(eff);
+
+      if(_freeAdvanceCooldown > 0) _freeAdvanceCooldown -= eff;
 
       if(_tacticalT >= TACTICAL_INT){
         _tacticalT = 0;
@@ -800,13 +820,14 @@ var MovementController = (function() {
             var twoMX = ownerTeam2==='my' ? 0.79 : 0.21;
             poolMoveToken(_ballOwnerKey, twoMX, ownerTok2.ty + _rnd(-0.015,0.015));
 
-            // Telecronaca: solo quando _passNext passa da normale a 9999 (prima rilevazione)
-            if(_passNext !== 9999) {
+            // Telecronaca: emetti solo se il cooldown è scaduto
+            if(_freeAdvanceCooldown <= 0) {
               var fpName = '';
               if(_ms && ownerTeam2==='my' && _ms.myRoster && ownerTok2.pi!==undefined)
                 fpName = (_ms.myRoster[ownerTok2.pi]||{}).name||'';
               _emitComment('free_advance', { player: fpName,
                 team: ownerTeam2==='my'?(_ms&&_ms.myTeam&&_ms.myTeam.name)||'':(_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'' });
+              _freeAdvanceCooldown = FREE_ADVANCE_CD_SEC;
             }
 
             // Porta avversaria: my→dx (0.91), opp→sx (0.09)
@@ -1126,11 +1147,11 @@ var MovementController = (function() {
     _seq=[];_seqActive=false;
     _qA(0.5, function(){
       if(typeof poolMoveToken==='function') poolMoveToken(gkTeam+'_GK', gkX, gkY);
-      // NON chiamare _ballOn (evita che _autoPass scatti sul GK)
-      // Teniamo _ballOwnerKey=null e usiamo pendingReceiver per il GK
-      var lbGK=typeof poolGetBallPos==='function'?poolGetBallPos():{x:gkX,y:gkY};
-      _pendingReceiver={key:gkTeam+'_GK',team:gkTeam,
-        startX:lbGK.x,startY:lbGK.y,totalDist:0.001,ready:true};
+      _ballOn(gkTeam+'_GK');  // assegna direttamente — siamo in _seq
+      if(_ms) {
+        if(gkTeam==='my') _ms.mySaves=(_ms.mySaves||0)+1;
+        else               _ms.oppSaves=(_ms.oppSaves||0)+1;
+      }
     });
 
     // Step 2 (1.2s di gioco): GK rilancia verso il pos3 della propria squadra
@@ -1149,10 +1170,12 @@ var MovementController = (function() {
       }
       if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(launchX,launchY);
       // ready:true — rimuovere check 40% (già rimosso in v1.1.1)
-      _pendingReceiver={key:gkTeam+'_3',team:gkTeam,
-        startX:gkX,startY:gkY,totalDist:0.001,ready:true};
-      _attack=gkTeam;
-      _repositionAll(0.022);
+      // Assegna direttamente al pos3
+      _qA(0.4, function(){
+        _ballOn(gkTeam+'_3');
+        _attack=gkTeam;
+        _repositionAll(0.022);
+      });
     });
     _startSeq();
   }
