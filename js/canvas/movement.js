@@ -589,12 +589,12 @@ var MovementController = (function() {
         var lX=c3T ? c3T.x+_rnd(-0.03,0.03) : (gkTeamP==='my'?0.55:0.45);
         var lY=c3T ? c3T.y+_rnd(-0.025,0.025) : 0.50;
         if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(lX, lY);
-        // Assegna direttamente al pos3 (la palla è già lì)
-        _qA(0.4, function(){
-          _ballOn(gkTeamP+'_3');
-          _attack=gkTeamP;
-          _repositionAll(0.022);
-        });
+      });
+      // Step 3 separato (no nesting): assegna palla a pos3 dopo il volo
+      _qA(1.6, function(){
+        _ballOn(gkTeamP+'_3');
+        _attack=gkTeamP;
+        _repositionAll(0.022);
       });
     }
 
@@ -814,9 +814,30 @@ var MovementController = (function() {
             var dx=dtok.x-ownerTok2.x, dy=dtok.y-ownerTok2.y;
             closestDef = Math.min(closestDef, Math.sqrt(dx*dx+dy*dy));
           });
-          if(closestDef > FREE_PLAYER_DIST) {
-            // Strada libera: avanza verso la PORTA AVVERSARIA e non passa
-            // my attacca verso dx (porta avv a 0.91), opp attacca verso sx (porta avv a 0.09)
+          // ── Check percorso verso porta (non solo distanza dal difensore) ───
+      // Il giocatore è libero se nessun difensore è davanti a lui nella corsia
+      var goalXfp2 = ownerTeam2==='my' ? 0.91 : 0.09;
+      var attackDirfp2 = ownerTeam2==='my' ? 1 : -1;
+      var isPathClear = true;
+      var emergencyDefKey = null, emergencyDefDist = 999;
+      ['1','2','3','4','5','6'].forEach(function(pk){
+        var dtok2=_tok((ownerTeam2==='my'?'opp':'my')+'_'+pk);
+        if(!dtok2||dtok2.expelled||dtok2.tempAbsent)return;
+        var aheadOfAttacker = attackDirfp2*(dtok2.x - ownerTok2.x) > 0.03; // davanti
+        var sameCorsia = Math.abs(dtok2.y - ownerTok2.y) < 0.18;           // stessa corsia
+        if(aheadOfAttacker && sameCorsia) isPathClear = false;
+        // Tieni traccia del difensore più vicino per l'emergenza
+        var ddfp=_dist(dtok2.x,dtok2.y,ownerTok2.x,ownerTok2.y);
+        if(ddfp<emergencyDefDist){emergencyDefDist=ddfp;emergencyDefKey=(ownerTeam2==='my'?'opp':'my')+'_'+pk;}
+      });
+
+      if(isPathClear) {
+            // Strada libera: avanza verso la PORTA AVVERSARIA
+            // Il difensore più vicino lascia la sua marcatura e pressiona il libero
+            if(emergencyDefKey && _ballOwnerKey!==emergencyDefKey) {
+              poolMoveToken(emergencyDefKey, ownerTok2.x + attackDirfp2*0.06,
+                            ownerTok2.ty + _rnd(-0.05,0.05));
+            }
             var twoMX = ownerTeam2==='my' ? 0.79 : 0.21;
             poolMoveToken(_ballOwnerKey, twoMX, ownerTok2.ty + _rnd(-0.015,0.015));
 
@@ -831,17 +852,16 @@ var MovementController = (function() {
             }
 
             // Porta avversaria: my→dx (0.91), opp→sx (0.09)
-            var oppGoalXfp = ownerTeam2==='my' ? 0.91 : 0.09;
-            var distToGoalfp = Math.abs(ownerTok2.x - oppGoalXfp);
-            if(distToGoalfp < 0.15) {
-              // Entro ~5m dalla porta avversaria → tira subito
+            var distToGoalfp = Math.abs(ownerTok2.x - goalXfp2);
+            if(distToGoalfp < 0.18) {
+              // Entro ~5m dalla porta → tira subito
               _passT = _passNext + 1;
             } else {
-              // Ancora in avvicinamento → blocca i passaggi
+              // In avvicinamento → blocca i passaggi
               _passT = 0; _passNext = 9999;
             }
           } else {
-            // Avversario rientra → ripristina passaggi normali
+            // Percorso bloccato → ripristina passaggi normali
             if(_passNext === 9999) { _passT=0; _passNext=_rnd(1.5,2.5); }
           }
         }
@@ -1169,13 +1189,12 @@ var MovementController = (function() {
         launchX=t3fb.x;launchY=t3fb.y;
       }
       if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(launchX,launchY);
-      // ready:true — rimuovere check 40% (già rimosso in v1.1.1)
-      // Assegna direttamente al pos3
-      _qA(0.4, function(){
-        _ballOn(gkTeam+'_3');
-        _attack=gkTeam;
-        _repositionAll(0.022);
-      });
+    });
+    // Step 3 separato (no nesting): assegna palla al pos3 dopo il volo
+    _qA(1.6, function(){
+      _ballOn(gkTeam+'_3');
+      _attack=gkTeam;
+      _repositionAll(0.022);
     });
     _startSeq();
   }

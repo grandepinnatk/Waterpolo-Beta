@@ -464,7 +464,21 @@ Capienza base 500 posti. Bonus spettatori sul risultato. Spettatori in calendari
 
 ---
 
-**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.6] — 2026-09-21
+**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.7] — 2026-09-21
+
+### Fix — Giocatore libero, statistiche, sequenze save
+
+**Fix 1 — Giocatore libero verso porta (check percorso):**
+Il check precedente (`closestDef > FREE_PLAYER_DIST`) falliva perché il difensore era accanto all'attaccante (non davanti). Ora il giocatore è libero solo se nessun difensore è **davanti a lui nella sua corsia** (proiettato verso la porta, entro 0.18 unità laterali). Un difensore ai lati non blocca l'avanzata.
+
+**Difensore d'emergenza:** quando un attaccante è libero, il difensore più vicino lascia la propria marcatura e si sposta verso l'attaccante libero (pressione d'emergenza).
+
+**Fix 2 — Sequenze save senza _qA annidati:**
+Il `_qA(0.4)` annidato dentro `_qA(1.2)` poteva non essere processato se `_tickSeq` aveva già chiuso la sequenza. Sostituito con step separati al primo livello: `_qA(1.2)` lancia la palla, `_qA(1.6)` assegna il possesso al pos3. Applicato sia in `_autoShot` che in `onSave`.
+
+---
+
+## [1.1.6] — 2026-09-21
 
 ### Bugfix sistemici — Freeze, stats, falli, rimessa
 
