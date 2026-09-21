@@ -456,23 +456,28 @@ var MovementController = (function() {
     var ownerTok  = _tok(_ballOwnerKey);
     if(!ownerTok) return;
 
-    // Porta avversaria
-    var shotX = ownerTeam==='my' ? 0.95 : 0.05;
-    var shotY  = 0.42 + Math.random() * 0.16;  // tra i pali
+    // Porta avversaria: my attacca verso dx (0.91), opp attacca verso sx (0.09)
+    var shotX = ownerTeam==='my' ? 0.94 : 0.06;
+    var shotY  = 0.42 + Math.random() * 0.16;
 
-    // Telecronaca tiro
+    // Nomi per telecronaca
     var shooterName = '';
     if(_ms && ownerTeam==='my' && _ms.myRoster && ownerTok.pi!==undefined)
       shooterName = (_ms.myRoster[ownerTok.pi]||{}).name||'';
+    else if(_ms && ownerTeam==='opp' && _ms.oppRoster)
+      shooterName = ((_ms.oppRoster.find(function(p){return p&&p.role!=='POR';})||{}).name)||'';
+    var gkTeamShot = ownerTeam==='my' ? 'opp' : 'my';
     var gkName = '';
-    if(ownerTeam==='my' && _ms && _ms.oppRoster)
+    if(gkTeamShot==='opp' && _ms && _ms.oppRoster)
       gkName = ((_ms.oppRoster.find(function(p){return p&&p.role==='POR';})||{}).name)||'';
+    else if(gkTeamShot==='my' && _ms && _ms.myRoster && _ms.onField)
+      gkName = (_ms.myRoster[_ms.onField['GK']]||{}).name||'';
     var teamName = ownerTeam==='my'?(_ms&&_ms.myTeam&&_ms.myTeam.name)||'':(_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'';
 
-    // Ripristina timer normale
+    // Ripristina timer
     _passT=0; _passNext=_rnd(1.5,2.5);
 
-    // Lancia la palla verso la porta
+    // Lancia la palla verso la porta avversaria
     _ballOwnerKey=null;
     _pendingReceiver=null;
     if(typeof poolReleaseBall==='function') poolReleaseBall();
@@ -480,48 +485,102 @@ var MovementController = (function() {
 
     // Esito: 20% goal, 80% parata
     var isGoal = Math.random() < 0.20;
-    _emitComment(isGoal?'goal_my':'shot_saved', { shooter:shooterName, scorer:shooterName, gk:gkName, team:teamName });
+    _emitComment(isGoal?(ownerTeam==='my'?'goal_my':'goal_opp'):'shot_saved',
+      { shooter:shooterName, scorer:shooterName, gk:gkName, team:teamName });
 
-    // Usa la sequenza _qA per gestire l'esito
     _seq=[];_seqActive=false;
+
     if(isGoal) {
-      // Simulazione goal: aggiorna punteggio e reset
+      // ── GOAL: stessa sequenza di onGoalEvent ─────────────────────────
+      var scorerTeam = ownerTeam;
+      var tn = teamName;
+
+      // Aggiorna punteggio
       if(_ms) {
-        if(ownerTeam==='my') {
+        if(scorerTeam==='my'){
           _ms.myScore++;
           if(_ms.periodScores&&_ms.period>=1&&_ms.period<=4) _ms.periodScores[_ms.period-1].my++;
+          _ms.myShots=(_ms.myShots||0)+1;
         } else {
           _ms.oppScore++;
           if(_ms.periodScores&&_ms.period>=1&&_ms.period<=4) _ms.periodScores[_ms.period-1].opp++;
         }
-        _ms.myShots = (_ms.myShots||0)+1;
       }
-      // Breve pausa poi reset
-      _qA(1.0, function(){
-        _repositionAll(0.022);
-        _passT=0; _passNext=_rnd(1.5,2.5);
-        _phase='play';
-      });
-    } else {
-      // Parata: il portiere avversario prende la palla
-      var gkTeam = ownerTeam==='my' ? 'opp' : 'my';
-      var gkX = gkTeam==='my' ? 0.115 : 0.885;
+
+      // Step 1 (0.5s): animazione goal + festeggiamento
       _qA(0.5, function(){
-        if(typeof poolMoveToken==='function') poolMoveToken(gkTeam+'_GK', gkX, shotY);
-        _pendingReceiver={key:gkTeam+'_GK',team:gkTeam,startX:shotX,startY:shotY,totalDist:0.001,ready:true};
+        if(typeof poolTriggerGoalAnim==='function') poolTriggerGoalAnim(shooterName, scorerTeam, tn);
+        if(typeof showGoalAnimation==='function') showGoalAnimation(shooterName, scorerTeam, _ms);
+        // Compagni corrono verso il marcatore
+        var st=ownerTok;
+        var sx=st?st.tx:CX, sy=st?st.ty:CY;
+        ['1','2','3','4','5','6'].forEach(function(pk){
+          var k=scorerTeam+'_'+pk;
+          var t2=_tok(k); if(!t2||t2.expelled) return;
+          _mv(k, sx+_rnd(-0.07,0.07), sy+_rnd(-0.06,0.06));
+        });
       });
+
+      // Step 2 (3.5s): rimessa — squadra che ha subito il goal batte da centrocampo
+      // In pallanuoto: chi ha subito il goal prende possesso e si schiera nella propria metà
+      _qA(3.5, function(){
+        var batter = scorerTeam==='my' ? 'opp' : 'my';  // chi ha subito batte
+        // Formazioni rimessa: attaccante in metà campo, difensore arretra
+        var myL = batter==='my' ? RESET_MY_ATK : RESET_MY_DEF;
+        var opL = batter==='my' ? RESET_OPP_DEF : RESET_OPP_ATK;
+        ['GK','1','2','3','4','5','6'].forEach(function(pk){
+          if(myL[pk]) _mv('my_'+pk, myL[pk].x, myL[pk].y, 0.012);
+          if(opL[pk]) _mv('opp_'+pk, opL[pk].x, opL[pk].y, 0.012);
+        });
+        // Palla al centro
+        if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(CX, CY);
+        if(typeof poolSetBallOn==='function') poolSetBallOn(batter+'_6');  // CB della sqd che batte
+        _ballOwnerKey = batter+'_6';
+        _pendingReceiver = null;
+        _phase = 'kickoff_after';
+        _attack = batter;
+      });
+
+      // Step 3 (4.3s): il CB di chi ha subito passa subito al proprio C → gioco riprende
+      _qA(4.3, function(){
+        var batter = scorerTeam==='my' ? 'opp' : 'my';
+        if(typeof poolReleaseBall==='function') poolReleaseBall();
+        _ballOwnerKey=null;
+        var tar3 = batter==='my' ? ATK_MY['3'] : ATK_OPP['3'];
+        if(typeof poolMoveBallDirect==='function')
+          poolMoveBallDirect(tar3.x+_rnd(-0.02,0.02), tar3.y+_rnd(-0.02,0.02));
+        _pendingReceiver={key:batter+'_3', team:batter,
+          startX:CX, startY:CY, totalDist:0.001, ready:true};
+        _attack=batter;
+        _passT=0; _passNext=_rnd(1.5,2.5);
+        _phase='play'; _tacticalT=0; _microPhase={};
+      });
+
+    } else {
+      // ── PARATA: portiere avversario prende e rilancia ─────────────────
+      var gkTeamP = ownerTeam==='my' ? 'opp' : 'my';
+      var gkXP = gkTeamP==='my' ? 0.115 : 0.885;
+
+      _qA(0.5, function(){
+        if(typeof poolMoveToken==='function') poolMoveToken(gkTeamP+'_GK', gkXP, shotY);
+        _pendingReceiver={key:gkTeamP+'_GK', team:gkTeamP,
+          startX:shotX, startY:shotY, totalDist:0.001, ready:true};
+      });
+
       _qA(1.2, function(){
         if(typeof poolReleaseBall==='function') poolReleaseBall();
         _ballOwnerKey=null; _pendingReceiver=null;
-        var c3T=_tok(gkTeam+'_3');
-        var lX=c3T?c3T.x+_rnd(-0.03,0.03):(gkTeam==='my'?0.55:0.45);
-        var lY=c3T?c3T.y+_rnd(-0.025,0.025):0.50;
-        if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(lX,lY);
-        _pendingReceiver={key:gkTeam+'_3',team:gkTeam,startX:gkX,startY:shotY,totalDist:0.001,ready:true};
-        _attack=gkTeam;
+        var c3T=_tok(gkTeamP+'_3');
+        var lX=c3T ? c3T.x+_rnd(-0.03,0.03) : (gkTeamP==='my'?0.55:0.45);
+        var lY=c3T ? c3T.y+_rnd(-0.025,0.025) : 0.50;
+        if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(lX, lY);
+        _pendingReceiver={key:gkTeamP+'_3', team:gkTeamP,
+          startX:gkXP, startY:shotY, totalDist:0.001, ready:true};
+        _attack=gkTeamP;
         _repositionAll(0.022);
       });
     }
+
     _startSeq();
   }
 

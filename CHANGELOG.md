@@ -464,7 +464,26 @@ Capienza base 500 posti. Bonus spettatori sul risultato. Spettatori in calendari
 
 ---
 
-**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.4] — 2026-09-20
+**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.5] — 2026-09-21
+
+### Bugfix — Freeze dopo il goal + rimessa corretta
+
+**Causa:** `_autoShot` per il path goal chiamava solo `_repositionAll` dopo 1s senza: resettare `_ballInFlight`, mostrare l'animazione goal, fare la rimessa al centro. La palla restava congelata vicino alla porta con `_ballInFlight=true` per sempre.
+
+**Rimessa in pallanuoto dopo un goal:**
+- La squadra che ha **subito** il goal prende possesso
+- Le squadre si schierano nelle rispettive metà campo
+- La palla va al CB (pos6) della squadra che batte, al centro
+- Il CB passa subito al C (pos3) → riprende il gioco
+
+**Sequenza `_qA` aggiornata (tempo di gioco scalato):**
+- 0.5s: animazione goal + festeggiamento (`poolTriggerGoalAnim`, `showGoalAnimation`)
+- 3.5s: rimessa — formazioni `RESET_*`, palla al centro, `_ballOwnerKey = batter+'_6'`
+- 4.3s: CB passa al pos3, `_phase='play'`, gioco riprende
+
+---
+
+## [1.1.4] — 2026-09-20
 
 ### Bugfix — Tiri mancanti, intercettazioni false, commento spam
 
