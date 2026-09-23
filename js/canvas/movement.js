@@ -499,6 +499,9 @@ var MovementController = (function() {
 
     if(isGoal) {
       // ── GOAL: stessa sequenza di onGoalEvent ─────────────────────────
+      // CRITICO: impostare goal_cel PRIMA di startSeq
+      // così canRun=true anche quando showGoalAnimation setta ms.running=false
+      _phase = 'goal_cel';
       var scorerTeam = ownerTeam;
       var tn = teamName;
 
@@ -995,7 +998,9 @@ var MovementController = (function() {
 
     var winDist=_cbWinner==='my'?_dist(myK.x,myK.y,CX,CY):_dist(opK.x,opK.y,CX,CY);
     var winSpd=_cbWinner==='my'?_myCBSpd:_oppCBSpd;
-    var sprintDur=Math.max(winDist/Math.max(winSpd,0.001),1.5);
+    // Scala la durata con gameSpeed: a 10x i token arrivano 10x più veloce
+    var gameSpeedNow = _ms && _ms.speed ? _ms.speed : 1;
+    var sprintDur=Math.max(winDist/Math.max(winSpd*gameSpeedNow,0.001),0.5);
 
     // Tutti nuotano in linea retta verso la porta avversaria (ognuno sulla sua corsia)
     // Manteniamo la y originale di kickoff: nuotata parallela, non convergente
@@ -1014,23 +1019,20 @@ var MovementController = (function() {
       _attack = _cbWinner;  // La squadra che prende la palla attacca
       if(typeof poolSetAttack==='function') poolSetAttack(_cbWinner);
     });
-    _qA(sprintDur+0.3, function(){
+    _qA(sprintDur+0.2, function(){
+      // CB6 lancia la palla verso pos3 (passaggio visivo)
       if(typeof poolReleaseBall==='function')poolReleaseBall();
+      _ballOwnerKey=null; _pendingReceiver=null;
       var tar3=_cbWinner==='my'?ATK_MY['3']:ATK_OPP['3'];
       var tX3=tar3.x+_rnd(-0.02,0.02), tY3=tar3.y+_rnd(-0.02,0.02);
       if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(tX3,tY3);
-      var lb3=typeof poolGetBallPos==='function'?poolGetBallPos():{x:CX,y:CY};
-      var d3x=tX3-lb3.x, d3y=tY3-lb3.y;
-      // ready:true — palla velocissima (x15), arriva in pochi frame
-      _pendingReceiver={key:_cbWinner+'_3',team:_cbWinner,
-        startX:lb3.x,startY:lb3.y,
-        totalDist:Math.max(0.02,Math.sqrt(d3x*d3x+d3y*d3y)),ready:true};
     });
-    _qA(sprintDur+0.8, function(){
+    _qA(sprintDur+0.5, function(){
+      // Assegna direttamente il possesso a pos3 (no _pendingReceiver: evita il bug del null)
+      _ballOn(_cbWinner+'_3');
+      _attack=_cbWinner;
       _repositionAll(0.025);_phase='play';_tacticalT=0;_microPhase={};
-      // Dopo lo sprint il CB passa subito: timer a 0 → passa al primo tick
-      _passT=0; _passNext=0.3;
-      if(prevSpeed&&typeof setSpeed==='function')setSpeed(prevSpeed);
+      _passT=0; _passNext=0.3;  // pos3 passa quasi subito
     });
     _startSeq();
   }

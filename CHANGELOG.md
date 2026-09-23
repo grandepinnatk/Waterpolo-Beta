@@ -464,7 +464,45 @@ Capienza base 500 posti. Bonus spettatori sul risultato. Spettatori in calendari
 
 ---
 
-**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.7] — 2026-09-21
+**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.9] — 2026-09-23
+
+### Fix sprint + nuove velocità
+
+**Sprint iniziale — nessuna pausa + passa subito:**
+
+*Causa del ritardo di 2-3 minuti:*
+1. `setSpeed(1)` forzata all'inizio dello sprint: la sequenza `_qA` misura il tempo in secondi reali. A 10x, i token arrivano al centro 10x prima della scadenza del timer → il CB6 restava fermo con la palla per 90% dell'attesa.
+2. `_pendingReceiver` mai soddisfatto: la palla veniva inviata a `ATK_MY['3']` (pos tattica, `x=0.55`) ma pos3 era ancora alla posizione di kickoff (`x=0.13`). La distanza `0.42 >> 0.060` → il check non scattava mai. Pool.js assegnava `_ballOwner` via free-ball contest ma `_ballOwnerKey` in movement.js restava `null` → nessun autoPass.
+
+*Fix applicati:*
+- **Rimossa** `setSpeed(1)` forzata: lo sprint gira alla velocità scelta dall'utente.
+- `sprintDur` ora scalato con `gameSpeed`: `winDist / (winSpd * gameSpeed)` → a 10x la durata è 1/10.
+- Rimosso `_pendingReceiver` per il passaggio a pos3: ora usa `_ballOn(cbWinner+'_3')` diretto (come già nelle sequenze save). `_ballOwnerKey` viene impostato correttamente. Autopass scatta in 0.3s di gioco.
+
+**Velocità di gioco — nuovi valori:**
+`1x · 2x · 5x · 10x · 20x` (sostituisce la precedente `1x · 2x · 10x · 15x · 20x`)
+
+---
+
+## [1.1.8] — 2026-09-21
+
+### Bugfix critico — Freeze dopo goal da `_autoShot`
+
+**Causa:** `_autoShot` non impostava `_phase = 'goal_cel'` prima di avviare la sequenza `_qA`. Quando `showGoalAnimation` setta `ms.running = false` (overlay goal 1.8s), il loop `update()` controlla:
+```js
+var canRun = _ms.running || _phase==='goal_cel' || _phase==='kickoff_after' || ...
+```
+Con `_phase='play'` e `ms.running=false` → `canRun=false` → `update()` esce → `_tickSeq` non viene chiamata → la sequenza si blocca per sempre. I passi 5.0s e 6.0s (reset posizioni + rimessa) non eseguivano mai.
+
+**Effetti collaterali:**
+- Punteggio non aggiornato nella UI (il goal veniva conteggiato nel motore ma la sequenza di rimessa era congelata)
+- Espulsione generata durante il freeze (il foul timer continuava dopo `ms.running=true`)
+
+**Fix:** una riga — `_phase = 'goal_cel'` prima di `_qA(0.5, ...)` in `_autoShot`, come già fatto correttamente in `onGoalEvent`.
+
+---
+
+## [1.1.7] — 2026-09-21
 
 ### Fix — Giocatore libero, statistiche, sequenze save
 

@@ -1022,8 +1022,8 @@ function togglePlay() {
   // inizia lo sprint — la velocità verrà ripristinata da MovementController
   if (ms.running && typeof poolGetPhase === 'function' && poolGetPhase() === 'idle') {
     const prevSpeed = ms.speed;
-    // Forza velocità 1x durante lo sprint per rendere l'animazione visibile
-    setSpeed(1);
+    // Non forziamo più setSpeed(1): lo sprint gira alla velocità scelta dall'utente.
+    // La durata dell'animazione viene scalata con gameSpeed nel calcolo di sprintDur.
     if (typeof MovementController !== 'undefined' && MovementController.onSprintStart) {
       MovementController.onSprintStart(prevSpeed);
     } else if (typeof poolBeginSprint === 'function') {
