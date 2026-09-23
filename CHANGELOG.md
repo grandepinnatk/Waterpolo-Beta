@@ -464,7 +464,35 @@ Capienza base 500 posti. Bonus spettatori sul risultato. Spettatori in calendari
 
 ---
 
-**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.1.9] — 2026-09-23
+**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.2.0] — 2026-09-23
+
+### Fix sistemico — Sincronia _ballOwnerKey e restart post-goal
+
+**Fix 1 — Sprint: prima passata troppo rapida (Bug intercezione immediata)**
+`_passNext` dopo lo sprint portato da 0.3 a `rnd(1.8, 2.5)` game-seconds.
+Con 0.3s i giocatori erano ancora sparsi → alta probabilità di intercettazione al primo passaggio.
+
+**Fix 2 — Post-goal: palla alla squadra sbagliata**
+- **Causa:** `_pendingReceiver` verso `ATK_OPP['3']` (`x=0.45`) ma il token `opp_3` era ancora a `x=0.72` (RESET_DEF). `prDist=0.27 >> 0.060`. Scadenza del `_ballStuckTimer` (2.5s) → free-ball contest → vince un giocatore della squadra che NON deve battere.
+- **Fix:** rimosso `_pendingReceiver` nel step 6.0 di `_autoShot`. Usa `_ballOn(batter+'_3')` diretto in un step separato 6.5s (no nesting).
+- La palla viene lanciata visivamente verso la posizione ATTUALE di `batter_3` (non quella tattica fissa).
+
+**Fix 3 — Freeze per deadlock `_ballOwner` ≠ `_ballOwnerKey`**
+- **Causa sistemica:** pool.js assegna `_ballOwner` via free-ball contest chiamando solo `onPossessChange()`. Quest'ultimo imposta `_attack` ma NON `_ballOwnerKey`. Con `_ballOwnerKey=null`, `_autoPass` non scatta mai.
+- **Fix:** aggiunto `poolGetBallOwner()` in `pool.js`. Nel loop `update()` di movement.js, se `_ballOwnerKey=null` e `_pendingReceiver=null` ma `poolGetBallOwner()` restituisce un valore, sincronizza immediatamente impostando `_ballOwnerKey` e resettando il pass timer.
+
+**File modificati:**
+| File | Modifica |
+|------|---------|
+| `js/canvas/movement.js` | Fix1 passNext sprint, Fix2 step6.0/6.5 goal, Fix3 sync ballOwner |
+| `js/canvas/pool.js` | Aggiunto `poolGetBallOwner()` |
+| `index.html` | Versione footer v1.2.0 |
+| `CHANGELOG.md` | Entry v1.2.0 |
+| `README.md` | Versione aggiornata |
+
+---
+
+## [1.1.9] — 2026-09-23
 
 ### Fix sprint + nuove velocità
 

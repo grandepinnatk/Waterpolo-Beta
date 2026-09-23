@@ -179,6 +179,7 @@ function poolGetTokens()  {return _tokens;}
 function poolGetToken(key){return _tokens[key]||null;}
 function poolGetTokenSpeeds(){return _tokenSpd;}
 function poolGetBallPos() {return {x:_ball.x, y:_ball.y};}  // espone posizione palla
+function poolGetBallOwner(){return _ballOwner||null;}          // espone possessore corrente
 function poolGetKickoffPos(team,pk){
   var t=team==='my'?KICKOFF_MY:KICKOFF_OPP;
   return t[pk]?{x:t[pk].x,y:t[pk].y}:{x:PLAY.cx,y:PLAY.cy};

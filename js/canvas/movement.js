@@ -555,17 +555,24 @@ var MovementController = (function() {
 
       // Step 3 (4.3s): il CB di chi ha subito passa subito al proprio C → gioco riprende
       _qA(6.0, function(){
+        // Lancia visivamente verso il pos3 del battitore (no pendingReceiver)
         var batter = scorerTeam==='my' ? 'opp' : 'my';
         if(typeof poolReleaseBall==='function') poolReleaseBall();
-        _ballOwnerKey=null;
-        var tar3 = batter==='my' ? ATK_MY['3'] : ATK_OPP['3'];
-        if(typeof poolMoveBallDirect==='function')
-          poolMoveBallDirect(tar3.x+_rnd(-0.02,0.02), tar3.y+_rnd(-0.02,0.02));
-        _pendingReceiver={key:batter+'_3', team:batter,
-          startX:CX, startY:CY, totalDist:0.001, ready:true};
+        _ballOwnerKey=null; _pendingReceiver=null;
+        var c3Tok=_tok(batter+'_3');
+        var lX=c3Tok?c3Tok.x+_rnd(-0.03,0.03):CX;
+        var lY=c3Tok?c3Tok.y+_rnd(-0.025,0.025):CY;
+        if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(lX, lY);
         _attack=batter;
-        _passT=0; _passNext=_rnd(1.5,2.5);
         _phase='play'; _tacticalT=0; _microPhase={};
+      });
+      // Step separato: assegna possesso direttamente dopo il volo visivo
+      _qA(6.5, function(){
+        var batter = scorerTeam==='my' ? 'opp' : 'my';
+        _ballOn(batter+'_3');
+        _attack=batter;
+        _passT=0; _passNext=_rnd(1.8,2.5);
+        _repositionAll(0.022);
       });
 
     } else {
@@ -870,6 +877,21 @@ var MovementController = (function() {
         }
       }
 
+      // ── Sync: se pool.js ha già un possessore ma movement.js non lo sa ────
+      // Questo rompe il deadlock _ballOwner≠null / _ballOwnerKey=null
+      if(!_ballOwnerKey && !_pendingReceiver && _phase==='play') {
+        var poolOwner = typeof poolGetBallOwner==='function' ? poolGetBallOwner() : null;
+        if(poolOwner) {
+          _ballOwnerKey = poolOwner;
+          _passT = 0; _passNext = _rnd(1.5, 2.5);
+          var syncTeam = poolOwner.split('_')[0];
+          if(syncTeam !== _attack) {
+            _attack = syncTeam;
+            _repositionAll(0.022);
+          }
+        }
+      }
+
       // ── Fix 4: assegna possesso quando palla arriva al ricevitore ──────────
       // Se un avversario intercetta il passaggio in volo → evento intercetto
       if(_pendingReceiver) {
@@ -1032,7 +1054,8 @@ var MovementController = (function() {
       _ballOn(_cbWinner+'_3');
       _attack=_cbWinner;
       _repositionAll(0.025);_phase='play';_tacticalT=0;_microPhase={};
-      _passT=0; _passNext=0.3;  // pos3 passa quasi subito
+      // Timer più lungo: i giocatori devono posizionarsi prima della prima passata
+      _passT=0; _passNext=_rnd(1.8,2.5);
     });
     _startSeq();
   }
