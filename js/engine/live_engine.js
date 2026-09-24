@@ -106,13 +106,19 @@ function liveGetState() { return _liveState; }
 // Falli: 8-10 per tempo → prob ~0.018 per secondo di gioco
 // Goal: ~20% dei tiri
 // Passaggi medi per azione: 5-9
+// ── Frequenze calibrate per ~3-6 gol totali per periodo ─────────────────────
+// Timer unificato: 18-25s → ~22 chiamate/periodo
+// Target: 6-8 tiri/squadra/periodo × ~20% conversione = 1.2-1.6 gol/squadra/periodo
+// Totale atteso: 2.5-3.0 gol/periodo → 10-12 gol/partita (simile alla modalità simulata)
 var FREQ = {
-  MIN_PASSES_BEFORE_SHOT: 3,    // minimo passaggi prima che si possa tirare
-  SHOT_PROB_PER_PASS: 0.14,     // prob tiro ad ogni passaggio (sale con zona)
-  SHOT_PROB_IN_ZONE: 0.35,      // prob tiro quando si è in zona 5m
-  FOUL_PROB_PER_SEC: 0.018,     // prob fallo per secondo di gioco
-  COUNTER_PASS_MAX: 2,           // max passaggi in contropiede prima del tiro
-  SHOT_CLOCK: 30,                // secondi
+  MIN_PASSES_BEFORE_SHOT: 2,    // passaggi minimi (abbassato: timer più lungo)
+  SHOT_PROB_PER_PASS:     0.22, // prob tiro per chiamata in BUILD_UP/WING
+  SHOT_PROB_IN_ZONE:      0.60, // prob tiro in zona 5m (ATTACK_CB)
+  SHOT_PROB_FREE:         0.75, // prob tiro con giocatore libero (FREE_PLAYER)
+  SHOT_PROB_BASE:         0.28, // prob tiro base per ogni chiamata timer
+  FOUL_PROB_PER_CALL:     0.12, // prob fallo per chiamata (~2-3 falli/periodo)
+  COUNTER_PASS_MAX:       1,    // max passaggi in contropiede prima del tiro
+  SHOT_CLOCK:             30,   // secondi
 };
 
 // ── i18n telecronaca ─────────────────────────────────────────────────────
@@ -219,7 +225,7 @@ function generateLiveEvent(ms) {
 
     case CANVAS_PHASE.ATTACK_CB:
       // CB in zona 2m: alta probabilità di tiro
-      if (st.passCount >= 2 || Math.random() < FREQ.SHOT_PROB_IN_ZONE) {
+      if (st.passCount >= 1 || Math.random() < FREQ.SHOT_PROB_IN_ZONE) {
         return attack === 'my'
           ? _buildMyShotEvent(ms, myEff, oppStr, bx, by)
           : _buildOppShotEvent(ms, myEff, oppStr, bx, by);
@@ -228,7 +234,7 @@ function generateLiveEvent(ms) {
 
     case CANVAS_PHASE.FREE_PLAYER:
       // Giocatore libero → tiro molto probabile
-      if (Math.random() < 0.55) {
+      if (Math.random() < FREQ.SHOT_PROB_FREE) {
         return attack === 'my'
           ? _buildMyShotEvent(ms, myEff, oppStr, bx, by)
           : _buildOppShotEvent(ms, myEff, oppStr, bx, by);
@@ -236,8 +242,17 @@ function generateLiveEvent(ms) {
       break;
 
     case CANVAS_PHASE.COUNTER:
-      // Contrattacco: pochi passaggi poi tiro
-      if (st.passCount >= FREQ.COUNTER_PASS_MAX) {
+      // Contrattacco: tiro quasi immediato
+      if (st.passCount >= FREQ.COUNTER_PASS_MAX || Math.random() < 0.65) {
+        return attack === 'my'
+          ? _buildMyShotEvent(ms, myEff, oppStr, bx, by)
+          : _buildOppShotEvent(ms, myEff, oppStr, bx, by);
+      }
+      break;
+
+    case CANVAS_PHASE.SUPERIORITY:
+      // Superiorità: maggiore probabilità di tiro
+      if (Math.random() < 0.50) {
         return attack === 'my'
           ? _buildMyShotEvent(ms, myEff, oppStr, bx, by)
           : _buildOppShotEvent(ms, myEff, oppStr, bx, by);
@@ -246,20 +261,29 @@ function generateLiveEvent(ms) {
 
     case CANVAS_PHASE.BUILD_UP:
     case CANVAS_PHASE.ATTACK_WING:
-      // Costruzione: tiro dopo N passaggi, frequenza calibrata
+      // Costruzione: prob. tiro base + bonus se in zona
       var zoneMult = (attack === 'my' && bx > LIVE.OPP_SHOT_ZONE) ||
-                     (attack === 'opp' && bx < LIVE.MY_SHOT_ZONE) ? 2.5 : 1.0;
+                     (attack === 'opp' && bx < LIVE.MY_SHOT_ZONE) ? 2.2 : 1.0;
       var shotProb = st.passCount >= FREQ.MIN_PASSES_BEFORE_SHOT
-        ? FREQ.SHOT_PROB_PER_PASS * zoneMult : 0;
-      if (shotProb > 0 && Math.random() < shotProb) {
+        ? FREQ.SHOT_PROB_PER_PASS * zoneMult
+        : FREQ.SHOT_PROB_BASE * 0.5;  // anche senza passaggi c'è una prob. minima
+      if (Math.random() < shotProb) {
         return attack === 'my'
           ? _buildMyShotEvent(ms, myEff, oppStr, bx, by)
           : _buildOppShotEvent(ms, myEff, oppStr, bx, by);
       }
       break;
+
+    default:
+      // Fase non specifica: prob. tiro base
+      if (Math.random() < FREQ.SHOT_PROB_BASE) {
+        return attack === 'my'
+          ? _buildMyShotEvent(ms, myEff, oppStr, bx, by)
+          : _buildOppShotEvent(ms, myEff, oppStr, bx, by);
+      }
   }
 
-  // ── Priorità 4: fallo (frequenza calibrata) ───────────────────────────
+  // ── Priorità 4: fallo (frequenza calibrata per chiamata) ─────────────
   var foulEvent = _tryFoulEvent(ms, attack, bx, by);
   if (foulEvent) return foulEvent;
 
@@ -394,9 +418,8 @@ function _buildNeutralEvent(ms, attack, bx, by, phase) {
 }
 
 function _tryFoulEvent(ms, attack, bx, by) {
-  // Frequenza calibrata: ~8-10 falli per tempo (480s) → prob ~0.018/s
-  // Il motore è chiamato ogni ~7-12s → prob per chiamata ≈ 0.018 * 9 ≈ 0.16
-  var prob = 0.016 * 9;
+  // Frequenza calibrata: ~2-3 falli per periodo (timer 18-25s)
+  var prob = FREQ.FOUL_PROB_PER_CALL;
   if (Math.random() >= prob) return null;
 
   var myFoulCandidates = Object.entries(ms.onField)

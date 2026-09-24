@@ -232,15 +232,23 @@ function _animLoop(timestamp) {
       _canvasPlaying = false;
     }
 
-    // ── Falli e superiorità da live_engine (ogni ~45s di gioco) ─────────────
+    // ── Timer eventi live — calibrato per ~3-6 gol totali per periodo ──────
+    // Frequenza: ogni 18-25s di gioco (22 chiamate/periodo)
+    // • generateLiveEvent gestisce tiri, falli, superiorità e neutri in base alla fase canvas
+    // • Canvas trigger (giocatore libero, CB in zona) si sommano a questi eventi
+    // Risultato atteso: ~6-8 tiri/squadra per periodo, ~20% conversione → 3-5 gol totali/partita
     G.ms.lastActionTime += rawDt * (G.ms.speed || 1);
     if (G.ms.lastActionTime >= G.ms.nextActionIn && !G.ms.finished) {
       G.ms.lastActionTime = 0;
-      G.ms.nextActionIn = 40 + Math.random() * 20;  // 40-60s tra un fallo e l'altro
-      const event = (typeof generateFoulEvent === 'function')
-        ? generateFoulEvent(G.ms)
-        : null;
-      if (event) {
+      G.ms.nextActionIn = 18 + Math.random() * 7;   // 18-25s tra un evento e l'altro
+
+      // Usa generateLiveEvent (canvas-driven: legge fase, possesso, distanza porta)
+      // Se non disponibile, fallback a generateFoulEvent
+      const event = (typeof generateLiveEvent === 'function')
+        ? generateLiveEvent(G.ms)
+        : (typeof generateFoulEvent === 'function' ? generateFoulEvent(G.ms) : null);
+
+      if (event && !event._phaseOnly) {  // _phaseOnly = solo commento, nessuna azione canvas
         const animType = _animTypeOf(event);
         const duration = ANIM_DURATIONS[animType] ?? ANIM_DURATIONS.neutral;
         _canvasQueue.push({ event, animType, duration });

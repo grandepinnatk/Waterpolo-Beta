@@ -464,7 +464,48 @@ Capienza base 500 posti. Bonus spettatori sul risultato. Spettatori in calendari
 
 ---
 
-**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.2.1] — 2026-09-24
+**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.2.2] — 2026-09-24
+
+### Ricalibrazione frequenza gol — Parità con modalità simulata
+
+**Problema:** nella modalità giocata i gol erano molto meno rispetto alla simulata perché dal v1.1.0 il loop principale chiamava solo `generateFoulEvent` (ogni 40-60s). Gli unici trigger di tiro erano canvas-driven (giocatore libero, CB in zona) — rari.
+
+**Soluzione:** timer unificato e frequenze ricalibrate.
+
+**Timer unificato (`match.js`):**
+- Sostituisce il timer falli-only (40-60s) con un timer per tutti gli eventi (18-25s)
+- Chiama `generateLiveEvent` che gestisce tiri, falli, superiorità e neutri in base alla fase canvas
+- I trigger canvas (giocatore libero, CB zona) si sommano agli eventi timer
+
+**Frequenze ricalibrate (`live_engine.js`):**
+
+| Parametro | Prima | Dopo | Note |
+|-----------|-------|------|------|
+| `SHOT_PROB_PER_PASS` | 0.14 | 0.22 | BUILD_UP/WING |
+| `SHOT_PROB_IN_ZONE` | 0.35 | 0.60 | ATTACK_CB (CB zona 2m) |
+| `SHOT_PROB_FREE` | 0.55 | 0.75 | FREE_PLAYER |
+| `SHOT_PROB_BASE` | — | 0.28 | Nuovo: prob. base per fase generica |
+| `FOUL_PROB_PER_CALL` | ~16% | 12% | Falli: ~2-3/periodo |
+| `COUNTER_PASS_MAX` | 2 | 1 | Contrattacco più rapido |
+
+**Risultato atteso:**
+- ~22 chiamate/periodo × 28% prob. media tiro = ~6-7 tiri/squadra/periodo
+- 6-7 tiri × 20% conversione = ~1.3 gol/squadra/periodo = **~5 gol totali/partita**
+- Con tattiche aggressive/difensive: range 3-8 gol → simile alla modalità simulata (4-10)
+- Tattica utente (cambi, formazione) influenza il risultato entro ±20%
+
+**File modificati:**
+| File | Modifica |
+|------|---------|
+| `js/ui/match.js` | Timer eventi 18-25s, chiama `generateLiveEvent` |
+| `js/engine/live_engine.js` | FREQ ricalibrate, nuova `SHOT_PROB_BASE`, `SHOT_PROB_FREE`, superiorità |
+| `index.html` | Footer v1.2.2 |
+| `CHANGELOG.md` | Entry v1.2.2 |
+| `README.md` | Versione aggiornata |
+
+---
+
+## [1.2.1] — 2026-09-24
 
 ### Bugfix — 4 problemi risolti
 
