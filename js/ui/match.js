@@ -1638,8 +1638,10 @@ function _doEndMatch() {
     simulateRound(G.schedule, G.stand, G.teams, ms.match.round, G.myId, G.rosters);
     // Avanza alla giornata successiva (stelle, decadimento forma, rinnovi, costruzioni)
     // Il flag evita di fare doppio su ingaggi e infortuni già processati sopra
+    // NOTA: simNextRound() NON viene chiamato qui — verrebbe già chiamato dal dashboard
+    // quando l'utente preme "Avanza" nella giornata successiva.
     G._skipWageAndInjury = true;
-    if (typeof simNextRound === 'function') simNextRound();
+    // simNextRound rimosso: causava la simulazione della partita successiva alla fine di una partita giocata
     G._skipWageAndInjury = false;
     _subSelField = null; _subSelBench = null;
     G.ms = null;

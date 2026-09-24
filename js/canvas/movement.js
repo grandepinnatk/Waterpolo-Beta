@@ -336,7 +336,7 @@ var MovementController = (function() {
               { shooter:cbShooterName, scorer:cbShooterName, gk:cbGkName, team:cbTeamN });
             // Crea evento tiro sintetico verso la porta
             var shotY = _rnd(0.40, 0.60);
-            var shotX = (_attack === 'my') ? 0.95 : 0.05;
+            var shotX = (_attack === 'my') ? 0.93 : 0.07;  // dentro la rete ma non oltre il fondo
             if(typeof poolReleaseBall==='function') poolReleaseBall();
             _ballOwnerKey = null;
             if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(shotX, shotY);
@@ -353,8 +353,10 @@ var MovementController = (function() {
 
     // ── pos6 in difesa marca il pos3 avversario (centrovasca) ───────────────
     var atkTeam6  = _attack;
-    var defCB6Key = (atkTeam6 === 'my') ? 'opp_6' : 'my_6';
-    var atkC3Key  = (atkTeam6 === 'my') ? 'opp_3' : 'my_3';
+    var defCB6Key = (atkTeam6 === 'my') ? 'opp_6' : 'my_6';   // CB della squadra in difesa
+    // atkC3Key: pos3 (centrovasca) della squadra IN ATTACCO — quello da marcare
+    // Era invertito: 'opp_3' quando attack='my' e 'my_3' quando attack='opp'
+    var atkC3Key  = (atkTeam6 === 'my') ? 'my_3' : 'opp_3';   // C della squadra attaccante
     var cb6Tok    = _tok(defCB6Key);
     var c3Tok     = _tok(atkC3Key);
     if(cb6Tok && c3Tok && !cb6Tok.expelled && !cb6Tok.tempAbsent && _ballOwnerKey !== defCB6Key) {
@@ -459,7 +461,11 @@ var MovementController = (function() {
     if(!ownerTok) return;
 
     // Porta avversaria: my attacca verso dx (0.91), opp attacca verso sx (0.09)
-    var shotX = ownerTeam==='my' ? 0.94 : 0.06;
+    // shotX: per goal entra nella rete avversaria; per parata si ferma davanti al portiere
+    // La rete avversaria (opp): oppNetX0=0.91, oppNetX1=0.98 → shot a 0.93 ok
+    // La rete nostra (my):    myNetX0=0.02,  myNetX1=0.09  → shot a 0.07 ok
+    // IMPORTANTE: per una PARATA il ball non deve superare le linee di porta (myNetX1=0.09 / oppNetX0=0.91)
+    var shotX = ownerTeam==='my' ? 0.93 : 0.07;
     var shotY  = 0.42 + Math.random() * 0.16;
 
     // Nomi per telecronaca
@@ -535,7 +541,7 @@ var MovementController = (function() {
 
       // Step 2 (3.5s): rimessa — squadra che ha subito il goal batte da centrocampo
       // In pallanuoto: chi ha subito il goal prende possesso e si schiera nella propria metà
-      _qA(5.0, function(){  // aspetta che tutti tornino nelle rispettive metà
+      _qA(5.0, function(){  // squadre verso le rispettive metà
         var batter = scorerTeam==='my' ? 'opp' : 'my';  // chi ha subito batte
         // Formazioni rimessa: attaccante in metà campo, difensore arretra
         var myL = batter==='my' ? RESET_MY_ATK : RESET_MY_DEF;
@@ -554,7 +560,7 @@ var MovementController = (function() {
       });
 
       // Step 3 (4.3s): il CB di chi ha subito passa subito al proprio C → gioco riprende
-      _qA(6.0, function(){
+      _qA(7.5, function(){ // aspetta che tutti raggiungano le posizioni prima del calcio d'inizio
         // Lancia visivamente verso il pos3 del battitore (no pendingReceiver)
         var batter = scorerTeam==='my' ? 'opp' : 'my';
         if(typeof poolReleaseBall==='function') poolReleaseBall();
@@ -567,7 +573,7 @@ var MovementController = (function() {
         _phase='play'; _tacticalT=0; _microPhase={};
       });
       // Step separato: assegna possesso direttamente dopo il volo visivo
-      _qA(6.5, function(){
+      _qA(8.0, function(){
         var batter = scorerTeam==='my' ? 'opp' : 'my';
         _ballOn(batter+'_3');
         _attack=batter;

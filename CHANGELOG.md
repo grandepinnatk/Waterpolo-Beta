@@ -464,7 +464,34 @@ Capienza base 500 posti. Bonus spettatori sul risultato. Spettatori in calendari
 
 ---
 
-**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.2.0] — 2026-09-23
+**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.2.1] — 2026-09-24
+
+### Bugfix — 4 problemi risolti
+
+**Bug 1 (PRIORITARIO) — Partita successiva simulata a fine match giocato:**
+`endMatch()` chiamava `simNextRound()` che simula TUTTE le partite della giornata successiva inclusa quella della propria squadra. Rimossa la chiamata: `simNextRound()` viene già invocato dal dashboard quando l'utente preme "Avanza giornata".
+
+**Bug 2 — CB (pos6) non partecipa all'attacco:**
+`atkC3Key` aveva la logica invertita: quando `_attack='my'`, il valore era `'opp_3'` invece di `'my_3'`. Il CB6 difensore marcava il CENTROVASCA DELLA PROPRIA SQUADRA invece di quello avversario, restando bloccato in difesa anche quando doveva attaccare. Fix: `atkC3Key = (atkTeam6 === 'my') ? 'my_3' : 'opp_3'`.
+
+**Bug 3 — Palla oltre la linea di porta su parata:**
+`shotX` per tiri verso la porta nostra era `0.06` (dentro la rete: `myNetX0=0.02, myNetX1=0.09`). La palla attraversava visivamente la porta. Portato a `0.07` (dentro la rete ma non oltre il fondo). CB shot trigger cambiato da `0.05/0.95` a `0.07/0.93`.
+
+**Bug 4 — Post-goal: squadre non in metà campo prima del restart:**
+Timing della sequenza portato da `6.0s/6.5s` a `7.5s/8.0s`. Le squadre hanno ora più tempo per raggiungere le formazioni RESET_* nelle rispettive metà prima che la battuta da centrocampo avvenga.
+
+**File modificati:**
+| File | Modifica |
+|------|---------|
+| `js/ui/match.js` | Rimosso `simNextRound()` da `endMatch()` |
+| `js/canvas/movement.js` | Fix `atkC3Key` invertito; `shotX` corretto; timing post-goal 7.5s/8.0s |
+| `index.html` | Footer v1.2.1 |
+| `CHANGELOG.md` | Entry v1.2.1 |
+| `README.md` | Versione aggiornata |
+
+---
+
+## [1.2.0] — 2026-09-23
 
 ### Fix sistemico — Sincronia _ballOwnerKey e restart post-goal
 
