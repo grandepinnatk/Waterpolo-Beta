@@ -129,18 +129,21 @@ function _dispatchCanvasEvent(event) {
       MovementController.onShot(event);
 
   } else if (event.cls === 'fl') {
-    // Fallo: la palla RIMANE FERMA dove è caduta.
-    // Il giocatore moverKey nuota verso la palla per batterla.
-    if (event.moverKey && event.ballTarget)
+    // Fallo: il moverKey va sulla palla e la batte.
+    // Il possesso viene assegnato quando il giocatore arriva.
+    if (event.moverKey && event.ballTarget) {
       poolMoveToken(event.moverKey, event.ballTarget.x, event.ballTarget.y);
-    // _pendingReceiver si attiverà quando il giocatore raggiunge la palla in pool.js
+      // Assegna il possesso tramite MovementController
+      if (typeof MovementController !== 'undefined' && MovementController.onPassOrNeutral)
+        MovementController.onPassOrNeutral(event);
+    }
 
   } else if (event.ballTarget) {
-    // Evento neutro/passaggio: MovementController gestisce (il giocatore più vicino
-    // va sulla palla, non la palla va dal giocatore)
-    if (typeof MovementController !== 'undefined' && MovementController.onPassOrNeutral)
-      MovementController.onPassOrNeutral(event);
-    // NON chiamare poolMoveBall qui — onPassOrNeutral decide se/come muovere la palla
+    // Evento NEUTRO (circolazione palla, manovra, ecc.)
+    // NON chiama onPassOrNeutral: il canvas gestisce già la circolazione tramite _autoPass.
+    // Chiamare onPassOrNeutral resettava _ballOwnerKey ad ogni evento, bloccando il gioco
+    // ad alta velocità dove gli eventi si accumulano ogni 0.9-1.2s reali.
+    // L'evento è già nel log — nessuna azione canvas necessaria.
   }
 
   if (event.expelled !== undefined) _handleExpulsion(event.expelled, event.moverKey);

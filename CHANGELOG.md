@@ -464,7 +464,31 @@ Capienza base 500 posti. Bonus spettatori sul risultato. Spettatori in calendari
 
 ---
 
-**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.2.2] — 2026-09-24
+**Formato versioni:** `MAJOR.MINOR[.PATCH][-fix N]` — beta fisso a 0.## [1.2.3] — 2026-09-25
+
+### Bugfix — Gioco bloccato al cambio velocità
+
+**Causa:** ad alta velocità (10x-20x), il timer eventi (`nextActionIn=18-25s` di gioco) genera un evento ogni 0.9-1.25 secondi REALI. Ogni evento neutro (`cls:''`) chiamava `onPassOrNeutral` che resettava `_ballOwnerKey=null` e sovrascriveva `_pendingReceiver`, interrompendo continuamente il passaggio automatico di `_autoPass`. La palla restava sostanzialmente ferma mentre il log continuava a scorrere.
+
+**Fix:** gli eventi neutri NON modificano più lo stato canvas. `_dispatchCanvasEvent` per `cls:''` con `ballTarget` è diventato un no-op canvas: l'evento va solo nel log. La circolazione della palla è già gestita da `_autoPass` in `movement.js` — gli eventi timer non devono interferire.
+
+I soli eventi che modificano il canvas sono:
+- `goalScored` → `onGoalEvent`
+- `cls:'sv'` → `onSave`
+- `moverKey + ballTarget` (senza cls) → `onShot`
+- `cls:'fl'` → fallo, giocatore va sulla palla
+
+**File modificati:**
+| File | Modifica |
+|------|---------|
+| `js/ui/match.js` | Eventi neutri → solo log, nessuna azione canvas; fallo → `onPassOrNeutral` per possesso |
+| `index.html` | Footer v1.2.3 |
+| `CHANGELOG.md` | Entry v1.2.3 |
+| `README.md` | Versione aggiornata |
+
+---
+
+## [1.2.2] — 2026-09-24
 
 ### Ricalibrazione frequenza gol — Parità con modalità simulata
 
