@@ -343,10 +343,26 @@ function _buildMyShotEvent(ms, myEff, oppStr, bx, by) {
     // Incrementare anche p.goals qui li contava due volte, una durante la
     // partita e una alla fine.
     if (ms.matchGoals) ms.matchGoals[attacker.pi] = (ms.matchGoals[attacker.pi]||0)+1;
+    // Assist. Il percorso saltato (generateMatchEvent) li registrava gia', ma
+    // quello live no: p.assists restava a 0 per ogni partita giocata dal
+    // vivo, e i totali stagionali dipendono da ms.matchAssists.
+    var others = activePlayers.filter(function (x) { return x.pi !== attacker.pi; });
+    var assisterName = '';
+    if (others.length && ms.matchAssists) {
+      var ast = _weightedPick(others, function (x) {
+        return 0.5 + ((x.p.stats && x.p.stats.tec) || 50) / 200;
+      });
+      if (ast) {
+        ms.matchAssists[ast.pi] = (ms.matchAssists[ast.pi] || 0) + 1;
+        assisterName = ast.p.name;
+      }
+    }
     if (ms.periodScores && ms.period>=1 && ms.period<=4) ms.periodScores[ms.period-1].my++;
     vars.scorer = attacker.p.name;
     return {
-      txt: _txt('goal_my', null, vars),
+      // I template i18n di goal_my non hanno un segnaposto per l'assistente,
+      // quindi lo aggiungo al testo come gia' fa generateMatchStats.
+      txt: _txt('goal_my', null, vars) + (assisterName ? ' · Assist: ' + assisterName : ''),
       cls: 'myg', shotTeam: 'my',
       ballTarget:  { x: 0.94, y: shotY },
       moverKey:    'my_'+attacker.pk,

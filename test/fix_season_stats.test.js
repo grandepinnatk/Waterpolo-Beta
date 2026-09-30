@@ -170,3 +170,72 @@ test('FIX 5: i gol dell\'avversario non toccano la mia rosa', () => {
   assert.strictEqual(h.run('__before'), 0);
   assert.ok(h.run('Object.keys(G.ms.oppMatchGoals || {}).length') >= 0);
 });
+
+// ── Assistenti nelle partite live ───────────────────────────────────
+// Collegato al FIX 5: generateLiveEvent tracciava il gol ma non l'assist, e i
+// totali stagionali p.assists dipendono da ms.matchAssists. Il percorso saltato
+// li registrava gia', quindi un gol segnato saltando la partita contava un
+// assisto e lo stesso gol giocato dal vivo no.
+
+test('FIX 5: le partite live registrano gli assistenti', () => {
+  const h = loadGame();
+  prime(h);
+
+  h.run(`
+    __myGoals = 0; __myAssists = 0;
+    for (let i = 0; i < 600; i++) {
+      generateLiveEvent(G.ms);
+      __myGoals   = Object.values(G.ms.matchGoals).reduce((a,b)=>a+b,0);
+      __myAssists = Object.values(G.ms.matchAssists).reduce((a,b)=>a+b,0);
+      if (__myGoals >= 5) break;
+    }
+  `);
+
+  assert.ok(h.run('__myGoals') >= 5, 'il test deve aver generato almeno 5 gol live');
+  assert.ok(h.run('__myAssists') > 0,
+    'nessun assist registrato nelle partite live: p.assists resterebbe sempre 0');
+});
+
+test('FIX 5: l\'assistente non e\' il marcatore', () => {
+  const h = loadGame();
+  prime(h);
+  h.run(`
+    for (let i = 0; i < 600; i++) {
+      generateLiveEvent(G.ms);
+      if (Object.values(G.ms.matchGoals).reduce((a,b)=>a+b,0) >= 5) break;
+    }
+  `);
+
+  const overlap = h.run(`
+    (function () {
+      var both = 0;
+      Object.keys(G.ms.matchGoals).forEach(function (pi) {
+        if ((G.ms.matchAssists[pi] || 0) > 0) both++;
+      });
+      return both;
+    })()
+  `);
+  // Non impossibile che un giocatore segni e assista nella stessa partita, ma
+  // non deve essere la regola: il peso di 1 esclude l'attaccante dai candidati.
+  assert.ok(overlap <= 2, 'troppi giocatori risultano sia marcatori che assistenti: ' + overlap);
+});
+
+test('FIX 5: gli assistenti live finiscono nei totali stagionali una volta sola', () => {
+  const h = loadGame();
+  prime(h);
+  countTotals(h);
+
+  h.run(`
+    for (let i = 0; i < 600; i++) {
+      generateLiveEvent(G.ms);
+      if (Object.values(G.ms.matchGoals).reduce((a,b)=>a+b,0) >= 5) break;
+    }
+    __perMatchAssists = Object.values(G.ms.matchAssists).reduce((a,b)=>a+b,0);
+  `);
+  const perMatch = h.run('__perMatchAssists');
+  assert.ok(perMatch > 0);
+
+  h.run('_doEndMatch()');
+  assert.strictEqual(h.run('__totalAssists()'), perMatch,
+    'gli assisti live devono valere come assisti stagionali, senza doppio conteggio');
+});
