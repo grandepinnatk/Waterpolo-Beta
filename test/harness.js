@@ -70,6 +70,17 @@ function makeElement(tag = 'div') {
     checked: false,
     disabled: false,
     parentNode: null,
+    // Contatore di scritture al DOM: permette ai test di misurare quanto il
+    // gioco ricostruisce davvero i contenitori a ogni frame. Il valore letto
+    // torna sempre a '', come nel browser dove innerHTML non e' introspettabile
+    // su un elemento vuoto.
+    _htmlWrites: 0,
+    get innerHTML() { return ''; },
+    set innerHTML(v) { this._htmlWrites++; this._lastHTML = String(v); },
+    value: '',
+    checked: false,
+    disabled: false,
+    parentNode: null,
     classList: {
       _s: new Set(),
       add(...c) { c.forEach((x) => this._s.add(x)); },

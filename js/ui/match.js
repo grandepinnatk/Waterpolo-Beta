@@ -1028,7 +1028,16 @@ function renderFieldLists(anim) {
     const animCls = (_animIn === pi) ? 'swap-anim-up' : '';
     fieldHtml += playerRow(pi, pk, false, selCls, animCls);
   });
-  document.getElementById('field-players').innerHTML = fieldHtml;
+// Il loop chiama renderFieldLists() a ogni frame. Riassegnare innerHTML
+  // distrugge e ricrea tutte le righe, con tre effetti collaterali:
+  // layout e paint di ~250 nodi a 60 fps, riavvio della transition CSS della
+  // barra stamina (che riparte da zero a ogni ricostruzione), e perdita di
+  // scroll e stato hover/focus.
+  //
+  // Ma la stringa cambia di rado: la stamina passa per Math.round, quindi
+  // varia ogni ~19 secondi di gioco, non ogni frame. Misurato su 180 frame a
+  // velocita 20x: 360 scritture al DOM per 4 HTML distinti, il 99% sprecato.
+  _setContainerHtml('field-players', fieldHtml);
 
   // ── PANCHINA — ordine POR→DIF→CEN→ATT→CB ──────────────
   const ROLE_ORDER = { POR:0, DIF:1, CEN:2, ATT:3, CB:4 };
@@ -1045,8 +1054,25 @@ function renderFieldLists(anim) {
     const animCls = (_animOut === pi) ? 'swap-anim-down' : '';
     benchHtml += playerRow(pi, null, true, selCls, animCls);
   });
-  document.getElementById('bench-players').innerHTML =
-    benchSorted.length ? benchHtml : '<div style="color:var(--muted);font-size:12px;padding:8px">Panchina vuota</div>';
+  _setContainerHtml('bench-players',
+    benchSorted.length ? benchHtml : '<div style="color:var(--muted);font-size:12px;padding:8px">Panchina vuota</div>');
+}
+
+// ── Scrive innerHTML solo se il contenuto è cambiato ────────────────
+// Cache per id di contenitore. Gli unici scrittori di field-players e
+// bench-players sono le due righe qui sopra, quindi nessun altro puo' lasciare
+// la cache in stalo. _invalidateFieldHtmlCache() resta a disposizione per i
+// cambi di schermata che sostituiscono il contenitore.
+const _fieldHtmlCache = Object.create(null);
+function _setContainerHtml(id, html) {
+  if (_fieldHtmlCache[id] === html) return false;
+  _fieldHtmlCache[id] = html;
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
+  return true;
+}
+function _invalidateFieldHtmlCache() {
+  for (const k in _fieldHtmlCache) delete _fieldHtmlCache[k];
 }
 // ── Controlli partita ─────────────────────────
 function togglePlay() {
