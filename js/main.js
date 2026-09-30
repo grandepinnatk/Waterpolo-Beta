@@ -111,7 +111,20 @@ function nextMyMatch() {
 }
 
 // ── Auto-save ─────────────────────────────────
+// Non salvare mentre una partita live è in corso.
+//
+// Lo stato della partita (G.ms) non viene serializzato, ma le rose sì: e
+// ms.myRoster è lo stesso oggetto di G.rosters[G.myId]. Durante la partita quei
+// giocatori vengono mutati sul posto (p.injured sugli infortuni live, il
+// fitness perso, i parziali). Un salvataggio a meta partita congelerebbe quelle
+// modifiche mentre la partita risulta ancora non disputata nel calendario:
+// ricaricando, l'infortunio o la perdita di forma verrebbero applicati una
+// seconda volta.
+//
+// A fine partita _doEndMatch azzera G.ms prima di chiamare autoSave, quindi il
+// salvataggio che conta passa senza problemi.
 function autoSave() {
+  if (G && G.ms && G.ms.running) return;
   if (G && G.myId) autoSaveToCurrentSlot(G);
 }
 

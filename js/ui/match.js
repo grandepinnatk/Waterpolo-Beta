@@ -1419,7 +1419,13 @@ function confirmSub() {
   closeSub();
   renderFieldLists();
   refreshMatchUI();
-  autoSave();
+  // Niente autoSave: la sostituzione vive in ms.onField/ms.bench, e G.ms non
+  // viene serializzato (save.js:24). Salvare qui non salvava niente della
+  // sostituzione, ma persisteva invece le metà della partita già mutate sulla
+  // rosa reale: gli infortuni live scrivono p.injured e tolgono fitness
+  // direttamente sugli oggetti di G.rosters, che ms.myRoster referenzia. Il
+  // salvataggio di fine partita, quello che serve davvero, resta a
+  // _doEndMatch dopo che G.ms è stato azzerato.
 }
 
 // ── Fine partita ──────────────────────────────
