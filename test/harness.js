@@ -222,8 +222,18 @@ function loadGame({ seed = 12345, storage } = {}) {
     document,
     localStorage,
     warnings,
-    /** Valuta un'espressione nel contesto del gioco e ne restituisce il valore. */
-    run(expr) { return vm.runInContext(expr, ctx); },
+    /**
+     * Valuta un'espressione nel contesto del gioco e ne restituisce il valore.
+     * Il secondo argomento inietta variabili nel contesto passandogli gli
+     * OGGETTI VIVI (non copie): le mutazioni fatte dal codice di gioco sono
+     * quindi visibili dal test, che è ciò che serve per osservare lo stato.
+     */
+    run(expr, vars) {
+      if (vars) {
+        for (const k of Object.keys(vars)) sandbox[k] = vars[k];
+      }
+      return vm.runInContext(expr, ctx);
+    },
     /** Legge un globale (incluse le dichiarazioni `let`, non solo `var`). */
     get(name) { return vm.runInContext(name, ctx); },
     /** Riassegna un globale. */

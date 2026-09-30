@@ -212,6 +212,7 @@ function _animLoop(timestamp) {
     const { periodEnded, matchEnded } = advanceTime(G.ms, rawDt);
 
     if (periodEnded && !matchEnded) {
+      _releaseGoalPause();
       G.ms.running = false;
       document.getElementById('btn-play').textContent = '▶ ' + t('match.resume');
       _lastFrameT = null;
@@ -284,6 +285,23 @@ function _animLoop(timestamp) {
   drawPool(canvas, G.myTeam.abbr, G.ms ? G.ms.oppTeam.abbr : '');
 }// ── Animazione GOAL ──────────────────────────────────────────────────
 let _goalAnimTimer = null;
+// Token di generazione dell'animazione goal. Ogni volta che qualcun altro
+// prende in mano la pausa (utente, fine tempo, esausti, skip, sostituzioni)
+// il token viene incrementato e il timer del goal in volo diventa innocuo.
+// Serve per il difetto originale: due goal ravvicinati, il secondo cancellava
+// il timer del primo ma leggeva come "gia' in pausa" la pausa messa da se
+// stesso, e la partita restava ferma per sempre.
+let _goalAnimSeq = 0;
+// true quando la pausa corrente è stata causata da un'animazione goal e non
+// dall'utente né da una condizione terminale (fine tempo, esausti, skip, sub).
+let _goalPauseOwned = false;
+
+// Rende la pausa "non di proprietà del goal": neutralizza il timer in volo e
+// impedisce che un'animazione conclusa riprenda una partita fermata altrove.
+function _releaseGoalPause() {
+  _goalPauseOwned = false;
+  _goalAnimSeq++;
+}
 
 function showGoalAnimation(scorerName, teamType, ms) {
   const overlay  = document.getElementById('goal-overlay');
@@ -332,13 +350,23 @@ function showGoalAnimation(scorerName, teamType, ms) {
 
   overlay.classList.add('visible');
 
-  // Pausa il gioco durante l'animazione
-  const wasPaused = ms.running === false;
+  // Pausa il gioco durante l'animazione.
+  const mySeq = ++_goalAnimSeq;
+  // _goalPauseOwned distingue "l'utente aveva già messo in pausa" da "la pausa
+  // la stiamo mettendo noi per quest'animazione".
+  const wasPaused = (ms.running === false) && !_goalPauseOwned;
   ms.running = false;
+  _goalPauseOwned = true;
 
   if (_goalAnimTimer) clearTimeout(_goalAnimTimer);
   _goalAnimTimer = setTimeout(function() {
+    _goalAnimTimer = null;
     overlay.classList.remove('visible');
+    // Se nel frattempo la pausa è passata nelle mani di qualcun altro
+    // (utente, fine tempo, esausti, skip, sostituzioni) questo timer non ha più
+    // diritto di riprendere: si limita a nascondere l'overlay.
+    if (mySeq !== _goalAnimSeq) return;
+    _goalPauseOwned = false;
     // Riprendi solo se non era in pausa, la partita non è finita,
     // e non siamo già a fine periodo (per evitare doppio avanzamento periodo)
     if (!wasPaused && ms && !ms.finished && ms.running === false) {
@@ -349,7 +377,6 @@ function showGoalAnimation(scorerName, teamType, ms) {
         document.getElementById('btn-play').textContent = '⏸ Pausa';
       }
     }
-    _goalAnimTimer = null;
   }, 1800);
 }
 
@@ -733,6 +760,7 @@ function _checkExhaustedPlayers() {
     const benchAvail    = ms.bench.filter(pi => !ms.expelled.has(pi)).length;
     if (activePlayers > 5 && benchAvail > 0) {
       // Può fare sostituzioni: forza pausa
+      _releaseGoalPause();
       ms.running = false;
       document.getElementById('btn-play').textContent = '▶ ' + t('match.resume');
       _lastFrameT = null;
@@ -1023,6 +1051,10 @@ function renderFieldLists(anim) {
 // ── Controlli partita ─────────────────────────
 function togglePlay() {
   const ms = G.ms; if (!ms || ms.finished) return;
+  // L'intento dell'utente prevale su un'animazione goal in corso: senza questo
+  // reset il timer del goal, scadendo, riprenderebbe la partita che l'utente ha
+  // appena messo in pausa a mano.
+  _releaseGoalPause();
   ms.running = !ms.running;
   document.getElementById('btn-play').textContent = ms.running ? '⏸ Pausa' : '▶ Avvia';
   if (ms.running) { _subSelField = null; _subSelBench = null; _updateSwapButton(); }
@@ -1046,6 +1078,7 @@ function togglePlay() {
 
 function skipPeriod() {
   const ms = G.ms; if (!ms || ms.finished) return;
+  _releaseGoalPause();
   ms.running = false;
   document.getElementById('btn-play').textContent = '▶ ' + t('match.resume');
 
@@ -1138,6 +1171,7 @@ function openSub() {
   const ms = G.ms; if (!ms || ms.finished) return;
   // Metti in pausa e reset selezione inline
   if (ms.running) {
+    _releaseGoalPause();
     ms.running = false;
     document.getElementById('btn-play').textContent = '▶ ' + t('match.resume');
     _lastFrameT = null;
