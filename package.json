@@ -1,0 +1,10 @@
+{
+  "name": "waterpolo-manager",
+  "version": "1.2.3",
+  "private": true,
+  "description": "Gioco manageriale di pallanuoto — sito statico, test con il runner integrato di Node",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "test:watch": "node --test --watch \"test/*.test.js\""
+  }
+}
