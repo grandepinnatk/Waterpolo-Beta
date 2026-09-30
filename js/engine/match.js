@@ -7,6 +7,26 @@ const TOTAL_PERIODS  = 4;
 const MAX_TEMP_EXP   = 3;    // gialli → espulsione definitiva
 const MAX_EXPELLED   = 3;    // hard cap: mai sotto 4 giocatori in campo
 
+// ── Espulsioni: unico punto che applica il cap ─────────────────────
+// MAX_EXPELLED è un hard cap: sotto i quattro giocatori in campo la
+// partita non si regge più. Prima il cap era controllato in un punto solo,
+// il fallo del percorso saltato, che scartava l'evento con `size < MAX_EXPELLED`.
+// Gli altri due ingressi non controllavano niente e scrivevano direttamente
+// in ms.expelled: l'infortunio (sotto) e la terza ammonizione live
+// (live_engine.js). Con tre già espulsi bastava un infortunio o una terza
+// ammonizione per metterne in campo un quarto, restandone tre.
+//
+// Il chiamante deve gestire il rifiuto: l'infortunio resta valido sulla scheda
+// anche se non si può espellere dal campo, e una terza ammonizione col cap
+// raggiunto diventa espulsione temporanea. Nessuno dei due deve mentire sul
+// testo, quindi il ritorno booleano serve a scegliere cosa dire.
+function tryAddExpelled(ms, pi) {
+  if (!ms || !ms.expelled || ms.expelled.has(pi)) return false;
+  if (ms.expelled.size >= MAX_EXPELLED) return false;
+  ms.expelled.add(pi);
+  return true;
+}
+
 // Boost tattico sulla forza squadra
 const TACTIC_BOOST = {
   balanced: 0, attack: 8, defense: -5, counter: 3, press: 5,
@@ -392,15 +412,20 @@ function generateMatchEvent(ms) {
     // → divide per ~60 per avere una prob per-evento realistica
     if (Math.random() < injP / 2) {  // aumentato: era /3
       const shirt = ms.shirtNumbers[pi] || '?';
-      ms.expelled.add(pi);
+      // Il cap può rifiutare l'espulsione dal campo: l'infortunio resta sulla
+      // scheda lo stesso, cambia solo se il giocatore esce o continua a giocare
+      // con la squadra già al limite. Il testo deve dire la verità in entrambi i casi.
+      const leftField = tryAddExpelled(ms, pi);
       if (!ms.injuries) ms.injuries = [];
       ms.injuries.push(pi);
       // Segna il giocatore come infortunato (persiste sulla scheda)
       p.injured = true;
       return {
-        txt: '🚑 INFORTUNIO! ' + p.name + ' (#' + shirt + ') lascia il campo — stamina esaurita con forma precaria.',
+        txt: leftField
+          ? '🚑 INFORTUNIO! ' + p.name + ' (#' + shirt + ') lascia il campo — stamina esaurita con forma precaria.'
+          : '🚑 INFORTUNIO! ' + p.name + ' (#' + shirt + ') — la squadra è già al limite di espulsi, continua a giocare.',
         cls: 'exp',
-        expelled: pi,
+        expelled: leftField ? pi : null,
         isInjury: true,
         moverKey: 'my_' + pk,
       };
@@ -597,7 +622,10 @@ function generateMatchEvent(ms) {
     const count = ms.tempExp[pi];
 
     if (count >= MAX_TEMP_EXP) {
-      ms.expelled.add(pi);
+      // Il cap al riga sotto garantisce che ci sia spazio, ma il punto unico
+      // resta l'unico a scrivere: se un domani il cap cambiasse, qui non
+      // potrebbe più uscire un'espulsione fuori cap senza accorgersene.
+      if (!tryAddExpelled(ms, pi)) return { txt: pick(NEUTRAL_EVENTS), cls: '', ballTarget: { x: 0.5, y: 0.5 + rnd(-0.15, 0.15) } };
       // Nostra espulsione definitiva → nessuna inferiorità (già gestita)
       return {
         txt: '🔴 ESPULSO! ' + fp.p.name + ' (#' + shirt + ') — 3ª espulsione temporanea.',

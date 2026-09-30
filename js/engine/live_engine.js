@@ -456,7 +456,16 @@ function _tryFoulEvent(ms, attack, bx, by) {
     var count = ms.tempExp[fp.pi];
     var vars = { shirt: shirt, team: ms.myTeam.name };
     if (count>=3) {
-      ms.expelled.add(fp.pi);
+      // Il cap può rifiutare l'espulsione definitiva. Non si può mentire nel
+      // testo né eccedere il cap: la terza ammonizione degrada a espulsione
+      // temporanea, la squadra resta in inferiorità numerica e la partita
+      // resta valida.
+      // tryAddExpelled sta in engine/match.js, caricato prima di questo file.
+      if (!tryAddExpelled(ms, fp.pi)) {
+        ms.inferiorityActive=true; ms.inferiorityTimer=20;
+        return { txt:_txt('foul_temp_exp',null,vars), cls:'fl', inferiorityStart:true,
+                 ballTarget:{x:_clampX(bx+0.05),y:_clampY(by)} };
+      }
       return { txt: _txt('foul_perm_exp',null,vars), cls:'exp', expelled:fp.pi, moverKey:'my_'+fp.pk };
     }
     ms.inferiorityActive=true; ms.inferiorityTimer=20;
