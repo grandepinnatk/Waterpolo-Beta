@@ -1668,20 +1668,28 @@ function _doEndMatch() {
     if (ms.isHome && typeof _collectStadiumRevenue === 'function') _collectStadiumRevenue();
     generateTransferOffers();
     if (typeof refreshMarketPool === 'function') refreshMarketPool();
-    // Decrementa infortuni preesistenti (non causati da questa partita)
-    (G.rosters[G.myId] || []).forEach(p => {
-      if (!p || !p.injured) return;
-      if (ms.injuries && ms.injuries.includes(
-        G.rosters[G.myId].indexOf(p)
-      )) return; // già gestiti sopra
-      p.injuryWeeks = (p.injuryWeeks || 1) - 1;
-      if (p.injuryWeeks <= 0) {
-        p.injured     = false;
-        p.injuryWeeks = 0;
-        G.msgs.push(t('injuries.recovered', {name: p.name}));
-      }
-    });
-    simulateRound(G.schedule, G.stand, G.teams, ms.match.round, G.myId, G.rosters);
+    // Decrementa infortuni preesistenti (non causati da questa partita).
+    // tickInjures copre tutte le rose, non solo la mia, per lo stesso motivo
+    // di simNextRound: gli infortuni generati nelle partite IA-IA devono
+    // poter guarire.
+    if (typeof tickInjuries === 'function') {
+      const _rec = tickInjuries(G.rosters, G.myId, ms.injuries || []);
+      _rec.forEach(x => {
+        if (String(x.teamId) === String(G.myId)) G.msgs.push(t('injuries.recovered', {name: x.name}));
+      });
+    } else {
+      (G.rosters[G.myId] || []).forEach(p => {
+        if (!p || !p.injured) return;
+        if (ms.injuries && ms.injuries.includes(G.rosters[G.myId].indexOf(p))) return;
+        p.injuryWeeks = (p.injuryWeeks || 1) - 1;
+        if (p.injuryWeeks <= 0) {
+          p.injured     = false;
+          p.injuryWeeks = 0;
+          G.msgs.push(t('injuries.recovered', {name: p.name}));
+        }
+      });
+    }
+    simulateRound(G.schedule, G.stand, G.teams, ms.match.round, G.myId, G.rosters, { injuries: true });
     // Avanza alla giornata successiva (stelle, decadimento forma, rinnovi, costruzioni)
     // Il flag evita di fare doppio su ingaggi e infortuni già processati sopra
     // NOTA: simNextRound() NON viene chiamato qui — verrebbe già chiamato dal dashboard

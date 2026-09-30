@@ -332,6 +332,14 @@ function simNextRound() {
   // Simula TUTTE le partite della giornata, inclusa quella della mia squadra
   const roundMatches = G.schedule.filter(m => m.round === r && !m.played);
   console.log('[SIM] Partite da simulare:', roundMatches.length);
+  // Chi è già infortunato PRIMA di questa giornata. Il decremento settimanale
+  // in fondo deve valere solo per questi: chi si infortuna proprio oggi
+  // partirebbe altrimenti da injuryWeeks = 1 e guarirebbe di lì a poche
+  // righe, senza aver perso una sola partita. Il percorso live (match.js)
+  // fa già questo controllo con ms.injuries.
+  const _injuredBeforeRound = new Set(
+    (G.rosters[G.myId] || []).map((p, i) => (p && p.injured) ? i : -1).filter(i => i >= 0)
+  );
   var _myMatchResult = null; // dati partita mia squadra per popup risultato
   roundMatches.forEach(m => {
     const hT = G.teams.find(tm => tm.id === m.home);
@@ -376,7 +384,10 @@ function simNextRound() {
     // Filtra sempre injured e _national da entrambe le squadre
     const homeRoster = _simRoster(G.rosters[m.home] || []);
     const awayRoster = _simRoster(G.rosters[m.away] || []);
-    const det = simulateMatchStats(homeRoster, awayRoster, m.score);
+    // Infortuni solo nelle partite IA-IA. Sulla partita del giocatore li
+    // simula il blocco qui sotto, dopo i voti, per non contarli due volte.
+    const _isMyMatch = (m.home === G.myId || m.away === G.myId);
+    const det = simulateMatchStats(homeRoster, awayRoster, m.score, { injuries: !_isMyMatch });
     if (det) m.details = det;
 
     // Se è la partita della mia squadra, registra risultato e premi
@@ -443,16 +454,14 @@ function simNextRound() {
   _processRenewalResponses();
 
   // ── Aggiorna infortuni: decrementa settimane e riabilita guariti ──
+  // Copre TUTTE le rose, non solo la mia: gli infortuni IA prima non
+  // esistevano, ma ora che simulateMatchStats li genera devono poter guarire,
+  // altrimenti al termine della stagione non rimane nessuno disponibile.
   // Saltato se la partita è stata giocata dal vivo (già gestito in _doEndMatch)
   if (!G._skipWageAndInjury) {
-    (G.rosters[G.myId] || []).forEach(p => {
-      if (!p || !p.injured) return;
-      p.injuryWeeks = (p.injuryWeeks || 1) - 1;
-      if (p.injuryWeeks <= 0) {
-        p.injured     = false;
-        p.injuryWeeks = 0;
-        G.msgs.push(t('injuries.recovered', {name: p.name}));
-      }
+    const _rec = tickInjuries(G.rosters, G.myId, _injuredBeforeRound);
+    _rec.forEach(x => {
+      if (String(x.teamId) === String(G.myId)) G.msgs.push(t('injuries.recovered', { name: x.name }));
     });
   }
 
@@ -619,7 +628,16 @@ function _nextPopupInQueue() {
 window._nextPopupInQueue = _nextPopupInQueue;
 
 function simEntireSeason() {
-  simulateAllRemaining(G.schedule, G.stand, G.teams, G.myId, G.rosters);
+  // Contiamo le giornate ancora da giocare: il recupero infortuni gira una
+  // volta per giornata. Senza questo, saltare la stagione a blocco lascierebbe
+  // infortunati anche quelli che avrebbero guarito con il gioco normale.
+  const _roundsLeft = new Set(
+    G.schedule.filter(m => !m.played && m.home !== G.myId && m.away !== G.myId).map(m => m.round)
+  ).size;
+  simulateAllRemaining(G.schedule, G.stand, G.teams, G.myId, G.rosters, { injuries: true });
+  if (typeof tickInjuries === 'function') {
+    for (let i = 0; i < _roundsLeft; i++) tickInjuries(G.rosters, G.myId, []);
+  }
   G.msgs.push(t('dash.noMatches'));
   updateHeader(); autoSave(); renderDash();
 }

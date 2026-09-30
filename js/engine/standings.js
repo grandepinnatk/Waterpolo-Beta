@@ -131,9 +131,68 @@ function getTeamPosition(standings, teamId) {
 }
 
 
+// ── Simula infortuni su una rosa ───────────────────────────────
+// Restituisce l'elenco dei NOMI dei giocatori infortunati in questa chiamata.
+//
+// Sta qui al livello del modulo, non dentro simulateMatchStats: main.js lo
+// chiama per la rosa del giocatore e la guardia `typeof simulateInjuries ===
+// 'function'` valutava false finche' la funzione era annidata, quindi nessun
+// infortunio simulato esisteva. Probabilita' base ~3-4% per partita, piu'
+// formRisk se la forma e' sotto 70.
+function simulateInjuries(roster) {
+  if (!roster) return [];
+  const injured = [];
+  roster.forEach(p => {
+    if (!p || p.injured) return;
+    // Rischio base: forma bassa + fragilità personale
+    const formRisk = p.fitness !== undefined && p.fitness < 70
+      ? (70 - p.fitness) / 70 * 0.04  // fino a +4% se forma 0
+      : 0;
+    // Stesso controllo di match.js:390. Con `|| 0.04` un injProb esplicitamente
+// 0 verrebbe letto come "non impostato" e diventerebbe 4%: il generatore non
+// produce mai 0 (il clamp è [0.02, 0.15]), ma i due percorsi non devono
+// divergere.
+const injP     = (p.injProb !== undefined ? p.injProb : 0.04) + formRisk;
+    // Probabilità per partita (non per secondo): ~4-8% in condizioni normali
+    const matchProb = Math.min(0.35, injP * 2.4);  // aumentato ulteriormente
+    if (Math.random() < matchProb) {
+      p.injured     = true;
+      p.injuryWeeks = 1 + Math.floor(Math.random() * 4); // 1-4 giornate (più leggero della partita live)
+      const penalty = 8 + Math.floor(Math.random() * 12);
+      p.fitness     = Math.round(Math.max(5, (p.fitness || 70) - penalty));
+      injured.push(p.name);
+    }
+  });
+  return injured;
+}
+
+// ── Avanza il recupero degli infortuni di tutte le squadre ──────────
+// Va chiamato una volta per giornata simulata. Restituisce chi è guarito.
+// skipMyIdx: indici della mia rosa da NON scalare, per chi si è infortunato
+// proprio nella giornata appena simulata (scalarlo azzererebbe un infortunio
+// da 1 giornata senza che il giocatore perda un solo incontro).
+function tickInjuries(rosters, myId, skipMyIdx) {
+  const skip = new Set(skipMyIdx || []);
+  const recovered = [];
+  Object.keys(rosters || {}).forEach(tid => {
+    const isMine = String(tid) === String(myId);
+    (rosters[tid] || []).forEach((p, i) => {
+      if (!p || !p.injured) return;
+      if (isMine && skip.has(i)) return;
+      p.injuryWeeks = (p.injuryWeeks || 1) - 1;
+      if (p.injuryWeeks <= 0) {
+        p.injured     = false;
+        p.injuryWeeks = 0;
+        recovered.push({ teamId: tid, name: p.name });
+      }
+    });
+  });
+  return recovered;
+}
+
 // ── Distribuisce gol e assist ai giocatori e restituisce i dettagli della partita ──
 // Restituisce { home: [{name, goals}], away: [{name, goals}], partials: [{h,a}x4] }
-function simulateMatchStats(homeRoster, awayRoster, score) {
+function simulateMatchStats(homeRoster, awayRoster, score, opts) {
   if (!homeRoster || !awayRoster) return null;
 
   const homeScorers = [];
@@ -182,30 +241,14 @@ function simulateMatchStats(homeRoster, awayRoster, score) {
   distributeGoals(awayRoster, score.away, awayScorers);
 
   // ── Simula infortuni ────────────────────────────────────────────────
-  // Probabilità base ~3% per partita per giocatore a rischio
-  // Solo per i giocatori passati (non l'avversario generico)
-  function simulateInjuries(roster) {
-    if (!roster) return [];
-    const injured = [];
-    roster.forEach(p => {
-      if (!p || p.injured) return;
-      // Rischio base: forma bassa + fragilità personale
-      const formRisk = p.fitness !== undefined && p.fitness < 70
-        ? (70 - p.fitness) / 70 * 0.04  // fino a +4% se forma 0
-        : 0;
-      const injP     = (p.injProb || 0.04) + formRisk;
-      // Probabilità per partita (non per secondo): ~4-8% in condizioni normali
-      const matchProb = Math.min(0.35, injP * 2.4);  // aumentato ulteriormente
-      if (Math.random() < matchProb) {
-        p.injured     = true;
-        p.injuryWeeks = 1 + Math.floor(Math.random() * 4); // 1-4 giornate (più leggero della partita live)
-        const penalty = 8 + Math.floor(Math.random() * 12);
-        p.fitness     = Math.round(Math.max(5, (p.fitness || 70) - penalty));
-        injured.push(p.name);
-      }
-    });
-    return injured;
-  }
+  // Solo se il chiamante lo chiede esplicitamente (opts.injuries). Il default
+  // e' false perche' simulateMatchStats e' usata anche come helper "quali
+  // marcatori?", senza effetti collaterali (match.js chiama
+  // simulateMatchStats(oppRoster, oppRoster, ...) solo per i dettagli), e per
+  // la partita del giocatore: in quel caso gli infortuni li simula main.js
+  // dopo aver applicato i voti, per non contarne due.
+  const _injuredH = opts && opts.injuries ? simulateInjuries(homeRoster) : [];
+  const _injuredA = opts && opts.injuries ? simulateInjuries(awayRoster) : [];
 
   // Genera parziali verosimili distribuendo i gol nei 4 tempi
   function splitGoals(total) {
@@ -217,12 +260,12 @@ function simulateMatchStats(homeRoster, awayRoster, score) {
   const aP = splitGoals(score.away);
   const partials = [0,1,2,3].map(i => ({ h: hP[i], a: aP[i] }));
 
-  return { home: homeScorers, away: awayScorers, partials, _injuredH: [], _injuredA: [] };
+  return { home: homeScorers, away: awayScorers, partials, _injuredH, _injuredA };
 }
 
 // ── Simula tutte le partite di una giornata ───
 // Salta le partite del giocatore (home o away = myId)
-function simulateRound(schedule, standings, teams, roundNum, myId, rosters) {  // rosters usato per forza effettiva
+function simulateRound(schedule, standings, teams, roundNum, myId, rosters, opts) {  // rosters usato per forza effettiva
   const roundMatches = schedule.filter(m => m.round === roundNum && !m.played);
   roundMatches.forEach(m => {
     if (m.home === myId || m.away === myId) return; // partita del giocatore → skip
@@ -233,14 +276,14 @@ function simulateRound(schedule, standings, teams, roundNum, myId, rosters) {  /
     updateStandings(standings, m.home, m.away, m.score);
     // Distribuisce gol/assist e salva details sul match
     if (rosters) {
-      const det = simulateMatchStats(rosters[m.home], rosters[m.away], m.score);
+      const det = simulateMatchStats(rosters[m.home], rosters[m.away], m.score, opts);
       if (det) m.details = det;
     }
   });
 }
 
 // ── Simula tutte le rimanenti (campionato rapido) ─
-function simulateAllRemaining(schedule, standings, teams, myId, rosters) {
+function simulateAllRemaining(schedule, standings, teams, myId, rosters, opts) {
   schedule
     .filter(m => !m.played && m.home !== myId && m.away !== myId)
     .forEach(m => {
@@ -249,7 +292,7 @@ function simulateAllRemaining(schedule, standings, teams, myId, rosters) {
       m.score  = simulateResult(hT, aT, 0, rosters);
       m.played = true;
       updateStandings(standings, m.home, m.away, m.score);
-      if (rosters) { const det = simulateMatchStats(rosters[m.home], rosters[m.away], m.score); if (det) m.details = det; }
+      if (rosters) { const det = simulateMatchStats(rosters[m.home], rosters[m.away], m.score, opts); if (det) m.details = det; }
     });
 }
 
