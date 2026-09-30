@@ -45,12 +45,13 @@ test('nessuna chiave i18n mancante durante il caricamento', () => {
 // Questi sono i bug che il branch fix/stabilita corregge. Finché falliscono,
 // il gioco è rotto: sono la definizione di "affidabile" per questo progetto.
 
-test('FIX 2: _drainStamina esiste ed è la funzione usata da skipPeriod', () => {
+test('FIX 2: skipPeriod usa _drainStamina, non una funzione inesistente', () => {
   const h = loadGame();
   assert.strictEqual(h.run('typeof _drainStamina'), 'function',
     '_drainStamina deve esistere');
-  assert.notStrictEqual(h.run('typeof _drainStaminaChunk'), 'undefined',
-    '_drainStaminaChunk è inesistente: skipPeriod usa sempre il fallback sbagliato');
+  assert.strictEqual(h.run('typeof _drainStaminaChunk'), 'undefined',
+    '_drainStaminaChunk non deve più essere invocata: il guard typeof la faceva '
+    + 'sempre cadere sul fallback con drain 4,4 volte più basso');
 });
 
 test('FIX 3: simulateInjuries è globale e simula davvero gli infortuni', () => {

@@ -1106,22 +1106,23 @@ function skipPeriod() {
   if (!ms._everOnField) ms._everOnField = new Set();
   Object.values(ms.onField).forEach(function(pi) { ms._everOnField.add(pi); });
 
+  // La stamina decade con lo stesso modello del loop live (_drainStamina).
+  // Prima usava _drainStaminaChunk, che non esiste: si entrava sempre nel
+  // fallback inline, con drain 4,4 volte piu basso e senza tattica, eta',
+  // resistenza, undermanned ne recupero in panchina. Saltare un tempo era
+  // quindi piu conveniente che giocarlo, e il modello di squadra non sapeva
+  // che avessi saltato.
+  //
+  // _drainStamina non inizializza la stamina dei giocatori mai schierati, quindi
+  // va inizializzata qui, come faceva il vecchio fallback.
+  if (!ms.stamina) ms.stamina = {};
+  ms.myRoster.forEach(function (p, pi) {
+    if (p && ms.stamina[pi] === undefined) ms.stamina[pi] = p.fitness;
+  });
+
   while (simTime < secsLeft) {
-    // Avanza la stamina per questo chunk di tempo
-    if (typeof _drainStaminaChunk === 'function') {
-      _drainStaminaChunk(ms, SIM_INTERVAL);
-    } else {
-      // Fallback inline: applica drain proporzionale
-      const DRAIN_BASE = 0.012;
-      Object.entries(ms.onField).forEach(([pk, pi]) => {
-        if (ms.expelled.has(pi)) return;
-        const p = ms.myRoster[pi];
-        if (!p) return;
-        const drain = DRAIN_BASE * SIM_INTERVAL * (pk === 'GK' ? 0.4 : 1.0);
-        if (ms.stamina[pi] === undefined) ms.stamina[pi] = p.fitness;
-        ms.stamina[pi] = Math.max(0, ms.stamina[pi] - drain);
-      });
-    }
+    // Avanza la stamina per questo chunk di tempo (secondi di gioco)
+    _drainStamina(ms, SIM_INTERVAL);
 
     // Genera un evento simulato
     const event = generateMatchEvent(ms);

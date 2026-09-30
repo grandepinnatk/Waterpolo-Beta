@@ -78,7 +78,16 @@ function makeElement(tag = 'div') {
       contains(c) { return this._s.has(c); },
     },
     appendChild(c) { this.children.push(c); if (c) c.parentNode = this; return c; },
+    insertBefore(c, ref) {
+      const i = this.children.indexOf(ref);
+      this.children.splice(i < 0 ? 0 : i, 0, c);
+      if (c) c.parentNode = this;
+      return c;
+    },
     removeChild(c) { this.children = this.children.filter((x) => x !== c); return c; },
+    get firstChild() { return this.children[0] || null; },
+    get lastChild() { return this.children[this.children.length - 1] || null; },
+    get parentElement() { return this.parentNode; },
     remove() { if (this.parentNode) this.parentNode.removeChild(this); },
     setAttribute(k, v) { this[k] = v; },
     getAttribute(k) { return this[k]; },
