@@ -1547,6 +1547,12 @@ function endMatch() {
 
 function _doEndMatch() {
   const ms = G.ms; if (!ms) return;
+  // _doEndMatch applica i totali stagionali da ms.matchGoals/ms.matchAssists ed
+  // e' il solo proprietario di quei totali. Rientrarci due volte sommerebbe i
+  // gol due volte: il pulsante resta visibile dopo lo skip, e un doppio click
+  // o un richiamo programmatico erano sufficienti.
+  if (ms._seasonApplied) return;
+  ms._seasonApplied = true;
   const score = getFinalScore(ms);
 
   // +4 stelle per giornata — assegnate per ogni tipo di partita (campionato e playoff)

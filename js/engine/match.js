@@ -468,7 +468,10 @@ function generateMatchEvent(ms) {
 
     if (Math.random() < goalProb) {
       ms.myScore++;
-      attacker.p.goals++;
+      // Solo il contatore di partita. I totali stagionali li applica _doEndMatch,
+      // unico proprietario: incrementarli qui li contava due volte, perché il
+      // generatore di eventi girava anche per i periodi saltati e poi il
+      // pulsante "Fine Partita" sommava di nuovo ms.matchGoals.
       ms.matchGoals[attacker.pi] = (ms.matchGoals[attacker.pi] || 0) + 1;
       // Duel vinto per l'attaccante
       if (!ms.matchDuels[attacker.pi]) ms.matchDuels[attacker.pi] = { won:0, lost:0 };
@@ -484,7 +487,7 @@ function generateMatchEvent(ms) {
         ? _weightedPick(others, x => 0.5 + (x.p.stats?.tec ?? 50) / 200)
         : null;
       if (ast) {
-        ast.p.assists++;
+        // Come sopra: il totale stagionale lo applica _doEndMatch.
         ms.matchAssists[ast.pi] = (ms.matchAssists[ast.pi] || 0) + 1;
       }
       return {

@@ -339,7 +339,9 @@ function _buildMyShotEvent(ms, myEff, oppStr, bx, by) {
 
   if (Math.random() < goalProb) {
     ms.myScore++;
-    attacker.p.goals = (attacker.p.goals||0) + 1;
+    // Solo il contatore di partita: i totali stagionali li applica _doEndMatch.
+    // Incrementare anche p.goals qui li contava due volte, una durante la
+    // partita e una alla fine.
     if (ms.matchGoals) ms.matchGoals[attacker.pi] = (ms.matchGoals[attacker.pi]||0)+1;
     if (ms.periodScores && ms.period>=1 && ms.period<=4) ms.periodScores[ms.period-1].my++;
     vars.scorer = attacker.p.name;
