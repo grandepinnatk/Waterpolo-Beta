@@ -71,6 +71,26 @@ const LANG_IT = {
     emptySlot:        'Slot vuoto',
     deleteSlot:       'Elimina',
     confirmDelete:    'Eliminare il salvataggio nello slot {{n}}?',
+    // Uno slot non caricabile. Dati esistenti, non leggibili: si distingue da
+    // "slot vuoto" perche' l'informazione utile e' che il dato c'e' ancora.
+    corruptSlot:      'Salvamento illeggibile: i dati potrebbero essere danneggiati. Puoi avviare una nuova carriera qui, ma lo slot verrà sovrascritto.',
+    corruptSlotShort: 'Salvamento illeggibile: lo slot non può essere caricato.',
+    // Versione precedente. Dati integri e non migrati: il salvataggio non
+    // viene caricato, e la versione corrente richiesta serve a far capire
+    // che si tratta di un salvataggio, non di un errore.
+    legacySlot:       'Salvataggio versione {{v}}, il gioco ora usa la versione {{n}}. I dati sono intatti ma non vengono migrati: non puoi caricarli. Puoi avviare qui una nuova carriera.',
+    legacySlotShort:  'Salvataggio di una versione precedente: non caricabile. Avvia una nuova carriera per ripartire.',
+    wipeAll:          'Azzera tutti i salvataggi',
+    wipeSlotWithData: 'contiene dati non caricabili',
+    // Versioni brevi per la finestra di scelta dello slot da sovrascrivere.
+    slotLegacyShort:  'versione {{v}}, non caricabile',
+    slotCorruptShort: 'illeggibile, contiene dati',
+    confirmWipeAll:   'Cancellare i dati in {{n}} slot?',
+    confirmWipeAllWarn: 'L\'operazione non è annullabile. Per annullare, rispondi No.',
+    confirmWipeAllType: 'Per confermare, scrivi RESET:',
+    wipeAllCancelled: 'Annullato: nessun salvataggio è stato cancellato.',
+    wipeAllDone:      '{{n}} slot cancellati.',
+    wipeAllLocalOnly: '{{n}} slot cancellati in locale. Se sei connesso, la cancellazione su cloud è stata richiesta ma non posso verificarla.',
     season:           'Stagione {{n}}',
     round:            'Giornata {{n}}/26',
     language:         'Lingua',

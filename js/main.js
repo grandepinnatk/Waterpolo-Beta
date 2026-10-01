@@ -1504,6 +1504,13 @@ document.addEventListener('DOMContentLoaded', () => {
       // Prova a caricare l'ultimo slot usato e torna in gioco
       const lastSlot = parseInt(localStorage.getItem('wp_last_slot') || '-1', 10);
       if (lastSlot >= 0) {
+        // Prima di caricare controllo lo stato: un salvataggio legacy o
+        // corrotto qui finirebbe con un ritorno silenzioso e l'utente
+        // vedrebbe la lobby senza capire che la partita non e' ripresa. Meglio
+        // riportarlo alla welcome, che sa spiegare il motivo.
+        if (slotUnusableReason(lastSlot) !== null) {
+          localStorage.removeItem('wp_last_slot');
+        }
         const payload = loadFromSlot(lastSlot);
         if (payload) {
           G = applyLoadedSave(payload);

@@ -81,14 +81,15 @@ function _buildSlotsPanel() {
   const panel = document.getElementById('slots-panel');
   if (!panel) return;
   panel.innerHTML = '';
-  const metas = readAllSlotsMeta(); // [meta|null, meta|null, meta|null]
+  const slots = inspectAllSlots(); // [{state, meta, version, restorable}]
 
-  metas.forEach((meta, i) => {
+  slots.forEach((info, i) => {
     const card = document.createElement('div');
     card.className = 'slot-card';
     card.id = 'slot-card-' + i;
+    const meta = info.meta;
 
-    if (meta) {
+    if (info.state === SLOT_VALID) {
       // ── Slot occupato ──
       const stagione = t('common.season') + ' ' + (meta.seasonNumber || 1);
       const giornata = t('common.round') + ' ' + Math.max(1, (meta.round || 0) + 1);
@@ -129,6 +130,44 @@ function _buildSlotsPanel() {
           <button class="btn sm"         onclick="confirmOverwriteSlot(${i})">${t('welcome.newCareer')}</button>
           <button class="btn danger sm"  onclick="confirmDeleteSlot(${i})">${t('welcome.deleteSlot')}</button>
         </div>`;
+    } else if (info.state === SLOT_LEGACY) {
+      // ── Slot con dati di una versione precedente ──
+      // I dati ci sono ma non li carichiamo. Mostro la squadra, se i
+      // metadati si leggono, cosi' il giocatore distingue "non caricabile" da
+      // "inesistente". Niente bottone Carica: caricarlo fallirebbe.
+      const who = meta && meta.teamName
+        ? `<div class="slot-team-name">${meta.teamName}</div>
+           <div class="slot-meta">${t('welcome.saveSlot', {n: i+1})}</div>`
+        : `<div class="slot-empty-label">${t('welcome.saveSlot', {n: i+1})}</div>`;
+      card.innerHTML = `
+        <div class="slot-header">
+          <div class="slot-team-info">${who}</div>
+        </div>
+        <div class="slot-warning" style="margin:8px 0;padding:8px;border-radius:6px;background:rgba(240,180,60,.12);color:var(--amber,#f0b040);font-size:12px;line-height:1.4">
+          ${t('welcome.legacySlot', {v: info.version, n: SAVE_VERSION})}
+        </div>
+        <div class="slot-actions">
+          <button class="btn sm"        onclick="startNewGameInSlot(${i})">${t('welcome.newCareer')}</button>
+          <button class="btn danger sm" onclick="confirmDeleteSlot(${i})">${t('welcome.deleteSlot')}</button>
+        </div>`;
+    } else if (info.state === SLOT_CORRUPT) {
+      // ── Slot illeggibile ──
+      // Non mostro "slot vuoto": qualcosa c'è ma non è leggibile. Il dato non
+      // viene buttato via qui, lascio che sia la cancellazione esplicita a
+      // rimuoverlo, nel caso serva un recupero manuale.
+      card.innerHTML = `
+        <div class="slot-header">
+          <div class="slot-team-info">
+            <div class="slot-team-name">${t('welcome.saveSlot', {n: i+1})}</div>
+          </div>
+        </div>
+        <div class="slot-warning" style="margin:8px 0;padding:8px;border-radius:6px;background:rgba(231,76,60,.12);color:var(--red,#e74c3c);font-size:12px;line-height:1.4">
+          ${t('welcome.corruptSlot')}
+        </div>
+        <div class="slot-actions">
+          <button class="btn sm"        onclick="startNewGameInSlot(${i})">${t('welcome.newCareer')}</button>
+          <button class="btn danger sm" onclick="confirmDeleteSlot(${i})">${t('welcome.deleteSlot')}</button>
+        </div>`;
     } else {
       // ── Slot vuoto ──
       card.innerHTML = `
@@ -143,8 +182,30 @@ function _buildSlotsPanel() {
     panel.appendChild(card);
   });
 
+  _buildWipeAllButton(panel.parentNode || panel);
   // Mostra il bottone "Salva nel gioco corrente" solo se G è attivo
   _refreshInGameSaveButtons();
+}
+
+// ── Pulsante "Azzera tutto" ─────────────────────
+// Appare solo se c'è qualcosa da cancellare: con tre slot vuoti è inutile
+// e un bottone rosso in permanenza su una schermata iniziale è rumore.
+function _buildWipeAllButton(container) {
+  const existing = document.getElementById('btn-wipe-all');
+  if (existing) existing.remove();
+
+  const occupied = listOccupiedSlots();
+  if (!occupied.length) return;
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'margin-top:16px;text-align:center';
+  const btn = document.createElement('button');
+  btn.id = 'btn-wipe-all';
+  btn.className = 'btn danger';
+  btn.textContent = t('welcome.wipeAll');
+  btn.onclick = confirmWipeAllSaves;
+  wrap.appendChild(btn);
+  container.appendChild(wrap);
 }
 
 // ─────────────────────────────────────────────
@@ -153,8 +214,28 @@ function _buildSlotsPanel() {
 
 // Carica uno slot ed entra nel gioco
 function loadSlot(slotIndex) {
+  // Controllo lo stato prima di tentare: loadFromSlot ritorna anche null per
+  // legacy e corrotti, e il messaggio "errore nel caricamento" sarebbe falso
+  // per entrambi. Meglio due secondi di inspectSlot che una diagnosi sbagliata.
+  const reason = slotUnusableReason(slotIndex);
+  if (reason === 'legacy') {
+    _showSlotFeedback(t('welcome.legacySlotShort'), 'warn');
+    return;
+  }
+  if (reason === 'corrupt') {
+    _showSlotFeedback(t('welcome.corruptSlotShort'), 'danger');
+    return;
+  }
+  if (reason === 'empty') {
+    _showSlotFeedback(t('errors.saveLoad'), 'warn');
+    return;
+  }
+
   const payload = loadFromSlot(slotIndex);
   if (!payload) {
+    // ispezionato come valido ma non caricabile: incoerenza reale, non un
+    // salvataggio vecchio. Vale la pena saperlo.
+    console.error('[save] slot', slotIndex, 'ispezionato come valido ma loadFromSlot ha fallito');
     _showSlotFeedback(t('errors.saveLoad'), 'danger');
     return;
   }
@@ -178,23 +259,76 @@ function startNewGameInSlot(slotIndex) {
 
 // Chiede conferma prima di sovrascrivere uno slot occupato
 function confirmOverwriteSlot(slotIndex) {
-  const meta = readSlotMeta(slotIndex);
-  if (!meta) { startNewGameInSlot(slotIndex); return; }
+  const info = inspectSlot(slotIndex);
+  if (info.state === SLOT_EMPTY) { startNewGameInSlot(slotIndex); return; }
+  // readSlotMeta darebbe null su legacy e corrotti, e la conferma nominerebbe
+  // uno slot anonimo. Su questi due casi il testo dice che ci sono dati.
+  const what = info.state === SLOT_VALID && info.meta && info.meta.teamName
+    ? info.meta.teamName
+    : t('welcome.wipeSlotWithData');
   const ok = confirm(
-    t('welcome.confirmDelete', {n: slotIndex+1}) + '\n' + meta.teamName
+    t('welcome.confirmDelete', {n: slotIndex+1}) + '\n' + what
   );
   if (ok) startNewGameInSlot(slotIndex);
 }
 
 // Elimina uno slot con conferma
 function confirmDeleteSlot(slotIndex) {
-  const meta = readSlotMeta(slotIndex);
-  const name = meta ? meta.teamName : 'slot ' + (slotIndex + 1);
-  const ok = confirm(t('welcome.confirmDelete', {n: slotIndex+1}));
+  const info = inspectSlot(slotIndex);
+  if (info.state === SLOT_EMPTY) return;
+  // Su legacy e corrotti readSlotMeta darebbe null, quindi il messaggio
+  // nominerebbe uno slot anonimo. Meglio dire che c'è contenuto da perdere.
+  const what = info.state === SLOT_VALID && info.meta && info.meta.teamName
+    ? info.meta.teamName
+    : t('welcome.wipeSlotWithData');
+  const ok = confirm(t('welcome.confirmDelete', {n: slotIndex+1}) + '\n' + what);
   if (!ok) return;
   deleteSlot(slotIndex);
   _showSlotFeedback(t('welcome.saveSlot', {n: slotIndex+1}) + ' — ' + t('welcome.deleteSlot'), 'warn');
   _buildSlotsPanel();
+}
+
+// ── Azzera tutti gli slot, con doppia conferma ──
+// Una sola conferma non basta su un'azione che cancella tre carriere senza
+// ritorno. La prima conferma dice cosa sta per succedere, la seconda
+// richiede di ripetere: due tap ravvicinati non possono farlo, che è il modo
+// normale in cui un pulsante rosso viene premasto per errore.
+function confirmWipeAllSaves() {
+  const occupied = listOccupiedSlots();
+  if (!occupied.length) return;
+
+  const withData = occupied.filter(s => s.state !== SLOT_EMPTY);
+  const first = confirm(
+    t('welcome.confirmWipeAll', {n: withData.length}) +
+    '\n\n' + t('welcome.confirmWipeAllWarn')
+  );
+  if (!first) return;
+
+  // La seconda conferma non può essere un semplice sì/no: se la prima è già
+  // stata data per sbaglio, ripetere lo stesso tap deve poter annullare.
+  const second = prompt(t('welcome.confirmWipeAllType'));
+  if (second === null) return;
+  if (second.trim().toUpperCase() !== 'RESET') {
+    _showSlotFeedback(t('welcome.wipeAllCancelled'), 'warn');
+    return;
+  }
+
+  const result = wipeAllSaves();
+  _buildSlotsPanel();
+
+  if (result.local.length === 0) {
+    _showSlotFeedback(t('welcome.wipeAllDone', {n: 0}), 'warn');
+    return;
+  }
+  // Se l'utente è loggato la cancellazione cloud è partita ma non è confermata:
+  // dirgli "fatto" sarebbe falso. Dico quello che so.
+  if (result.cloud && result.cloudError) {
+    _showSlotFeedback(t('welcome.wipeAllLocalOnly', {n: result.local.length}) + ' ' + result.cloudError, 'warn');
+  } else if (result.cloud) {
+    _showSlotFeedback(t('welcome.wipeAllLocalOnly', {n: result.local.length}), 'warn');
+  } else {
+    _showSlotFeedback(t('welcome.wipeAllDone', {n: result.local.length}), 'success');
+  }
 }
 
 // Salva la partita corrente in uno slot specifico (da dentro il gioco)
@@ -273,12 +407,14 @@ function _doStartNewGame(slotIndex) {
 // Pulsante "Nuova Carriera" dalla welcome (sceglie primo slot libero)
 function startNewGame() {
   let slot = 0;
-  const metas = readAllSlotsMeta();
+  const slots = inspectAllSlots();
   for (let i = 0; i < TOTAL_SLOTS; i++) {
-    if (!metas[i]) { slot = i; break; }
+    if (slots[i].state === SLOT_EMPTY) { slot = i; break; }
   }
-  // Se tutti occupati chiede quale sovrascrivere
-  if (metas.every(Boolean)) {
+  // Se tutti occupati chiede quale sovrascrivere.
+  // "Occupato" qui comprende legacy e corrotti: hanno ancora dati dentro, quindi
+  // sovrascriverli non e' una decisione che va presa di nascosto.
+  if (slots.every(s => s.state !== SLOT_EMPTY)) {
     _openSlotChooser();
     return;
   }
@@ -292,20 +428,44 @@ function _openSlotChooser() {
   const existing = document.getElementById('slot-chooser-modal');
   if (existing) existing.remove();
 
-  const metas = readAllSlotsMeta();
+  // Questa finestra si apre quando non c'è nessuno slot vuoto, quindi qui
+  // possono comparire anche legacy e corrotti. Prima readAllSlotsMeta
+  // restituiva null per entrambi e il codice leggeva m.teamCol su un null:
+  // eccezione, e il pannello di scelta non compariva. Con inspectAllSlots ogni
+  // slot ha sempre dei dati da mostrare, anche quando non sono caricabili.
+  const slots = inspectAllSlots();
   const ov = document.createElement('div');
   ov.id = 'slot-chooser-modal';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:300;backdrop-filter:blur(6px)';
 
-  let rows = metas.map((m, i) => `
-    <div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;background:var(--panel2);margin-bottom:8px">
-      <div style="width:30px;height:30px;border-radius:50%;background:${m.teamCol};display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700">${m.teamAbbr}</div>
-      <div style="flex:1">
-        <div style="font-size:13px;font-weight:600">${m.teamName}</div>
-        <div style="font-size:11px;color:var(--muted)">Slot ${i+1} · G${m.round} · ${m.position}° posto</div>
-      </div>
-      <button class="btn danger sm" onclick="document.getElementById('slot-chooser-modal').remove();confirmOverwriteSlot(${i})">Sovrascrivi</button>
-    </div>`).join('');
+  let rows = slots.map((info, i) => {
+    const m = info.meta || {};
+    if (info.state === SLOT_VALID) {
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;background:var(--panel2);margin-bottom:8px">
+          <div style="width:30px;height:30px;border-radius:50%;background:${m.teamCol};display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700">${m.teamAbbr}</div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600">${m.teamName}</div>
+            <div style="font-size:11px;color:var(--muted)">Slot ${i+1} · G${m.round} · ${m.position}° posto</div>
+          </div>
+          <button class="btn danger sm" onclick="document.getElementById('slot-chooser-modal').remove();confirmOverwriteSlot(${i})">Sovrascrivi</button>
+        </div>`;
+    }
+    // Legacy o corrotto: niente squadra, niente classifica, ma si dice che
+    // il slot contiene dati prima di chiedere di sovrascriverli.
+    const note = info.state === SLOT_LEGACY
+      ? t('welcome.slotLegacyShort', {v: info.version})
+      : t('welcome.slotCorruptShort');
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;background:var(--panel2);margin-bottom:8px">
+        <div style="width:30px;height:30px;border-radius:50%;background:var(--muted,#666);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700">${i+1}</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600">${t('welcome.saveSlot', {n: i+1})}</div>
+          <div style="font-size:11px;color:var(--muted)">${note}</div>
+        </div>
+        <button class="btn danger sm" onclick="document.getElementById('slot-chooser-modal').remove();confirmOverwriteSlot(${i})">Sovrascrivi</button>
+      </div>`;
+  }).join('');
 
   ov.innerHTML = `
     <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:24px;max-width:420px;width:90%">
