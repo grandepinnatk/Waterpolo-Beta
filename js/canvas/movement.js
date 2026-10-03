@@ -332,20 +332,46 @@ var MovementController = (function() {
             // Calcola outcome (20% goal, 80% parata)
             var cbIsGoal = Math.random() < 0.20;
             var cbTeamN = _attack==='my'?(_ms&&_ms.myTeam&&_ms.myTeam.name)||'':(_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'';
-            _emitComment(cbIsGoal?'goal_my':'shot_saved',
-              { shooter:cbShooterName, scorer:cbShooterName, gk:cbGkName, team:cbTeamN });
             // Crea evento tiro sintetico verso la porta
             var shotY = _rnd(0.40, 0.60);
             var shotX = (_attack === 'my') ? 0.93 : 0.07;  // dentro la rete ma non oltre il fondo
-            if(typeof poolReleaseBall==='function') poolReleaseBall();
-            _ballOwnerKey = null;
-            if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(shotX, shotY);
             // Cooldown 3s per evitare tiri continui
             setTimeout(function(){ _cbShotCooldown = false; }, 3000);
-            // Riposiziona dopo il tiro
-            setTimeout(function(){
-              if(_phase==='play'){_repositionAll(0.025);_passT=0;_passNext=_rnd(1.5,2.5);}
-            }, 600);
+
+            if(cbIsGoal) {
+              // Registra il gol nello stato. Prima questo ramo annunciava
+              // il gol con _emitComment e basta: la palla finiva in rete,
+              // i token riprendevano a giocare e il punteggio restava a
+              // zero. Telecronaca e stato erano scollegati.
+              if(_ms) {
+                if(_attack==='my'){
+                  _ms.myScore++;
+                  if(_ms.periodScores&&_ms.period>=1&&_ms.period<=4) _ms.periodScores[_ms.period-1].my++;
+                } else {
+                  _ms.oppScore++;
+                  if(_ms.periodScores&&_ms.period>=1&&_ms.period<=4) _ms.periodScores[_ms.period-1].opp++;
+                }
+              }
+              // La sequenza di gol (animazione + rimessa) la gestisce
+              // onGoalEvent, che e' il ramo gemello di _autoShot.
+              onGoalEvent({
+                goalScored: true,
+                goalTeam: _attack,
+                goalScorer: cbShooterName,
+                moverKey: atkCBKey,
+                ballTarget: { x: shotX, y: shotY },
+              });
+            } else {
+              _emitComment('shot_saved',
+                { shooter:cbShooterName, gk:cbGkName, team:cbTeamN });
+              if(typeof poolReleaseBall==='function') poolReleaseBall();
+              _ballOwnerKey = null;
+              if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(shotX, shotY);
+              // Riposiziona dopo il tiro
+              setTimeout(function(){
+                if(_phase==='play'){_repositionAll(0.025);_passT=0;_passNext=_rnd(1.5,2.5);}
+              }, 600);
+            }
           }
         }
       }
@@ -520,9 +546,9 @@ var MovementController = (function() {
           _ms.oppScore++;
           if(_ms.periodScores&&_ms.period>=1&&_ms.period<=4) _ms.periodScores[_ms.period-1].opp++;
         }
-        // Conta il tiro per entrambe le squadre
-        if(scorerTeam==='my') _ms.myShots=(_ms.myShots||0)+1;
-        else                   _ms.oppShots=(_ms.oppShots||0)+1;
+        // Il tiro e' gia' stato contato sopra, indipendentemente dall'esito:
+        // qui non si riconta, altrimenti un gol pesa doppio nelle statistiche
+        // di tiro e nella percentuale di parate.
       }
 
       // Step 1 (0.5s): animazione goal + festeggiamento
