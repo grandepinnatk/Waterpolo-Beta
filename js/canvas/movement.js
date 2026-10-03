@@ -109,6 +109,7 @@ var MovementController = (function() {
   var _attack      = 'my';
   var _ballOwnerKey= null;
   var _pressTarget = null;
+  var _gameSpeed   = 1;   // velocita' di gioco corrente (per calcolare i tempi di volo)
 
   // Timer aggiornamenti tattici
   var _tacticalT   = 0;
@@ -229,6 +230,110 @@ var MovementController = (function() {
   }
   function _ballFree(tx,ty){if(typeof poolReleaseBall==='function')poolReleaseBall();_ballOwnerKey=null;if(tx!==undefined&&typeof poolMoveBallDirect==='function')poolMoveBallDirect(tx,ty);}
 
+  // ── Punto di arrivo di un passaggio ────────────────────────────
+  // Un passaggio va "sulla nuotata": il ricevitore si muove mentre la palla
+  // viaggia, quindi mirare dove si trova ORA fa arrivare la palla a vuoto.
+  // Prima la palla veniva lanciata a (posizione attuale + rumore di 1.5cm) e
+  // il ricevitore proseguiva verso la propria meta tattica: la palla
+  // arrivava in acqua libera e il possesso finiva assegnato a caso.
+  //
+  // Restituisce dove mirare (lead) e l'esito del passaggio. Se il passaggio
+  // fallisce l'errore supera il raggio di presa: e' un passaggio sbagliato, e
+  // la palla resta in acqua perche' nessuno la prende.
+  //
+  //   arrivato  -> il ricevitore prende la palla
+  //   fallito   -> palla libera, corsa dei piu' vicini
+
+  // Larghezza del "corridoio" entro cui un difensore puo' leggere il
+  // passaggio. Circa 1.5m: se e' piu' largo, con la marcatura a uomo tutti i
+  // difensori risultano in linea e quasi ogni passaggio verrebbe dato per
+  // intercettato.
+  var INTERCEPT_WIDTH = 0.040;
+
+  // ── Difensore in linea di passaggio ──────────────────────────────
+  // Restituisce l'avversario meglio piazzato sulla traiettoria di un
+  // passaggio, con la sua posizione lungo la linea (t) e quanto e' scarto
+  // perpendicolare. Serve a stabilire se il passaggio puo' essere
+  // intercettato: la domanda va posta UNA volta, al lancio.
+  function _laneDefender(sx, sy, ex, ey, oppTeam) {
+    var dx = ex-sx, dy = ey-sy;
+    var len = Math.sqrt(dx*dx + dy*dy);
+    if(len < 0.02) return null;              // passaggio troppo corto: niente lane
+    var best = null;
+    ['1','2','3','4','5','6'].forEach(function(pk){
+      var tok = _tok(oppTeam+'_'+pk);
+      if(!tok || tok.expelled || tok.tempAbsent) return;
+      var vx = tok.x-sx, vy = tok.y-sy;
+      var t = (vx*dx + vy*dy)/(len*len);
+      // Solo la parte "centralmente" della traiettoria: un difensore
+      // addosso al lanciatore o addosso al ricevitore non e' un
+      // intercettore, e' solo il suo marcatore.
+      if(t < 0.12 || t > 0.85) return;
+      var perp = Math.abs(vx*dy - vy*dx)/len;
+      if(perp > INTERCEPT_WIDTH) return;
+      if(!best || perp < best.perp) best = { key: oppTeam+'_'+pk, t: t, perp: perp };
+    });
+    return best;
+  }
+
+  function _passAim(recKey, recTok, fromX, fromY) {
+    var gs = _gameSpeed||1;
+    // Velocita' della palla e del nuotatore, entrambe in unita'/secondo REALE
+    var bSpd = (typeof poolGetBallSpeed==='function')
+      ? poolGetBallSpeed(gs)
+      : BASE_SPD*4*gs;
+    var rSpd = _spd(recKey.split('_')[1], recKey.split('_')[0])*gs;
+
+    var dist = _dist(fromX, fromY, recTok.x, recTok.y);
+    var flightT = bSpd>0 ? dist/bSpd : 0;   // secondi reali di volo
+
+    // Dove sara' il ricevitore tra flightT secondi: continua dritto verso il
+    // suo target attuale, per un tratto limitato dalla distanza che deve
+    // davvero percorrere.
+    var leadX = recTok.x, leadY = recTok.y;
+    var tdx = recTok.tx - recTok.x, tdy = recTok.ty - recTok.y;
+    var td = Math.sqrt(tdx*tdx + tdy*tdy);
+    if(td > 0.001) {
+      var canGo = Math.min(td, rSpd*flightT);
+      leadX += tdx/td*canGo;
+      leadY += tdy/td*canGo;
+    }
+
+    // ── Esito del passaggio: lo colpisce o lo sbaglia ─────────────────
+    // Un passaggio non e' mai perfetto. Se il ricevitore e' marcato stretto
+    // il passatore rischia piu' di mandare la palla fuori bersaglio: in
+    // quel caso la palla arriva in acqua, NON la prende nessuno, e la pedina
+    // piu' vicina di ogni squadra si mette a nuotare per prenderla.
+    //
+    // L'errore e'|esplicito| e non una uniforme: con un errore uniforme
+    // casuale la soglia di errore decideva tutto e i passaggi "sbagliati"
+    // non capitavano mai. Qui l'esito e' deciso prima, quindi la frequenza
+    // di passaggi persi e' controllata.
+    var recTeam = recKey.split('_')[0];
+    var oppT = recTeam==='my' ? 'opp' : 'my';
+    var press = 9;
+    ['1','2','3','4','5','6'].forEach(function(pk){
+      var ot=_tok(oppT+'_'+pk);
+      if(!ot||ot.expelled||ot.tempAbsent)return;
+      var d=_dist(ot.x,ot.y,recTok.x,recTok.y);
+      if(d<press)press=d;
+    });
+    // pressione 0..1: 0 = ricevitore libero, 1 = marcato a due spanne
+    var pressione = press < 0.15 ? (0.15-press)/0.15 : 0;
+    // Raggio di presa: sotto questa distanza il ricevitore prende la palla
+    var CATCH = 0.060;
+    var probFallire = _clamp(0.05 + pressione*0.22, 0, 0.35);   // 5%..27%
+    var fallito = Math.random() < probFallire;
+    // Se fallisce l'errore e' SEMPRE oltre il raggio di presa, cosi' la
+    // palla finisce davvero in acqua e non torna addosso a una pedina.
+    var err = fallito ? CATCH + _rnd(0.015, 0.070) : _rnd(0.004, 0.028);
+
+    var aimX = leadX + _rnd(-err, err);
+    var aimY = leadY + _rnd(-err, err);
+    return { leadX: leadX, leadY: leadY, aimX: aimX, aimY: aimY,
+             dist: dist, fallito: fallito };
+  }
+
   // ── Coda sequenziale ──────────────────────────────────────────
   function _qA(delay,fn){_seq.push({delay:delay,fn:fn});}
   function _startSeq(){_seqIdx=0;_seqT=0;_seqActive=_seq.length>0;}
@@ -265,12 +370,15 @@ var MovementController = (function() {
       var mKey='my_'+pk;
       if(inf && pk==='4') return;
       var mTok=_tok(mKey);
-      if(mTok && !mTok.expelled && pk!=='GK' && pk!=='3') {
+      // Un giocatore in corsa alla palla libera non viene riposizionato:
+      // la corsa e' un obiettivo a breve termine e il riposizionamento
+      // tattico lo annullerebbe proprio mentre lo sta vincendo.
+      if(mTok && !mTok.expelled && !mTok._raceTo && pk!=='GK' && pk!=='3') {
         // pos6 in attacco: va alla sua posizione di attacco (CB attaccante)
         if(pk==='6') {
           if(_attack==='my') {
             var cb6Base = f.myAtk['6'];
-            if(cb6Base && _ballOwnerKey!==mKey) poolMoveToken(mKey, cb6Base.x+oscX*0.3, cb6Base.y+oscY*0.3);
+            if(cb6Base && _ballOwnerKey!==mKey && !mTok._raceTo) poolMoveToken(mKey, cb6Base.x+oscX*0.3, cb6Base.y+oscY*0.3);
           }
           // In difesa: gestito dal blocco CB-marker
           return;
@@ -279,7 +387,7 @@ var MovementController = (function() {
           // In attacco: formazione semicerchio
           var base=f.myAtk[pk];
           if(base){var pushX=sup?0.010:0.018;
-            if(_ballOwnerKey!==mKey) poolMoveToken(mKey,_clamp(base.x+oscX+pushX,0.11,0.89),_clamp(base.y+oscY,0.13,0.87));}
+            if(_ballOwnerKey!==mKey && !mTok._raceTo) poolMoveToken(mKey,_clamp(base.x+oscX+pushX,0.11,0.89),_clamp(base.y+oscY,0.13,0.87));}
         } else {
           // In difesa: marcatura SPECULARE — ogni giocatore marca l'avversario
           // che occupa la posizione simmetrica nel semicerchio avversario
@@ -289,11 +397,11 @@ var MovementController = (function() {
             // Si posiziona tra il suo attaccante e la propria porta (sx)
             var defX = _clamp(oppMark.x + (0.09 - oppMark.x)*0.30 + oscX*0.5, 0.11, 0.89);
             var defY = _clamp(oppMark.y + oscY*0.5, 0.13, 0.87);
-            if(_ballOwnerKey!==mKey) poolMoveToken(mKey, defX, defY);
+            if(_ballOwnerKey!==mKey && !mTok._raceTo) poolMoveToken(mKey, defX, defY);
           } else {
             // Avversario assente: posizione difensiva base
             var base2=f.myDef[pk];
-            if(base2 && _ballOwnerKey!==mKey) poolMoveToken(mKey,_clamp(base2.x+oscX,0.11,0.89),_clamp(base2.y+oscY,0.13,0.87));
+            if(base2 && _ballOwnerKey!==mKey && !mTok._raceTo) poolMoveToken(mKey,_clamp(base2.x+oscX,0.11,0.89),_clamp(base2.y+oscY,0.13,0.87));
           }
         }
       }
@@ -302,11 +410,11 @@ var MovementController = (function() {
       var oKey='opp_'+pk;
       if(sup && pk==='4') return;
       var oTok=_tok(oKey);
-      if(oTok && !oTok.expelled && pk!=='GK' && pk!=='3') {
+      if(oTok && !oTok.expelled && !oTok._raceTo && pk!=='GK' && pk!=='3') {
         if(pk==='6') {
           if(_attack==='opp') {
             var ocb6Base = f.oppAtk['6'];
-            if(ocb6Base && _ballOwnerKey!==oKey) poolMoveToken(oKey, ocb6Base.x+oscX2*0.3, ocb6Base.y+oscY2*0.3);
+            if(ocb6Base && _ballOwnerKey!==oKey && !oTok._raceTo) poolMoveToken(oKey, ocb6Base.x+oscX2*0.3, ocb6Base.y+oscY2*0.3);
           }
           return;
         }
@@ -314,7 +422,7 @@ var MovementController = (function() {
           // In attacco: formazione semicerchio avversario
           var obase=f.oppAtk[pk];
           if(obase){var pushX2o=inf?-0.010:-0.018;
-            if(_ballOwnerKey!==oKey) poolMoveToken(oKey,_clamp(obase.x+oscX2+pushX2o,0.11,0.89),_clamp(obase.y+oscY2,0.13,0.87));}
+            if(_ballOwnerKey!==oKey && !oTok._raceTo) poolMoveToken(oKey,_clamp(obase.x+oscX2+pushX2o,0.11,0.89),_clamp(obase.y+oscY2,0.13,0.87));}
         } else {
           // In difesa: marcatura SPECULARE
           var oMarkPk = MARK_MY_FOR_OPP[pk] || pk;
@@ -322,10 +430,10 @@ var MovementController = (function() {
           if(myMark && !myMark.expelled) {
             var odefX = _clamp(myMark.x + (0.91 - myMark.x)*0.30 + oscX2*0.5, 0.11, 0.89);
             var odefY = _clamp(myMark.y + oscY2*0.5, 0.13, 0.87);
-            if(_ballOwnerKey!==oKey) poolMoveToken(oKey, odefX, odefY);
+            if(_ballOwnerKey!==oKey && !oTok._raceTo) poolMoveToken(oKey, odefX, odefY);
           } else {
             var obase2=f.oppDef[pk];
-            if(obase2 && _ballOwnerKey!==oKey) poolMoveToken(oKey,_clamp(obase2.x+oscX2,0.11,0.89),_clamp(obase2.y+oscY2,0.13,0.87));
+            if(obase2 && _ballOwnerKey!==oKey && !oTok._raceTo) poolMoveToken(oKey,_clamp(obase2.x+oscX2,0.11,0.89),_clamp(obase2.y+oscY2,0.13,0.87));
           }
         }
       }
@@ -432,6 +540,21 @@ var MovementController = (function() {
     }
   }
 
+  // Il ricevitore di un passaggio in volo NON va riposizionato tatticamente.
+  //
+  // _updateAllTargets() riscrive il target di tutti i token ogni 0.8s di
+  // gioco, quindi il ricevitore veniva rispedito in formazione mentre la
+  // palla era ancora in aria: la palla arrivava dove lui non c'era piu' e il
+  // passaggio finiva sempre in acqua. Per questo il punto d'incontro viene
+  // reimposto qui, DOPO il ciclo tattico.
+  function _holdReceiverTarget() {
+    if(!_pendingReceiver || _pendingReceiver._meetX === undefined) return;
+    if(typeof poolMoveToken !== 'function') return;
+    var tok=_tok(_pendingReceiver.key);
+    if(!tok || tok.expelled) return;
+    poolMoveToken(_pendingReceiver.key, _pendingReceiver._meetX, _pendingReceiver._meetY);
+  }
+
   // Avanza le fasi dell'oscillazione ogni frame
   function _tickMicro(dt) {
     var OMEGA=0.8; // velocità oscillazione (rad/s)
@@ -487,29 +610,69 @@ var MovementController = (function() {
                               team: ownerTeam==='my' ? (_ms&&_ms.myTeam&&_ms.myTeam.name)||'' : (_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'' });
     }
 
-    // La palla vola verso la posizione attuale del ricevitore (passaggio attivo)
-    var futX = recTok.x + _rnd(-0.015, 0.015);
-    var futY = recTok.y + _rnd(-0.010, 0.010);
+    // ── Punto di arrivo: "sulla nuotata" del ricevitore ────────────────
+    // _passAim stima dove sara' il ricevitore al momento dell'arrivo e
+    // aggiunge l'errore naturale del passatore. Se l'errore supera il raggio
+    // di presa la palla finisce in acqua libera: e' un passaggio sbagliato,
+    // e non se ne accorge nessuno (la corsa alla palla libera la recupera).
+    var lBall0 = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:ownerTok.x, y:ownerTok.y};
+    var aim = _passAim(pick.key, recTok, lBall0.x, lBall0.y);
+    var futX = aim.aimX, futY = aim.aimY;
+
+    // ── Un difensore può intercettare? ────────────────────────────
+    // Si decide qui, una volta sola. Prima il controllo veniva rifatto a
+    // ogni frame sul segmento palla→ricevitore: siccome quel segmento si
+    // accorcia mentre la palla avanza, il marcatore del ricevitore finiva
+    // sempre "sulla traiettoria" e gli passaggi risultavano intercettati
+    // una volta su due.
+    //
+    // Ora: se un difensario è realmente in linea quando la palla parte,
+    // si lancia un dado una volta sola. Se esce bene, quel difensore
+    // intercetterà davvero, nel punto della linea in cui si trova.
+    var _intercettore = null;
+    var _lane = _laneDefender(lBall0.x, lBall0.y, futX, futY,
+                              pick.key.split('_')[0]==='my' ? 'opp' : 'my');
+    if(_lane) {
+      // Più il difensore è centrato sulla linea, più è probabile che
+      // legga il passaggio.
+      var _centro = 1 - _lane.perp/INTERCEPT_WIDTH;
+      var _probInt = _clamp(0.16 + _centro*0.30, 0, 0.55);
+      if(Math.random() < _probInt) _intercettore = _lane;
+    }
 
     // Libera il possesso
     _ballOwnerKey = null;
     if(typeof poolReleaseBall === 'function') poolReleaseBall();
 
     // Registra il ricevitore PRIMA del lancio (blocca pool.js dalla raccolta libera)
-    var lBall = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:ownerTok.x, y:ownerTok.y};
+    var lBall = lBall0;
     var _tdx = futX - lBall.x, _tdy = futY - lBall.y;
     // ready:true — pool.js garantisce già che la palla sia in volo tramite _ballInFlight
     // Non serve il check 40%: quello causava freeze quando la palla arrivava troppo veloce
     _pendingReceiver = {
       key: pick.key, team: ownerTeam,
       startX: lBall.x, startY: lBall.y,
-      totalDist: Math.max(0.02, Math.sqrt(_tdx*_tdx + _tdy*_tdy)),
+      totalDist: Math.max(0.02, Math.sqrt(_tdx * _tdx + _tdy * _tdy)),
       ready: true,
+      // Grace dopo l'arrivo: se la palla e' arrivata e nessuno la prende
+      // entro _landedGrace, il passaggio e' perso e diventa palla libera.
+      _landed: false, _landedGrace: 0,
+      // Punto d'incontro: il ricevitore nuota qui e il sistema tattico non
+      // lo sposta finche' la palla non arriva.
+      _meetX: aim.leadX, _meetY: aim.leadY,
+      // Bersaglio del passaggio: serve al controllo d'intercettazione, che
+      // deve valutare la traiettoria reale e non il segmento che si
+      // accorcia a ogni frame.
+      _aimX: futX, _aimY: futY,
+      // Difensore che puo' intercettare questo passaggio, se s'e' avverta
+      _intercettore: _intercettore,
     };
 
-    // Il ricevitore nuota verso il punto di atterraggio della palla
+    // Il ricevitore nuota verso il punto di incontro previsto (il lead), non
+    // verso l'errore: cosi' un passaggio centrato arriva su di lui, e uno
+    // sbagliato lo costringe a rincorrere la palla in acqua.
     if(typeof poolMoveToken === 'function')
-      poolMoveToken(pick.key, futX, futY);
+      poolMoveToken(pick.key, aim.leadX, aim.leadY);
 
     // Lancia la palla (ora _pendingReceiver è già impostato)
     if(typeof poolMoveBallDirect === 'function')
@@ -752,6 +915,15 @@ var MovementController = (function() {
     if(!canRun)return;
 
     var gameSpeed = _ms.speed || 1;
+    _gameSpeed = gameSpeed;
+
+    // La fase della partiera segue il controller. Senza questa sincronizzazione
+    // pool.js resta in 'idle' per tutta la partita (poolStartPeriod la mette a
+    // idle e nessuno la riporta a 'play'), e la corsa alla palla libera — che
+    // richiede _phase==='play' — non parte MAI. Il pallone quindi restava
+    // fermo in acqua per sempre dopo un passaggio perso, e il possesso
+    // tornava solo per il safety che assegnava la palla a una pedina a caso.
+    if(typeof poolSetPhaseFromMC==='function') poolSetPhaseFromMC(_phase, _attack);
 
     // Una coda di azioni non deve immobilizzare il campo. I suoi passi sono
     // eventi da eseguire alle loro scadenze, non un motivo per sospendere il
@@ -793,6 +965,9 @@ var MovementController = (function() {
       if(_tacticalT >= TACTICAL_INT){
         _tacticalT = 0;
         _updateAllTargets(dt);
+        // Il ricevitore tiene il punto d'incontro: il riposizionamento
+        // tattico non deve rubargli la palla che sta per arrivare.
+        _holdReceiverTarget();
 
         // ── FASE A: Pubblica stato canvas + FASE corrente al live engine ──
         if(typeof liveUpdateState === 'function') {
@@ -993,53 +1168,57 @@ var MovementController = (function() {
             var prDx = recTok.x - ballPos.x, prDy = recTok.y - ballPos.y;
             var prDist = Math.sqrt(prDx*prDx + prDy*prDy);
 
-            // ── Intercettazione vera: avversario sulla TRAIETTORIA del passaggio ──
-            // La traiettoria va da ballPos verso recTok.
-            // Un avversario intercetta se:
-            //   1. Si trova sulla linea (proiezione perpendicolare < INTERCEPT_WIDTH)
-            //   2. La sua proiezione è tra ballPos e recTok (t in [0.1, 0.9])
-            var INTERCEPT_WIDTH = 0.055;  // ~1.5m di apertura laterale
-            var closestOppKey = null, closestOppDist = 999;
-            var trajDx = recTok.x - ballPos.x, trajDy = recTok.y - ballPos.y;
+            // ── Intercettazione ────────────────────────────────────────────
+            //
+            // La decisione e' gia' stata presa al lancio (vedi _autoPass):
+            // se un difensore era in linea, si e' lanciato un dado e qui si
+            // esegue. Niente controlli geometrici a ogni frame.
+            var sx0 = _pendingReceiver.startX, sy0 = _pendingReceiver.startY;
+            var ex  = _pendingReceiver._aimX!==undefined ? _pendingReceiver._aimX : recTok.x;
+            var ey  = _pendingReceiver._aimY!==undefined ? _pendingReceiver._aimY : recTok.y;
+            var trajDx = ex - sx0, trajDy = ey - sy0;
             var trajLen = Math.sqrt(trajDx*trajDx + trajDy*trajDy);
-            if(trajLen > 0.005) {
-              ['1','2','3','4','5','6'].forEach(function(pk){
-                var oppTok = _tok(oppTeamP+'_'+pk);
-                if(!oppTok||oppTok.expelled||oppTok.tempAbsent)return;
-                // Proiezione del difensore sulla traiettoria
-                var vx=oppTok.x-ballPos.x, vy=oppTok.y-ballPos.y;
-                var t=(vx*trajDx+vy*trajDy)/(trajLen*trajLen);
-                if(t < 0.10 || t > 0.90) return;  // fuori dal segmento
-                // Distanza perpendicolare dalla traiettoria
-                var perpDist = Math.abs(vx*trajDy - vy*trajDx) / trajLen;
-                if(perpDist < INTERCEPT_WIDTH) {
-                  var totalDist = Math.sqrt(vx*vx+vy*vy);
-                  if(totalDist < closestOppDist) {
-                    closestOppDist = totalDist;
-                    closestOppKey  = oppTeamP+'_'+pk;
-                  }
-                }
-              });
+            var trav = trajLen>0.005
+              ? Math.sqrt(Math.pow(ballPos.x-sx0,2)+Math.pow(ballPos.y-sy0,2))/trajLen
+              : 1;
+            var interc = _pendingReceiver._intercettore;
+            var intercetta = false;
+            if(interc && trajLen > 0.005) {
+              var intTok = _tok(interc.key);
+              // Se il difensore e' stato espulso o non si muove piu' la
+              // palla passa: l'intercettazione non avviene.
+              if(!intTok || intTok.expelled || intTok.tempAbsent) {
+                _pendingReceiver._intercettore = null;
+              } else if(trav >= interc.t) {
+                // La palla arriva addosso al difensore: gli si rietira il
+                // bersaglio sul punto in cui lui si trova, cosi' la presa
+                // avviene davvero e non a caso.
+                var ix = sx0 + trajDx*interc.t, iy = sy0 + trajDy*interc.t;
+                if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(ix, iy);
+                if(typeof poolMoveToken==='function') poolMoveToken(interc.key, ix, iy);
+                _pendingReceiver = {
+                  key: interc.key, team: oppTeamP,
+                  startX: ballPos.x, startY: ballPos.y,
+                  totalDist: Math.max(0.02, Math.sqrt(Math.pow(ballPos.x-ix,2)+Math.pow(ballPos.y-iy,2))),
+                  ready: true,
+                  _meetX: ix, _meetY: iy,
+                  _aimX: ix, _aimY: iy,
+                  _landed: false, _landedGrace: 0,
+                  _intercettore: null,
+                };
+                _ballOwnerKey = null;
+                _attack = oppTeamP;
+                _passT = 0; _passNext = _rnd(1.5, 2.5);
+                intercetta = true;
+                // Telecronaca intercettazione
+                var intTeamName = oppTeamP==='my'
+                  ? ((_ms&&_ms.myTeam&&_ms.myTeam.name)||'')
+                  : ((_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'');
+                _emitComment('interception', { team: intTeamName });
+              }
             }
 
-            if(closestOppKey) {
-              // ── INTERCETTAZIONE: avversario prende la palla ──
-              if(typeof poolReleaseBall==='function') poolReleaseBall();
-              _ballOwnerKey = null;
-              _pendingReceiver = null;
-              _attack = oppTeamP;
-              _passT = 0; _passNext = _rnd(1.5, 2.5);
-              // Il giocatore che intercetta va sulla palla
-              if(typeof poolMoveToken==='function') poolMoveToken(closestOppKey, ballPos.x, ballPos.y);
-              _pendingReceiver = {
-                key: closestOppKey, team: oppTeamP,
-                startX: ballPos.x, startY: ballPos.y,
-                totalDist: 0.001, ready: true,
-              };
-              // Telecronaca intercettazione diretta
-              var intTeamName = oppTeamP==='my'?(_ms&&_ms.myTeam&&_ms.myTeam.name)||'':(_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'';
-              _emitComment('interception', { team: intTeamName });
-            } else if(prDist < 0.060) {
+            if(!intercetta && prDist < 0.060) {
               // Ricevitore previsto prende la palla normalmente
               _ballOn(_pendingReceiver.key);
               _attack = _pendingReceiver.team;
@@ -1052,15 +1231,23 @@ var MovementController = (function() {
         }
       }
 
-      // Safety: pendingReceiver attivo da più di 3s → forza pickup al giocatore più vicino
-      if(_pendingReceiver && _pendingReceiver._age > 3.0) {
-        var bpSafe = typeof poolGetBallPos==='function' ? poolGetBallPos() : {x:0.5,y:0.5};
-        var closestSafe = _findClosestToken(_pendingReceiver.team, bpSafe.x, bpSafe.y);
-        if(closestSafe) {
-          _ballOn(closestSafe);
-          _attack = _pendingReceiver.team;
+      // ── Passaggio arrivato a destinazione senza essere preso ─────────────
+      // Se la palla ha finito il volo e nessuno la prende entro il grace,
+      // il passaggio e' perso. La palla resta ferma in acqua e la corsa alla
+      // palla libera muove i giocatori piu' vicini di OGNI squadra verso di
+      // lei: uno vince la corsa, l'altro preme.
+      //
+      // Prima, dopo 3s, il possesso veniva assegnato al compagno piu' vicino
+      // comunque, anche a 10 metri: la palla compariva addosso a una pedina
+      // che non era mai stata lontano da li', e il possessore risultava
+      // "comparso" in mezzo al campo.
+      if(_pendingReceiver) {
+        var inVolo = (typeof poolBallInFlight==='function') ? poolBallInFlight() : false;
+        if(!inVolo) {
+          _pendingReceiver._landedGrace += eff;
+          if(_pendingReceiver._landedGrace > 0.45 || _pendingReceiver._age > 3.0)
+            _pendingReceiver = null;   // palla libera: se ne occupa la corsa
         }
-        _pendingReceiver = null;
       }
 
       if(_ballOwnerKey){
@@ -1269,42 +1456,92 @@ function onSave(event) {
     _emitComment('save', { gk: saveGkName,
       team: gkTeam==='my'?(_ms&&_ms.myTeam&&_ms.myTeam.name)||'':(_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'' });
 
-    // Palla vola verso il portiere che ha parato
+    // Palla bloccata dal portiere: resta DOVE il tiro e' stato parato.
+    //
+    // Prima la palla veniva lanciata a (gkX, gkY), cioe' sulla linea di porta
+    // del portiere: se il tiro era da 8 metri la palla attraversava il bacino
+    // da sola, senza possessore e senza nessuno che la toccasse. Era la
+    // principale sorgente di palla "autonoma".
+    //
+    // Ora: il portiere nuota dove si e' fermata la palla e la prende
+    // davvero. Se non arriva in tempo, la palla resta in acqua e la corsa
+    // alla palla libera la mette in gioco.
     var gkX = (gkTeam==='my') ? (typeof PLAY!=='undefined'?PLAY.myGKX:0.115)
                                : (typeof PLAY!=='undefined'?PLAY.oppGKX:0.885);
     var gkY = event.ballTarget ? event.ballTarget.y : 0.50;
-    if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(gkX, gkY);
+    var gkTok = _tok(gkTeam+'_GK');
+    var blockedBall = typeof poolGetBallPos==='function'
+      ? poolGetBallPos() : {x:gkX, y:gkY};
+    var gkTargetX = gkTok ? gkTok.x : gkX;
+    var gkTargetY = gkTok ? gkTok.y : gkY;
+    if(typeof poolMoveToken==='function') poolMoveToken(gkTeam+'_GK', gkTargetX, gkTargetY);
+    // Il portiere e' il destinatario della palla ferma: si registra come
+    // ricevente, cosi' la prende davvero quando arriva.
+    _pendingReceiver = {
+      key: gkTeam+'_GK', team: gkTeam,
+      startX: blockedBall.x, startY: blockedBall.y,
+      totalDist: Math.max(0.02, _dist(gkTargetX, gkTargetY, blockedBall.x, blockedBall.y)),
+      ready: true, _landed: true, _landedGrace: 0,
+      _meetX: blockedBall.x, _meetY: blockedBall.y,
+      _aimX: blockedBall.x, _aimY: blockedBall.y,
+    };
 
-    // Step 1 (0.5s di gioco): GK prende la palla
+    // Step 1 (0.5s di gioco): il portiere prende la palla SE E' VICINO.
+    // Non si assegna il possesso a distanza: se il GK non e' arrivato, la
+    // palla resta in acqua e la corsa alla palla libera la mette in gioco.
     _seq=[];_seqActive=false;
     _qA(0.5, function(){
-      if(typeof poolMoveToken==='function') poolMoveToken(gkTeam+'_GK', gkX, gkY);
-      _ballOn(gkTeam+'_GK');  // assegna direttamente — siamo in _seq
-      if(_ms) {
-        if(gkTeam==='my') _ms.mySaves=(_ms.mySaves||0)+1;
-        else               _ms.oppSaves=(_ms.oppSaves||0)+1;
+      var gk=_tok(gkTeam+'_GK');
+      if(!gk)return;
+      var b=typeof poolGetBallPos==='function'?poolGetBallPos():{x:gkX,y:gkY};
+      if(_dist(gk.x,gk.y,b.x,b.y) < 0.075){
+        _ballOn(gkTeam+'_GK');  // assegna direttamente — siamo in _seq
+        if(_ms) {
+          if(gkTeam==='my') _ms.mySaves=(_ms.mySaves||0)+1;
+          else               _ms.oppSaves=(_ms.oppSaves||0)+1;
+        }
       }
     });
 
-    // Step 2 (1.2s di gioco): GK rilancia verso il pos3 della propria squadra
+    // Step 2 (1.2s di gioco): rilancio del portiere verso il pos3.
+    // E' un passaggio come tutti gli altri: punta sul lead del ricevitore e
+    // può fallire. Prima la palla veniva lanciata alla posizione attuale del
+    // pos3, che nel frattempo si spostava, e poi lo stesso pos3 si trovava
+    // il possesso assegnato a forza.
     _qA(1.2, function(){
+      if(_ballOwnerKey !== gkTeam+'_GK') return;   // palla non presa: corsa libera
       if(typeof poolReleaseBall==='function')poolReleaseBall();
       _ballOwnerKey=null;
       _pendingReceiver=null;
 
-      var c3Tok=_tok(gkTeam+'_3');
+      var c3Key=gkTeam+'_3';
+      var c3Tok=_tok(c3Key);
       var launchX,launchY;
       if(c3Tok&&!c3Tok.expelled){
-        launchX=c3Tok.x+_rnd(-0.03,0.03);launchY=c3Tok.y+_rnd(-0.025,0.025);
+        var gkNow=_tok(gkTeam+'_GK');
+        var from=gkNow?{x:gkNow.x,y:gkNow.y}:{x:gkX,y:gkY};
+        var aimGk=_passAim(c3Key, c3Tok, from.x, from.y);
+        launchX=aimGk.aimX; launchY=aimGk.aimY;
+        // Il pos3 nuota verso il punto di incontro
+        if(typeof poolMoveToken==='function') poolMoveToken(c3Key, aimGk.leadX, aimGk.leadY);
+        _pendingReceiver={
+          key:c3Key, team:gkTeam, startX:from.x, startY:from.y,
+          totalDist:Math.max(0.02, _dist(from.x,from.y,launchX,launchY)),
+          ready:true, _landed:false, _landedGrace:0,
+          _meetX:aimGk.leadX, _meetY:aimGk.leadY,
+          _aimX:launchX, _aimY:launchY,
+        };
       } else {
         var t3fb=gkTeam==='my'?ATK_MY['3']:ATK_OPP['3'];
         launchX=t3fb.x;launchY=t3fb.y;
       }
       if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(launchX,launchY);
     });
-    // Step 3 separato (no nesting): assegna palla al pos3 dopo il volo
+    // Step 3 separato (no nesting): il pos3 ha la palla solo se l'ha presa
     _qA(1.6, function(){
-      _ballOn(gkTeam+'_3');
+      if(_ballOwnerKey)return;                 // il passaggio e' andato a buon fine
+      if(_pendingReceiver)return;               // ancora in volo: lascia i tempi
+      if(_ballOwnerKey !== null) return;
       _attack=gkTeam;
       _repositionAll(0.022);
     });
@@ -1409,8 +1646,18 @@ function onPenaltyKick(shooterTeam,isGoal,shooterPk) {
   }
 
   // ── CAMBIO POSSESSO ───────────────────────────────────────────
-  function onPossessChange(team) {
+  // key: token che ha preso la palla. Opzionale, perche' non tutti i
+  // chiamanti sanno chi ha il possesso (rimesse, inizio periodo): in quel
+  // caso si aggiorna solo la squadra in attacco.
+  function onPossessChange(team, key) {
     _attack=team;
+    if(key) {
+      // Il vincitore della corsa alla palla libera e' un possessore reale:
+      // senza questo il suo _passT non ripartiva e non passava piu' mai.
+      _ballOwnerKey=key;
+      _pendingReceiver=null;
+      _passT=0; _passNext=_rnd(1.5,2.5);
+    }
     _shotClock=0;   // nuovo possesso → shot clock repart da 0
     if(_phase==='play')_repositionAll(0.022);
   }
@@ -1524,6 +1771,12 @@ function onPenaltyKick(shooterTeam,isGoal,shooterPk) {
     onNumericalChange:   onNumericalChange,
 _hasPendingReceiver: function(){ return !!_pendingReceiver; },
       clearPendingReceiver: function(){ _pendingReceiver=null; _passT=0; _passNext=_rnd(1.5,2.5); },
+    // Ricevitore in attesa: serve ai test e alla diagnostica per capire
+    // dove il passatore ha mirato e cosa sta facendo il ricevitore.
+    pendingReceiver: function(){ return _pendingReceiver; },
+    // Forza un passaggio: i test non possono fare affidamento sui tempi
+    // casuali del passaggio automatico.
+    forcePass: function(){ return _autoPass(); },
   };
 
 })();

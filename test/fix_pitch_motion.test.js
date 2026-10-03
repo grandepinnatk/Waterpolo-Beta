@@ -142,18 +142,31 @@ test('un tiro non immobilizza il campo per i 2.25s del fallback', () => {
 // ── Causa 2 ────────────────────────────────────────────────────────────────
 // La palla non puo' spostarsi di un terzo di campo in un frame.
 test('la palla non si teletrasporta: nessun salto di piu\' di 0.2 per frame', () => {
-  const fs = require('node:fs');
-  const src = fs.readFileSync('js/canvas/pool.js', 'utf8');
-  const m = src.match(/var bspd\s*=\s*_BASE_SPD\s*\*\s*([\d.]+)\s*\*\s*gameSpeed/);
-  assert.ok(m, 'non trovo la velocita\' della palla in pool.js');
-  const factor = Number(m[1]);
+  const h = loadGame();
+  h.run(PRIME);
+  // La velocita' della palla e' un fattore della velocita' di gioco: va
+  // verificata sul comportamento, non con una regex sul sorgente (che si
+  // rompeva a ogni rifattoraggio della formula).
+  const base = h.run('JSON.stringify(poolGetBallSpeed(1))');
+  const baseSpd = Number(base);
   // _BASE_SPD = 0.80/12 = 0.0667 unita'/s, campo utile 0.80 unita'.
   // Per non superare 0.2 unita' per frame a 30fps servono meno di 0.2*30/0.0667
   // = 90 unita'/s, cioe' un fattore sotto 90 con gameSpeed 1: il controllo
-  // vero e' sul prodotto, ma il fattore non deve essere piu' di 15.
-  assert.ok(factor <= 6,
-    `la velocita' della palla e' _BASE_SPD*${factor}*gameSpeed: a velocita' 10 `
-    + 'la palla attraversa il campo in 2-3 frame (teletrasporto)');
+  // vero e' sul prodotto, ma il fattore non deve essere piu' di 6.
+  assert.ok(baseSpd > 0,
+    'poolGetBallSpeed non restituisce una velocita\' utilizzabile');
+  assert.ok(baseSpd <= 6 * (0.80 / 12),
+    `a velocita' 1 la palla viaggia a ${baseSpd.toFixed(4)} unita'/s: `
+    + `a velocita' 10 attraversa il campo in 2-3 frame (teletrasporto)`);
+
+  // E deve crescere in modo lineare con la velocita' di gioco.
+  const r = h.run(`
+    var a = poolGetBallSpeed(1), b = poolGetBallSpeed(10);
+    JSON.stringify({ a: a, b: b, rapporto: b / a })
+  `);
+  const out = JSON.parse(r);
+  assert.ok(Math.abs(out.rapporto - 10) < 0.001,
+    `la velocita' della palla non scala con gameSpeed: x10 = x${out.rapporto.toFixed(2)}`);
 });
 
 test('la velocita\' della palla a velocita\' 10 non sposta piu\' di 0.2 per frame', () => {
@@ -205,14 +218,17 @@ test('la palla viaggia verso il nuovo possessore invece di comparirgli addosso',
     // Palla a fondo campo, poi possesso a un token dall'altra parte.
     poolReleaseBall();
     poolMoveBallDirect(0.06, 0.5);
-    var lontano = null;
+    var b0 = poolGetBallPos();
+    // Il token piu' LONTANO dalla palla: scegliere "il primo con x>0.7"
+    // dipendeva dalla formazione e poteva capitare a 0.17 dalla palla,
+    // rendendo il test incapace di verificare un viaggio vero.
+    var lontano = null, distanzaAlToken = 0;
     for (var key in toks) {
       if (toks[key].isGK || toks[key].expelled) continue;
-      if (toks[key].x > 0.7) { lontano = key; break; }
+      var d = Math.sqrt(Math.pow(toks[key].x - b0.x, 2)
+                      + Math.pow(toks[key].y - b0.y, 2));
+      if (d > distanzaAlToken) { distanzaAlToken = d; lontano = key; }
     }
-    var b0 = poolGetBallPos();
-    var distanzaAlToken = Math.sqrt(Math.pow(toks[lontano].x - b0.x, 2)
-                                  + Math.pow(toks[lontano].y - b0.y, 2));
     poolSetBallOn(lontano);
     // Segui lo spostamento della palla mentre raggiunge il possessore.
     var peggiore = 0, prev = poolGetBallPos();

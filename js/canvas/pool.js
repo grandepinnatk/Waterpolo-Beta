@@ -209,6 +209,12 @@ function poolMoveBall(tx,ty) {
   // Alias di poolMoveBallDirect — imposta sempre _ballInFlight
   poolMoveBallDirect(tx,ty);
 }
+function poolGetBallSpeed(gameSpeed) {
+  return _BASE_SPD*4.0*(gameSpeed||1);
+}
+// true solo mentre la palla e' lanciata verso un bersaglio. False = la palla
+// e' ferma e in attesa che qualcuno la raggiunga.
+function poolBallInFlight() { return !!_ballInFlight; }
 function poolMoveBallDirect(tx,ty) {
   // LANCIO: la palla parte dalla posizione corrente verso tx,ty.
   // La palla è "in volo" fino a quando non viene raccolta fisicamente.
@@ -309,6 +315,10 @@ var _ballInFlight    = false; // true mentre la palla è in volo (lanciata)
 var _ballStuckTimer  = 0;     // safety: forza pickup se palla è bloccata troppo a lungo
 var BALL_FREE_MAX    = 1.5;
 var BALL_STUCK_MAX   = 2.5;   // secondi massimi senza possessore prima del reset forzato
+// Attesa prima che i giocatori si muovano verso la palla rimasta in acqua.
+// Piccola: la palla appena mancata la cercano subito i piu' vicini di ogni
+// squadra. Con 1.0s la palla restava ferma a terra mentre nessuno reagiva.
+var BALL_RACE_DELAY  = 0.25;
 
 // ── Step animazione ────────────────────────────────────────────────
 // gameSpeed = G.ms.speed (1=normale, 2=doppio, 10x…)
@@ -341,12 +351,14 @@ function poolAnimStep(dt, gameSpeed) {
   if(_phase!=='idle')_updateKeepers();
 
   // ── Safety timer: palla bloccata troppo a lungo → forza reset ──────────
-  if(_phase==='play' && !_ballOwner) {
+  // Solo se la palla e' FERMA e non posseduta: durante un volo la palla si
+  // muove, e un passaggio lunghetto non e' "bloccata".
+  if(_phase==='play' && !_ballOwner && !_ballInFlight) {
     _ballStuckTimer += f;
     if(_ballStuckTimer >= BALL_STUCK_MAX) {
       // Palla ferma da troppo tempo: azzera tutti i flag e forza corsa immediata
       _ballInFlight = false;
-      _ballFreeTimer = 1.0;  // triggera subito la corsa
+      _ballFreeTimer = BALL_RACE_DELAY;  // triggera subito la corsa
       _ballStuckTimer = 0;
       // Notifica movement.js di resettare pendingReceiver
       if(typeof MovementController !== 'undefined' && MovementController.clearPendingReceiver)
@@ -368,8 +380,14 @@ function poolAnimStep(dt, gameSpeed) {
     if(!hasPending && !_ballInFlight) {
       _ballFreeTimer += f;
 
-      if(_ballFreeTimer >= 1.0) {
+      if(_ballFreeTimer >= BALL_RACE_DELAY) {
         var bpx=_ball.x, bpy=_ball.y;
+
+        // Il flag _raceTo dice a movement.js chi sta cercando la palla: quei
+        // due non vanno riposizionati tatticamente, altrimenti il
+        // riposizionamento li rimanda in formazione proprio mentre stanno
+        // arrivando a raccoglierla.
+        Object.values(_tokens).forEach(function(t){ t._raceTo = false; });
 
         // Trova il più vicino per ciascuna squadra
         var bestMy=null, bestMyDist=999, bestOpp=null, bestOppDist=999;
@@ -382,8 +400,8 @@ function poolAnimStep(dt, gameSpeed) {
         });
 
         // Entrambi scattano verso la palla
-        if(bestMy)  { bestMy.tx  = bpx + _rndSmall(); bestMy.ty  = bpy + _rndSmall(); }
-        if(bestOpp) { bestOpp.tx = bpx + _rndSmall(); bestOpp.ty = bpy + _rndSmall(); }
+        if(bestMy)  { bestMy.tx  = bpx + _rndSmall(); bestMy.ty  = bpy + _rndSmall(); bestMy._raceTo = true; }
+        if(bestOpp) { bestOpp.tx = bpx + _rndSmall(); bestOpp.ty = bpy + _rndSmall(); bestOpp._raceTo = true; }
 
         // Chi raggiunge prima prende possesso
         var myReached  = bestMy  ? Math.sqrt(Math.pow(bestMy.x -bpx,2)+Math.pow(bestMy.y -bpy,2))  : 999;
@@ -394,14 +412,17 @@ function poolAnimStep(dt, gameSpeed) {
         else if(oppReached < 0.055 && oppReached < myReached) winner = bestOpp;
 
         if(winner) {
-          _ballOwner     = winner.team+'_'+winner.pk;
           _ballFreeTimer = 0;
-          var off2=_ballOffsetForToken(winner);
-          _ball.tx=_clamp(winner.x+off2.dx,PLAY.x0,PLAY.x1);
-          _ball.ty=_clamp(winner.y+off2.dy,PLAY.y0,PLAY.y1);
-          // Aggiorna possesso in MovementController
+          // Stessa via di ogni altra presa di possesso: se la palla e'
+          // ancora qualche centimetro lontana la raggiunge, non compare
+          // addosso al giocatore.
+          poolSetBallOn(winner.team+'_'+winner.pk);
+          // Aggiorna possesso in MovementController. Il token vincitore va
+          // comunicato esplicitamente: senza, MovementController continua a
+          // credere che nessuno abbia la palla e il giocatore che l'ha
+          // recuperata non passa e non tira mai.
           if(typeof MovementController!=='undefined' && MovementController.onPossessChange)
-            MovementController.onPossessChange(winner.team);
+            MovementController.onPossessChange(winner.team, _ballOwner);
         }
       }
     } else {
@@ -409,6 +430,11 @@ function poolAnimStep(dt, gameSpeed) {
     }
   } else if(_ballOwner) {
     _ballFreeTimer=0;
+  }
+  // La corsa e' finita: nessuno e' piu' in caccia della palla e il
+  // riposizionamento tattico puo' tornare a valere.
+  if(_ballOwner || _ballInFlight || hasPending || _phase!=='play') {
+    Object.values(_tokens).forEach(function(t){ t._raceTo = false; });
   }
 
   // Palla segue il possessore (ogni frame)
@@ -453,32 +479,49 @@ function poolAnimStep(dt, gameSpeed) {
     else { tok.x+=dx/d*s; tok.y+=dy/d*s; }
   });
 
-  // ── Movimento palla — anche scalato con gameSpeed ──────────────
-  if(!_ballOwner){
-    // La palla viaggia piu' veloce di un nuotatore (un passaggio e' lanciato,
-    // non nuotato) ma non cosi' veloce da spostarsi di un terzo di campo per
-    // frame. Con il fattore 15 e gameSpeed la palla attraversava l'intero
-    // bacino in 2-3 frame: da qui i "teletrasporti" fra un pezzo e l'altro.
-    // 4x la velocita' base di un nuotatore: un passaggio da 10m dura circa
-    // un secondo di gioco, che a velocita' 10 resta visibile (~9 frame).
-    var bspd=_BASE_SPD*4.0*gameSpeed;
-    var bdx=_ball.tx-_ball.x, bdy=_ball.ty-_ball.y;
-    var bd=Math.sqrt(bdx*bdx+bdy*bdy);
-    if(bd<0.002){ _ball.x=_ball.tx; _ball.y=_ball.ty; _ballFly=null; _ballInFlight=false; _ballAttach=false; }
-    else{ var bs=bspd*f; if(bs>=bd){_ball.x=_ball.tx;_ball.y=_ball.ty;_ballFly=null;_ballInFlight=false;_ballAttach=false;}else{_ball.x+=bdx/bd*bs;_ball.y+=bdy/bd*bs;} }
-  } else {
+  // ── Movimento palla ────────────────────────────────────────────
+  // REGOLA: la palla si muove SOLO se una pedina la detiene, oppure se e'
+  // in un volo lanciato verso un bersaglio. In ogni altro caso e' FERMA.
+  //
+  // Prima il ramo "senza possessore" inseguiva _ball.tx/_ball.ty a qualunque
+  // velocita': se il target era un punto vecchio (la posizione di un
+  // giocatore che non c'era piu') la palla continuava a scivolare da sola
+  // attraverso il campo, e nessuna pedina la toccava. Il rilascio del
+  // possessore su una parata faceva esattamente questo: la palla veniva
+  // lanciata verso la linea di porta e attraversava il bacino da sola.
+  //
+  // Se invece la palla e' ferma e nessuno la possiede, e' "palla libera": la
+  // corsa qui sopra fa muovere i giocatori piu' vicini di ogni squadra verso
+  // di lei. La palla non si sposta da sola.
+  if(_ballOwner){
     // Possesso piu' la palla viaggia verso il nuovo possessore invece di
     // comparirgli addosso: al cambio di possesso la palla attraversava il
     // campo di colpo. _ballAttach resta true finche' non arriva.
     if(_ballAttach){
       var adx=_ball.tx-_ball.x, ady=_ball.ty-_ball.y;
       var ad=Math.sqrt(adx*adx+ady*ady);
-      var aspd=(_BASE_SPD*4.0*gameSpeed)*f;
+      var aspd=poolGetBallSpeed(gameSpeed)*f;
       if(aspd>=ad){ _ball.x=_ball.tx; _ball.y=_ball.ty; _ballAttach=false; }
       else { _ball.x+=adx/ad*aspd; _ball.y+=ady/ad*aspd; }
     } else {
       _ball.x=_ball.tx; _ball.y=_ball.ty;
     }
+  } else if(_ballInFlight){
+    // Volo in corso: la palla viaggia piu' veloce di un nuotatore (un
+    // passaggio e' lanciato, non nuotato) ma non cosi' veloce da spostarsi di
+    // un terzo di campo per frame. Con il fattore 15 e gameSpeed la palla
+    // attraversava l'intero bacino in 2-3 frame: da qui i "teletrasporti".
+    // 4x la velocita' base: un passaggio da 10m dura ~1s di gioco.
+    var bspd=poolGetBallSpeed(gameSpeed);
+    var bdx=_ball.tx-_ball.x, bdy=_ball.ty-_ball.y;
+    var bd=Math.sqrt(bdx*bdx+bdy*bdy);
+    if(bd<0.002){ _ball.x=_ball.tx; _ball.y=_ball.ty; _ballFly=null; _ballInFlight=false; }
+    else{ var bs=bspd*f; if(bs>=bd){_ball.x=_ball.tx;_ball.y=_ball.ty;_ballFly=null;_ballInFlight=false;}else{_ball.x+=bdx/bd*bs;_ball.y+=bdy/bd*bs;} }
+  } else {
+    // Palla libera: resta ferma dove e' arrivata. Non si sposta di un
+    // millimetro finche' una pedina non la raggiunge e la prende.
+    _ball.tx=_ball.x; _ball.ty=_ball.y;
+    _ballFly=null; _ballAttach=false;
   }
 }
 
