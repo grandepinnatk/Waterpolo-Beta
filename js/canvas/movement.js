@@ -133,6 +133,44 @@ var MovementController = (function() {
   // Coda azioni sequenziali (per sprint, rimessa, rigore)
   var _seq=[], _seqT=0, _seqIdx=0, _seqActive=false;
 
+  // ── Eventi in attesa durante una cinetica ────────────────────────────────
+  // Le cinetiche (gol, rimessa, rigore) riportano la fase a 'play' con un
+  // passo della coda _seq. Un evento che arriva nel mezzo non deve svuotare
+  // quella coda: se lo facesse, il passo di ripristino andrebbe perso, la
+  // fase resterebbe 'goal_cel' per il resto della partita e le pedine
+  // congelerebbero mentre la telecronaca continuerebbe a scorrere.
+  // L'evento viene quindi accodato e riprodotto quando il gioco riprende.
+  var _deferred = [];
+  var DEFERRED_MAX = 12;
+
+  // true se una cinetica e' in corso: la fase non e' 'play' e nessun
+  // passaggio automatico deve partire.
+  function _inCinematic(){ return _phase!=='play' && _phase!=='sprint' && _phase!=='idle'; }
+
+  function _deferEvent(fn,args){
+    // Non accumulare senza limite: se la partita resta ferma a lungo
+    // (intervallo, partita sospesa) gli eventi in attesa non servono piu'.
+    if(_deferred.length>=DEFERRED_MAX)_deferred.shift();
+    _deferred.push({fn:fn,args:Array.prototype.slice.call(args)});
+  }
+
+  function _dropDeferred(){ _deferred.length=0; }
+
+  // Riproduce gli eventi accodati. Va chiamato solo quando la fase e'
+  // tornata 'play' e nessuna coda e' attiva: un evento riprodotto puo'
+  // infatti avviare una nuova cinetica.
+  function _drainDeferred(){
+    if(_phase!=='play'||_seqActive||_deferred.length===0)return false;
+    var q=_deferred; _deferred=[];
+    for(var i=0;i<q.length;i++){
+      if(_inCinematic()){ // un evento ha avviato una cinetica: il resto aspetta
+        _deferred=q.slice(i); return true;
+      }
+      try{ q[i].fn.apply(null,q[i].args); }catch(e){}
+    }
+    return true;
+  }
+
 
   // ── Telecronaca canvas-driven ───────────────────────────────────────────
   // Chiama dispatchCommentary() ogni volta che avviene un'azione visibile.
@@ -697,11 +735,12 @@ var MovementController = (function() {
     _pendingReceiver=null;
     _cbShotCooldown=false;
     _shotClock=0;
-    _freeAdvanceCooldown=0;
-    _seq=[];_seqActive=false;
-  }
+      _freeAdvanceCooldown=0;
+      _seq=[];_seqActive=false;
+      _dropDeferred();
+    }
 
-  function stop(){_active=false;_ms=null;_seq=[];_seqActive=false;}
+  function stop(){_active=false;_ms=null;_seq=[];_seqActive=false;_dropDeferred();}
 
   // dt = secondi REALI (non moltiplicati per speed)
   // Traccia lo stato precedente per rilevare cambiamenti
@@ -715,6 +754,11 @@ var MovementController = (function() {
     var gameSpeed = _ms.speed || 1;
 
     if(_seqActive){_tickSeq(dt);return;}
+
+    // La cinetica e' finita e la fase e' tornata 'play': riproduci gli eventi
+    // arrivati nel frattempo. Se uno di loro riapre una cinetica, il frame
+    // viene lasciato alla sequenza.
+    if(_drainDeferred())return;
 
     if(_phase==='play'){
       var curSup = !!_ms.superiorityActive;
@@ -1028,7 +1072,7 @@ var MovementController = (function() {
 
   // ── 1. INIZIO PERIODO ─────────────────────────────────────────
   function onPeriodStart() {
-    _phase='idle';_seq=[];_seqActive=false;_ballOwnerKey=null;
+    _phase='idle';_seq=[];_seqActive=false;_dropDeferred();_ballOwnerKey=null;
     _microPhase={};_tacticalT=0;_passT=0;_passNext=_rnd(1.5,2.5);
     _pendingReceiver=null;_cbShotCooldown=false;_shotClock=0;
     if(typeof poolStartPeriod==='function')poolStartPeriod();
@@ -1141,18 +1185,16 @@ var MovementController = (function() {
       _ballOn(batter+'_6');
     });
 
-    _qA(4.2, function(){
-      var batter=scorerTeam==='my'?'opp':'my';
-      if(typeof poolReleaseBall==='function')poolReleaseBall();
-      var tar3=batter==='my'?ATK_MY['3']:ATK_OPP['3'];
-      if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(tar3.x+_rnd(-0.02,0.02),tar3.y+_rnd(-0.02,0.02));
-      setTimeout(function(){
+      _qA(4.55, function(){
+        var batter=scorerTeam==='my'?'opp':'my';
+        if(typeof poolReleaseBall==='function')poolReleaseBall();
+        var tar3=batter==='my'?ATK_MY['3']:ATK_OPP['3'];
+        if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(tar3.x+_rnd(-0.02,0.02),tar3.y+_rnd(-0.02,0.02));
         _ballOn(batter+'_3');
         _attack=batter;
         _repositionAll(0.022);
         _phase='play';_tacticalT=0;_microPhase={};
-      },350);
-    });
+      });
 
     _startSeq();
   }
@@ -1160,8 +1202,10 @@ var MovementController = (function() {
   // ── TIRO ──────────────────────────────────────────────────────
   // Usa _qA (tempo di gioco scalato) invece di setTimeout (tempo reale)
   function onShot(event) {
-    if(!event||!event.ballTarget)return;
-    if(event.moverKey)_ballOn(event.moverKey);
+      if(!event||!event.ballTarget)return;
+      // Durante una cinetica non si tocca la coda: si aspetta il riprimo.
+      if(_inCinematic()){_deferEvent(onShot,[event]);return;}
+      if(event.moverKey)_ballOn(event.moverKey);
     _pendingReceiver=null;
     var shotX=event.ballTarget.x, shotY=event.ballTarget.y;
     _seq=[];_seqActive=false;
@@ -1196,9 +1240,11 @@ var MovementController = (function() {
   // Usa _qA (tempo di gioco scalato) invece di setTimeout (tempo reale).
   // Questo evita la race condition ad alta velocità dove _autoPass
   // scatta sul GK prima che il relaunch avvenga.
-  function onSave(event) {
-    if(!event)return;
-    if(typeof poolReleaseBall==='function')poolReleaseBall();
+function onSave(event) {
+      if(!event)return;
+      // Durante una cinetica non si tocca la coda: si aspetta il riprimo.
+      if(_inCinematic()){_deferEvent(onSave,[event]);return;}
+      if(typeof poolReleaseBall==='function')poolReleaseBall();
     _ballOwnerKey=null;
     _pendingReceiver=null;
 
@@ -1330,8 +1376,10 @@ var MovementController = (function() {
   }
 
   // ── RIGORE ────────────────────────────────────────────────────
-  function onPenaltyKick(shooterTeam,isGoal,shooterPk) {
-    _phase='penalty';_seq=[];_seqActive=false;
+function onPenaltyKick(shooterTeam,isGoal,shooterPk) {
+      // Durante una cinetica non si tocca la coda: si aspetta il riprimo.
+      if(_inCinematic()){_deferEvent(onPenaltyKick,[shooterTeam,isGoal,shooterPk]);return;}
+      _phase='penalty';_seq=[];_seqActive=false;
     var pk=shooterPk||'6',sTeam=shooterTeam||'my';
     var penX=sTeam==='my'?0.86:0.14;
     var gkKey=sTeam==='my'?'opp_GK':'my_GK';
@@ -1465,8 +1513,8 @@ var MovementController = (function() {
     onPenaltyKick:   onPenaltyKick,
     onPossessChange:     onPossessChange,
     onNumericalChange:   onNumericalChange,
-    _hasPendingReceiver: function(){ return !!_pendingReceiver; },
-    clearPendingReceiver: function(){ _pendingReceiver=null; _passT=0; _passNext=_rnd(1.5,2.5); },
+_hasPendingReceiver: function(){ return !!_pendingReceiver; },
+      clearPendingReceiver: function(){ _pendingReceiver=null; _passT=0; _passNext=_rnd(1.5,2.5); },
   };
 
 })();
