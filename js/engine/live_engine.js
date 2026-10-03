@@ -320,71 +320,39 @@ function _buildPhaseEvent(ms, st) {
 }
 
 // ── Builder eventi specifici ──────────────────────────────────────────────
+// Un tiro e' un tiro: questo modulo sceglie CHI tira e DOVE mira, ma non
+// decide l'esito. Prima lanciava un dado (goalProb) e metteva a segno il
+// punto qui, prima ancora che la palla arrivasse in porta: il punteggio non
+// aveva nessun rapporto con quello che si vedeva in acqua. Ora il lancio
+// viene marcato come tiro da movement.js e la geometria di pool.js dice se
+// entra, se il portiere la para o se esce dai pali.
 function _buildMyShotEvent(ms, myEff, oppStr, bx, by) {
   ms.myShots = (ms.myShots||0) + 1;
   var activePlayers = _getActivePlayers(ms);
   if (!activePlayers.length) return _buildNeutralEvent(ms, 'my', bx, by);
 
   var attacker = _weightedPick(activePlayers, function(x){ return x.eff; });
-  var tec = (attacker.p.stats && attacker.p.stats.tec) ? attacker.p.stats.tec : 50;
-  var goalProb = 0.19 + (myEff - oppStr) / 600 + (tec - 50) / 400;
-  goalProb = Math.max(0.10, Math.min(0.38, goalProb));
-
-  var shotY = _clampY(by + _rnd(-0.07, 0.07));
   var oppGk = ms.oppRoster && ms.oppRoster.find(function(p){ return p.role==='POR'; });
   var gkName = oppGk ? oppGk.name : '';
   var vars = { shooter: attacker.p.name, gk: gkName, team: ms.myTeam.name };
 
   liveUpdateState({ passCount: 0 });
 
-  if (Math.random() < goalProb) {
-    ms.myScore++;
-    // Solo il contatore di partita: i totali stagionali li applica _doEndMatch.
-    // Incrementare anche p.goals qui li contava due volte, una durante la
-    // partita e una alla fine.
-    if (ms.matchGoals) ms.matchGoals[attacker.pi] = (ms.matchGoals[attacker.pi]||0)+1;
-    // Assist. Il percorso saltato (generateMatchEvent) li registrava gia', ma
-    // quello live no: p.assists restava a 0 per ogni partita giocata dal
-    // vivo, e i totali stagionali dipendono da ms.matchAssists.
-    var others = activePlayers.filter(function (x) { return x.pi !== attacker.pi; });
-    var assisterName = '';
-    if (others.length && ms.matchAssists) {
-      var ast = _weightedPick(others, function (x) {
-        return 0.5 + ((x.p.stats && x.p.stats.tec) || 50) / 200;
-      });
-      if (ast) {
-        ms.matchAssists[ast.pi] = (ms.matchAssists[ast.pi] || 0) + 1;
-        assisterName = ast.p.name;
-      }
-    }
-    if (ms.periodScores && ms.period>=1 && ms.period<=4) ms.periodScores[ms.period-1].my++;
-    vars.scorer = attacker.p.name;
-    return {
-      // I template i18n di goal_my non hanno un segnaposto per l'assistente,
-      // quindi lo aggiungo al testo come gia' fa generateMatchStats.
-      txt: _txt('goal_my', null, vars) + (assisterName ? ' · Assist: ' + assisterName : ''),
-      cls: 'myg', shotTeam: 'my',
-      ballTarget:  { x: 0.94, y: shotY },
-      moverKey:    'my_'+attacker.pk,
-      moverTarget: { x: Math.min(bx+0.05,0.88), y: by },
-      goalScored: true, goalTeam: 'my', goalScorer: attacker.p.name,
-    };
-  } else {
-    var wide = Math.random() < 0.25;
-    return {
-      txt: wide ? _txt('shot_wide', null, vars) : _txt('shot_saved', null, vars),
-      cls: 'sv', shotTeam: 'my',
-      ballTarget:  { x: LIVE.oppGKX, y: shotY },
-      moverKey:    'my_'+attacker.pk,
-      moverTarget: { x: Math.max(bx-0.05,0.12), y: by },
-    };
-  }
+  // Mira dentro la porta avversaria, sul lato alto o basso: e' movement.js
+  // che corregge l'imprecisione in base alla tecnica del tiratore.
+  var shotY = _clampY(by + _rnd(-0.07, 0.07));
+  return {
+    txt: _txt('shot', null, vars),
+    cls: 'sh', shotTeam: 'my',
+    ballTarget:  { x: 0.93, y: shotY },
+    moverKey:    'my_'+attacker.pk,
+    moverTarget: { x: Math.min(bx+0.05,0.88), y: by },
+  };
 }
 
+// Come sopra: l'avversario sceglie dove tirare, la geometria decide.
 function _buildOppShotEvent(ms, myEff, oppStr, bx, by) {
   ms.oppShots = (ms.oppShots||0) + 1;
-  var goalProb = 0.19 + (oppStr - myEff) / 600;
-  goalProb = Math.max(0.10, Math.min(0.38, goalProb));
   var shotY = _clampY(by + _rnd(-0.07, 0.07));
   var myGk = ms.myRoster && ms.myRoster[ms.onField['GK']];
   var gkName = myGk ? myGk.name : '';
@@ -392,24 +360,11 @@ function _buildOppShotEvent(ms, myEff, oppStr, bx, by) {
 
   liveUpdateState({ passCount: 0 });
 
-  if (Math.random() < goalProb) {
-    ms.oppScore++;
-    if (ms.periodScores && ms.period>=1 && ms.period<=4) ms.periodScores[ms.period-1].opp++;
-    var scorer = _pickOppScorer(ms);
-    vars.scorer = scorer;
-    return {
-      txt: _txt('goal_opp', null, vars),
-      cls: 'og', shotTeam: 'opp',
-      ballTarget: { x: 0.05, y: shotY },
-      goalScored: true, goalTeam: 'opp', goalScorer: scorer || ms.oppTeam.name,
-    };
-  } else {
-    return {
-      txt: _txt('save', null, vars),
-      cls: 'sv', shotTeam: 'opp',
-      ballTarget: { x: LIVE.myGKX, y: shotY },
-    };
-  }
+  return {
+    txt: _txt('shot', null, vars),
+    cls: 'sh', shotTeam: 'opp',
+    ballTarget: { x: 0.05, y: shotY },
+  };
 }
 
 function _buildShotClockEvent(ms) {

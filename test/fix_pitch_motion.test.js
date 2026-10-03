@@ -116,6 +116,11 @@ test('un tiro non immobilizza il campo per i 2.25s del fallback', () => {
 
   const r = h.run(`
     __step(1800);                                 // 60s: i token arrivano ai target
+    // Se in quei 60 secondi e' entrato un gol, showGoalAnimation ha fermato
+    // la partita e in partita la riprende il timer della UI (match.js, 1800ms).
+    // Nei test non c'e' la UI, quindi si riprende a mano: quello che si
+    // misura qui e' il movimento durante il tiro, non la pausa del gol.
+    G.ms.running = true;
     var keys = __fieldKeys();
     MovementController.onShot({
       moverKey: 'my_3', ballTarget: { x: 0.12, y: 0.5 },

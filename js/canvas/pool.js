@@ -9,6 +9,51 @@ const POOL_W = 760;
 const POOL_H = 430;
 
 // ── Geometria ──────────────────────────────────────────────────────
+// Due sistemi di coordinate, con una sola scala fra i due.
+//
+// 1. Spazio "tattico" (quello storico): x 0.10..0.90, y 0.12..0.88.
+//    Formazioni, clamp e costanti di movement.js parlano questo linguaggio.
+//    Non va toccato: rifarlo significa riscrivere otto formazioni.
+//
+// 2. Spazio "acqua": quello che si VEDE. Le coordinate sono misurate
+//    sull'immagine del campo (campo-goal.jpg): il rettangolo rosso e' il
+//    confine oltre il quale la palla e' "fuori", i box neri sono le porte.
+//    Il rettangolo dell'acqua e' un po' piu piccolo e rientrato rispetto a
+//    quello tattico, ma ha la stessa forma: basta una scala uniforme attorno
+//    al centro per passare dall'uno all'altro.
+//
+// Le costanti dell'acqua sono la verita' per quello che si vede e per i
+// regolamenti (fuori, porta). Tutto quello che entra nel campo come
+// bersaglio viene convertito qui, in un solo punto, con _w().
+
+const WATER_SCALE = 0.9575;   // 0.10 -> 0.1170, 0.90 -> 0.8830 (misurati)
+
+// Coordinate dell'acqua: confine "fuori", linee di porta, pali, reti.
+const WATER = {
+  x0: 0.117, x1: 0.883,        // linea rossa verticale (sx, dx)
+  y0: 0.139, y1: 0.861,        // linea rossa orizzontale (alto, basso)
+  goalY0: 0.414, goalY1: 0.586,// palo alto e basso (misurati, simmetrizzati su cy)
+  myNetX0: 0.067, myNetX1: 0.117,   // box nero sinistro, dietro la linea
+  oppNetX0: 0.883, oppNetX1: 0.933,  // box nero destro
+  postR: 0.009,               // raggio del palo
+  // Portiere: sta IN PIEDI sulla linea di porta, come in acquaolo. Con la
+  // scala uniforme il vecchio myGKX (0.115, spazio tattico) cadrebbe dietro
+  // la linea di porta (0.117), quindi va ricalcolato in spazio acqua.
+  myGKX: 0.141, oppGKX: 0.859,
+  gkPadY: 0.022,              // quanto il portiere resta dentro dai pali
+};
+
+// Spazio tattico -> spazio acqua. Applicata a ogni bersaglio in entrata.
+function _w(v){ return 0.5 + (v - 0.5)*WATER_SCALE; }
+
+// Braccia del portiere: quanto copre intorno a se'. Regolabile perche' e' il
+// parametro che decide la percentuale di gol: troppo largo e il portiere
+// salva tutto (0.048 dava 0 gol su 49 tiri), troppo stretto e non para piu'
+// niente. 0.025 e' tarato su 198 tiri: conversione del 20.7%.
+var GK_REACH = 0.025;
+function poolSetKeeperReach(v){ GK_REACH = v; }
+function poolGetKeeperReach(){ return GK_REACH; }
+
 const PLAY = {
   x0: 0.10, x1: 0.90, y0: 0.12, y1: 0.88,
   cx: 0.50, cy: 0.50,
@@ -84,7 +129,6 @@ var _phase      = 'idle';   // 'idle'|'play'
 var _attack     = 'my';     // chi ha il possesso
 var _pressKey   = null;     // chiave del token sotto pressione (per visual)
 var _goalAnim   = null;     // overlay goal canvas
-var _pendingGoal= null;
 
 // ── Asset ──────────────────────────────────────────────────────────
 var _bgImg=null, _bgReady=false, _ballImg=null, _ballReady=false;
@@ -121,21 +165,25 @@ function _ballOffsetForToken(tok) {
 // ── Inizializzazione ───────────────────────────────────────────────
 function poolInitTokens(ms) {
   _tokens={};_ball={x:PLAY.cx,y:PLAY.cy,tx:PLAY.cx,ty:PLAY.cy};
-  _ballOwner=null;_ballFreeTimer=0;_ballInFlight=false;_ballStuckTimer=0;_phase='idle';_attack='my';_goalAnim=null;_pendingGoal=null;_pressKey=null;_ballFly=null;_ballAttach=false;
+  _ballOwner=null;_ballFreeTimer=0;_ballInFlight=false;_ballStuckTimer=0;_phase='idle';_attack='my';_goalAnim=null;_pressKey=null;_ballFly=null;_ballAttach=false;
+  // Stato del rilevamento di gol/fuori: riparte pulito a ogni inizio partita
+  _shotTeam=null;_lastBallX=null;_lastBallY=null;
 
   Object.entries(ms.onField).forEach(function(e){
     var pk=e[0],pi=e[1],p=ms.myRoster[pi];
     var pos=KICKOFF_MY[pk]||{x:0.13,y:0.50};
     // Il portiere parte sempre sulla linea di porta (x fisso)
-    var initX = (pk==='GK') ? PLAY.myGKX : pos.x;
-    _tokens['my_'+pk]={x:initX,y:pos.y,tx:initX,ty:pos.y,
+    var initX = (pk==='GK') ? WATER.myGKX : _w(pos.x);
+    var initY = (pk==='GK') ? PLAY.cy : _w(pos.y);
+    _tokens['my_'+pk]={x:initX,y:initY,tx:initX,ty:initY,
       team:'my',pk:pk,pi:pi,isGK:pk==='GK',posLabel:pk==='GK'?'P':pk,
       shortName:_shortName(p),shirt:ms.shirtNumbers[pi]||'',yellows:0,expelled:false};
   });
   Object.keys(KICKOFF_OPP).forEach(function(pk){
     var pos=KICKOFF_OPP[pk];
-    var initX = (pk==='GK') ? PLAY.oppGKX : pos.x;
-    _tokens['opp_'+pk]={x:initX,y:pos.y,tx:initX,ty:pos.y,
+    var initX = (pk==='GK') ? WATER.oppGKX : _w(pos.x);
+    var initY = (pk==='GK') ? PLAY.cy : _w(pos.y);
+    _tokens['opp_'+pk]={x:initX,y:initY,tx:initX,ty:initY,
       team:'opp',pk:pk,pi:-1,isGK:pk==='GK',posLabel:pk==='GK'?'P':pk,
       shortName:'',shirt:'',yellows:0,expelled:false};
   });
@@ -189,19 +237,23 @@ function poolGetKickoffPos(team,pk){
 // ── Movimento token ────────────────────────────────────────────────
 function poolMoveToken(key,tx,ty) {
   var tok=_tokens[key];if(!tok)return;
+  // Spazio tattico -> acqua. Tutto quello che arriva da movement.js e' in
+  // spazio tattico e viene convertito qui, una volta sola.
+  tx=_w(tx); ty=_w(ty);
   if(tok.isGK){
     // Portiere: x fisso sulla linea di porta, y solo tra i pali
-    tok.tx = tok.team==='my' ? PLAY.myGKX : PLAY.oppGKX;
-    tok.ty = _clamp(ty, PLAY.myGoalY0+0.07, PLAY.myGoalY1-0.07);
+    tok.tx = tok.team==='my' ? WATER.myGKX : WATER.oppGKX;
+    tok.ty = _clamp(ty, WATER.goalY0+WATER.gkPadY, WATER.goalY1-WATER.gkPadY);
     return;
   }
   // Regola 2 metri (Art.8): il CB (pos6) in attacco non può entrare nell'area dei 2m avversari
   if(tok.pk==='6') {
-    if(tok.team==='my')  tx = Math.min(tx, PLAY.oppTwoMeterX);
-    if(tok.team==='opp') tx = Math.max(tx, PLAY.myTwoMeterX);
+    if(tok.team==='my')  tx = Math.min(tx, _w(PLAY.oppTwoMeterX));
+    if(tok.team==='opp') tx = Math.max(tx, _w(PLAY.myTwoMeterX));
   }
-  tok.tx=_clamp(tx,PLAY.x0+0.01,PLAY.x1-0.01);
-  tok.ty=_clamp(ty,PLAY.y0+0.01,PLAY.y1-0.01);
+  // Il campo e' l'acqua: nessuna pedina puo' stare oltre la linea rossa.
+  tok.tx=_clamp(tx,WATER.x0,WATER.x1);
+  tok.ty=_clamp(ty,WATER.y0,WATER.y1);
 }
 
 // ── Palla ──────────────────────────────────────────────────────────
@@ -219,10 +271,21 @@ function poolMoveBallDirect(tx,ty) {
   // LANCIO: la palla parte dalla posizione corrente verso tx,ty.
   // La palla è "in volo" fino a quando non viene raccolta fisicamente.
   var fx=_ball.x, fy=_ball.y;
-  var ftx=_clamp(tx,PLAY.x0,PLAY.x1), fty=_clamp(ty,PLAY.y0,PLAY.y1);
+  tx=_w(tx); ty=_w(ty);
+  // Il clamp precedente fermava la palla sul confine del campo (0.117/0.883):
+  // un tiro mirato alla rete finiva sempre un centimetro PRIMA della linea di
+  // porta, quindi il gol non poteva mai avvenire. Ora la palla può arrivare
+  // fino al fondo della rete: e' _checkBallEvent a stabilire se quel punto e'
+  // un gol (tra i pali) o un tiro fuori.
+  var ftx=_clamp(tx,WATER.myNetX0,WATER.oppNetX1), fty=_clamp(ty,WATER.y0,WATER.y1);
   var dx=ftx-fx, dy=fty-fy;
   var dist=Math.sqrt(dx*dx+dy*dy);
   _ballOwner=null;
+  // Stacca la palla dalla pedina che la stava ancora ricevendo. Senza questo
+  // un tiro lanciato mentre la palla viaggiava verso un giocatore veniva
+  // ignorato: restava attaccata al passaggio vecchio e andava al suo target,
+  // mentre il nuovo tiro spariva.
+  _ballAttach=false;
   _ball.tx=ftx; _ball.ty=fty;
   _ballFly=(dist>0.005)?{x0:fx,y0:fy,x1:ftx,y1:fty,dist:dist}:null;
   // La palla è in volo: il timer di raccolta libera si azzera
@@ -230,6 +293,11 @@ function poolMoveBallDirect(tx,ty) {
   _ballFreeTimer=0;
   _ballInFlight=true;
 }
+// Segna il volo in corso come TIRO della squadra `team` verso la porta
+// avversaria. Solo i tiri possono finire in rete: un passaggio che esce dal
+// campo e' "fuori", non un gol.
+function poolMarkShot(team){ _shotTeam = team || null; }
+function poolShotTeam(){ return _shotTeam; }
 function poolSetBallOn(key) {
   if(_tokens[key]){
     _ballOwner=key; _ballFly=null; _ballInFlight=false;
@@ -263,13 +331,14 @@ function poolSetPressTarget(key) {_pressKey=key;}  // token avversario sotto pre
 
 // ── Inizio periodo ─────────────────────────────────────────────────
 function poolStartPeriod() {
-  _phase='idle';_goalAnim=null;_pendingGoal=null;_ballOwner=null;
+  _phase='idle';_goalAnim=null;_ballOwner=null;
   _ballFreeTimer=0;_ballInFlight=false;_ballStuckTimer=0;_pressKey=null;_ballFly=null;
   _ball.tx=PLAY.cx;_ball.ty=PLAY.cy;
+  _shotTeam=null;_lastBallX=null;_lastBallY=null;
   Object.values(_tokens).forEach(function(tok){
     if(tok.expelled)return;
     var pos=tok.team==='my'?KICKOFF_MY[tok.pk]:KICKOFF_OPP[tok.pk];
-    if(pos){tok.x=pos.x;tok.y=pos.y;tok.tx=pos.x;tok.ty=pos.y;}
+    if(pos){var px=_w(pos.x),py=_w(pos.y);tok.x=px;tok.y=py;tok.tx=px;tok.ty=py;}
   });
 }
 
@@ -283,10 +352,116 @@ function poolBeginSprint(prevSpeed) {
 
 // ── Goal canvas overlay ────────────────────────────────────────────
 function poolTriggerGoalAnim(scorer,team,teamName) {
-  _pendingGoal=null;
   _goalAnim={timer:0,total:2.5,scorer:scorer||'',team:team||'my',teamName:teamName||''};
 }
 function poolShowGoal(scorer,team,teamName){poolTriggerGoalAnim(scorer,team,teamName);}
+
+// ── Rilevamento di gol e di palla fuori ───────────────────────────
+// Fin qui non esisteva NULLA di tutto questo: la palla veniva bloccata dal
+// clamp sul confine del campo, quindi non poteva ne' entrare in porta ne'
+// uscire, e goal/fuori erano decidedi a probabilita' prima di muovere la
+// palla. Qui la palla arriva davvero dove e' stata lanciata e si guarda DOVE
+// e' arrivata.
+//
+// Gli eventi sono consegnati a movement.js con poolSetBallEventHandler, che
+// decide punteggio, animazioni e rimesse. Qui sotto c'e' solo geometria.
+
+var _shotTeam = null;                 // squadra che ha tirato, se e' un tiro
+var _lastBallX = null, _lastBallY = null;  // posizione precedente (per il attraversamento)
+var _ballEventHandler = null;
+
+function poolSetBallEventHandler(fn){ _ballEventHandler = fn; }
+
+// La palla e' dentro la porta? (tra i pali, non solo nel box nero)
+function _ballInMouth(bx,by,side){
+  if(by < WATER.goalY0 || by > WATER.goalY1) return false;
+  return side==='my' ? (bx <= WATER.x0 + WATER.postR) : (bx >= WATER.x1 - WATER.postR);
+}
+
+// Punto in cui il segmento palla precedente -> attuale ha superato la linea
+// `line` sull'asse `axis`. Serve a fermare la palla ESATTAMENTE sulla linea
+// rossa e non centimeters oltre: a velocita' 10 un frame porta la palla piu'
+// in la' del confine, e senza questo la palla si fermerebbe gia' fuori.
+// Restituisce null se il segmento non ha superato la linea.
+function _crossPoint(prev, cur, axis, line){
+  var a = prev[axis], b = cur[axis];
+  if(a === b) return null;
+  var t = (line - a)/(b - a);
+  if(t < 0 || t > 1) return null;
+  return {
+    t: t,
+    x: axis==='x' ? line : cur.x + (prev.x - cur.x)*t,
+    y: axis==='y' ? line : cur.y + (prev.y - cur.y)*t,
+  };
+}
+
+// Segnala e ferma la palla appena supera una linea. Non aggiorna la
+// posizione precedente: quella la registra poolAnimStep a fine frame, anche
+// nei frame in cui questo controllo non gira. Se la registrazione stesse qui,
+// un lancio che porta la palla fuori campo in un solo frame (a velocita' 10
+// capita) partirebbe da una posizione vecchia di molti frame e
+// l'attraversamento non verrebbe visto.
+function _checkBallEvent() {
+    var bx=_ball.x, by=_ball.y;
+    if(_lastBallX === null) return;
+    var prev = {x:_lastBallX, y:_lastBallY};
+
+  // ── PARATA ──────────────────────────────────────────────────────────────
+  // Se il tiro in volo passa entro il raggio d'azione del portiere che
+  // difende, lo blocca. Non c'e' nessun dado: conta la distanza fra palla e
+  // portiere in quell'istante. Il portiere insegue la palla in y ma ha una
+  // velocita' limitata, quindi sui tiri veloci e angolati arriva tardi e la
+  // palla passa. Se il tiro arriva fuori dalla sua portata non c'e' nessuna
+  // parata e la palla prosegue: sara' un tiro fuori.
+
+  var gkKey = _shotTeam ? (_shotTeam==='my' ? 'opp_GK' : 'my_GK') : null;
+  var gk = gkKey ? _tokens[gkKey] : null;
+  if(gk && !gk.expelled && !gk.tempAbsent) {
+    if(Math.sqrt((bx-gk.x)*(bx-gk.x) + (by-gk.y)*(by-gk.y)) < GK_REACH) {
+      // La palla resta DOVE e' stata presa, davanti alla porta. Non la si
+      // sposta: spostarla qui la farebbe teletrasportare. Se il portiere la
+      // prende davvero ha il possesso, se no resta in acqua e se la
+      // contendono i piu' vicini: e' movement.js a decidere, guardando se il
+      // portiere e' arrivato in tempo.
+      _fireEvent({ type:'save', team:_shotTeam, gkTeam:gk.team, x:bx, y:by });
+      return;
+    }
+  }
+
+  // ── Linee di fondo (lungo x) ────────────────────────────────────────────
+  var cp = _crossPoint(prev, {x:bx,y:by}, 'x', WATER.x0);
+  if(!cp) cp = _crossPoint(prev, {x:bx,y:by}, 'x', WATER.x1);
+  if(cp) {
+    var lato = cp.x <= WATER.x0 ? 'my' : 'opp';   // rete di chi subisce
+    // Superata la linea di porta: se la palla passa tra i pali e il volo e'
+    // un TIRO, e' gol. Se passa fuori dai pali, e' un tiro fuori.
+    if(_shotTeam && _ballInMouth(cp.x, cp.y, lato)) {
+      _fireEvent({ type:'goal', team: lato==='my' ? 'opp' : 'my',
+                   shooter:_shotTeam, x:cp.x, y:cp.y });
+    } else {
+      _fireEvent({ type:'out', team:_shotTeam, x:cp.x, y:cp.y });
+    }
+    return;
+  }
+
+  // ── Linee laterali (lungo y) ───────────────────────────────────────────
+  cp = _crossPoint(prev, {x:bx,y:by}, 'y', WATER.y0);
+  if(!cp) cp = _crossPoint(prev, {x:bx,y:by}, 'y', WATER.y1);
+  if(cp) { _fireEvent({ type:'out', team:_shotTeam, x:cp.x, y:cp.y }); }
+}
+
+function _fireEvent(ev) {
+  // La palla si ferma sul punto in cui e' successo: un "fuori" non la riporta
+  // al centro campo, e un gol la lascia in rete.
+  _ball.x = ev.x; _ball.y = ev.y;
+  _ball.tx = ev.x; _ball.ty = ev.y;
+  _ballFly = null;
+  _ballInFlight = false;
+  _ballAttach = false;
+  _lastBallX = null; _lastBallY = null;   // azzera: evita eventi a raffica
+  _shotTeam = null;
+  if(typeof _ballEventHandler === 'function') _ballEventHandler(ev);
+}
 
 // ── Portieri ───────────────────────────────────────────────────────
 function _updateKeepers() {
@@ -294,13 +469,13 @@ function _updateKeepers() {
   var myGK = _tokens['my_GK'];
   if(myGK && !myGK.expelled) {
     // Portiere SEMPRE sulla linea di porta (x fisso), solo y segue la palla tra i pali
-    myGK.tx = PLAY.myGKX;
-    myGK.ty = _clamp(by, PLAY.myGoalY0 + 0.07, PLAY.myGoalY1 - 0.07);
+    myGK.tx = WATER.myGKX;
+    myGK.ty = _clamp(by, WATER.goalY0+WATER.gkPadY, WATER.goalY1-WATER.gkPadY);
   }
   var oppGK = _tokens['opp_GK'];
   if(oppGK && !oppGK.expelled) {
-    oppGK.tx = PLAY.oppGKX;
-    oppGK.ty = _clamp(by, PLAY.oppGoalY0 + 0.07, PLAY.oppGoalY1 - 0.07);
+    oppGK.tx = WATER.oppGKX;
+    oppGK.ty = _clamp(by, WATER.goalY0+WATER.gkPadY, WATER.goalY1-WATER.gkPadY);
   }
 }
 function poolUpdateKeepers(){_updateKeepers();}
@@ -334,18 +509,11 @@ function poolAnimStep(dt, gameSpeed) {
     if(_goalAnim.timer>=_goalAnim.total)_goalAnim=null;
   }
 
-  // Goal pendente: controlla entrata in rete
-  // _ballAttach escluso: mentre la palla viaggia verso un possessore non e'
-  // un tiro, e il suo tragitto attraversa il campo. Leggerla come gol
-  // produrrebbe gol fantasma.
-  if(_pendingGoal&&!_goalAnim&&!_ballAttach){
-    var bx=_ball.x,by=_ball.y;
-    if((bx>=PLAY.myNetX0&&bx<=PLAY.myNetX1&&by>=PLAY.myNetY0&&by<=PLAY.myNetY1)||
-       (bx>=PLAY.oppNetX0&&bx<=PLAY.oppNetX1&&by>=PLAY.oppNetY0&&by<=PLAY.oppNetY1)){
-      poolTriggerGoalAnim(_pendingGoal.scorer,_pendingGoal.team,_pendingGoal.teamName||'');
-      _pendingGoal=null;
-    }
-  }
+  // Goal e "fuori" NON si decidono piu' qui dentro: non c'e' nessun
+  // _pendingGoal da aspettare (era una variabile che non veniva mai
+  // assegnata, quindi questo ramo era codice morto). La palla arriva dove e'
+  // stata lanciata e _checkBallEvent(), in fondo a questo step, guarda dove
+  // si trova davvero.
 
   // Portieri seguono sempre la palla
   if(_phase!=='idle')_updateKeepers();
@@ -442,8 +610,8 @@ function poolAnimStep(dt, gameSpeed) {
     var ow=_tokens[_ballOwner];
     if(ow&&!ow.expelled){
       var off=_ballOffsetForToken(ow);
-      _ball.tx=_clamp(ow.x+off.dx,PLAY.x0,PLAY.x1);
-      _ball.ty=_clamp(ow.y+off.dy,PLAY.y0,PLAY.y1);
+      _ball.tx=_clamp(ow.x+off.dx,WATER.x0,WATER.x1);
+      _ball.ty=_clamp(ow.y+off.dy,WATER.y0,WATER.y1);
     } else { _ballOwner=null; _ballAttach=false; }
   }
 
@@ -454,7 +622,7 @@ function poolAnimStep(dt, gameSpeed) {
 
     if(tok.isGK) {
       // Portiere: x SEMPRE fissa sulla linea di porta, in ogni condizione
-      var gkFixedX = tok.team==='my' ? PLAY.myGKX : PLAY.oppGKX;
+      var gkFixedX = tok.team==='my' ? WATER.myGKX : WATER.oppGKX;
       tok.x  = gkFixedX;   // posizione reale
       tok.tx = gkFixedX;   // target (evita derive future)
       var ddy = tok.ty - tok.y;
@@ -466,8 +634,8 @@ function poolAnimStep(dt, gameSpeed) {
         else { tok.y += (ddy > 0 ? 1 : -1) * gs; }
       }
       // Clamp y tra i pali
-      tok.y  = _clamp(tok.y,  PLAY.myGoalY0+0.07, PLAY.myGoalY1-0.07);
-      tok.ty = _clamp(tok.ty, PLAY.myGoalY0+0.07, PLAY.myGoalY1-0.07);
+      tok.y  = _clamp(tok.y,  WATER.goalY0+WATER.gkPadY, WATER.goalY1-WATER.gkPadY);
+      tok.ty = _clamp(tok.ty, WATER.goalY0+WATER.gkPadY, WATER.goalY1-WATER.gkPadY);
       return;
     }
 
@@ -523,6 +691,21 @@ function poolAnimStep(dt, gameSpeed) {
     _ball.tx=_ball.x; _ball.ty=_ball.y;
     _ballFly=null; _ballAttach=false;
   }
+
+  // ── La palla e' arrivata dove e' stata lanciata: si guarda se e' gol ─────
+  // Chiamato DOPO il movimento, per vedere la posizione vera. La palla va
+  // controllata in due casi: mentre vola (e allora conta poco chi fosse il
+  // possessore precedente: un tiro lanciato da una pedina che aveva ancora la
+  // palla deve poter uscire dal campo) e quando e' libera a riposo. Se invece
+  // appartiene a una pedina e non vola, la sua posizione e' gia' dentro il
+  // campo e controllarla produrrebbe falsi positivi sui bordi.
+  //
+  // _lastBallX/Y viene comunque aggiornato qui sotto, anche nei frame in cui il
+  // controllo non gira: cosi' il segmento esaminato e' sempre quello davvero
+  // percorso nell'ultimo frame, e un lancio che porta la palla fuori campo
+  // dentro un solo frame (a velocita' 10 capita) viene visto lo stesso.
+  if(_phase!=='idle' && (_ballInFlight || (!_ballOwner && !_ballAttach))) _checkBallEvent();
+  _lastBallX = _ball.x; _lastBallY = _ball.y;
 }
 
 // ── Disegno ────────────────────────────────────────────────────────

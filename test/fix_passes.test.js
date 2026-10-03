@@ -225,7 +225,12 @@ test('il passaggio sbagliato finisce in acqua e la pedina piu\' vicina la prende
               salti: 0, chiusi: 0, attesaMax: 0 };
     var inEp = false, ownerPrec = null, frameConPossesso = 0, attesa = 0;
     var inCorso = false, inLibero = false;
-    for (var n = 0; n < 2600; n++) {
+    for (var n = 0; n < 4200; n++) {
+      // Se entra un gol, showGoalAnimation ferma la partita e in partita la
+      // riprende il timer della UI (match.js). Qui non c'e' la UI: senza
+      // questo la partita resta ferma dal primo gol e non si osserva piu'
+      // nessun passaggio perso.
+      if (G.ms.running === false) G.ms.running = true;
       var before = poolGetBallPos();
       poolAnimStep(__DT, G.ms.speed);
       MovementController.update(__DT);

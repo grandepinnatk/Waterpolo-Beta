@@ -152,12 +152,30 @@ test('una parata durante il gol non lascia le pedine ferme per sempre', () => {
     G.ms.running = true;
     var keys = __fieldKeys(), prima = __snap(keys);
     __step(240);
-    JSON.stringify({ viaggio: __travel(keys, prima), token: keys.length })
+    JSON.stringify({
+      viaggio: __travel(keys, prima),
+      token: keys.length,
+      fase: MovementController.phase(),
+    })
   `);
 
   const out = JSON.parse(r);
-  assert.ok(out.viaggio > 0.5,
-    `i token non si muovono piu' dopo una parata durante il gol (viaggio ${out.viaggio.toFixed(3)}): il canvas e' congelato`);
+  // Il difetto che questo test protegge non e' "quanto si muovono le pedine",
+  // ma che un evento arrivato durante una cinetica lasci la partita
+  // incastata in 'goal_cel': la coda che riporta la fase a 'play' veniva
+  // svuotata e i target non venivano piu' aggiornati.
+  //
+  // Dopo che la parata e' diventata geometrica il conteso e' diverso: se il
+  // portiere non arriva in tempo la palla resta nei dintorni della porta e la
+  // contendono i due piu' vicini per squadra. Le altre pedine sono gia' ai
+  // loro target, quindi il viaggio totale scende sotto la vecchia soglia
+  // pur senza che sia successo niente di anomalo. Per questo qui si verifica
+  // la fase e il fatto che qualcuno stia ancora andando a prendere la palla,
+  // che e' il sintomo reale del difetto.
+  assert.strictEqual(out.fase, 'play',
+    `la partita e' rimasta in ${out.fase} dopo una parata durante il gol: il canvas e' congelato`);
+  assert.ok(out.viaggio > 0,
+    `nessuna pedina si muove dopo una parata durante il gol (viaggio ${out.viaggio.toFixed(3)}): il canvas e' congelato`);
 });
 
 // La ripresa del gioco non deve dipendere da un timer di tempo reale:

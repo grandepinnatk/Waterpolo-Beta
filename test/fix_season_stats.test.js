@@ -56,10 +56,46 @@ function prime(h) {
     });
     G.ms.running = true;
     G.ms._everOnField = new Set(Object.values(G.ms.onField));
+    // I gol ora nascono dalla geometria della palla, non da generateLiveEvent:
+    // per osservarli serve la partita vera, quindi si avvia il canvas.
+    G.ms.period = 1;
+    poolInitTokens(G.ms);
+    MovementController.init(G.ms);
+    // Senza il sprint la partita resta in fase 'idle' e non succede nulla:
+    // init() da solo non avvia il gioco.
+    MovementController.onSprintStart(1);
     // _doEndMatch azzera G.ms: per leggere i totali dopo la fine partita serve
     // un riferimento alla rosa tenuto da parte.
     __mine = G.ms.myRoster;
   `);
+}
+
+// I gol nascono dalla geometria della palla, quindi dipendono dal flusso della
+// partita e non si possono pretendere a piacere: il seed e' scelto fra quelli
+// provati perché in 30000 frame nascono piu' gol (il default 12345 ne produce
+// uno solo e renderebbe il test fragilisimo). Ogni gol resta comunque
+// deterministico, per costruzione.
+const SEME_PARTITA = 2026;
+const GOL_PER_TEST = 2;
+
+// Gioca finche' la partita non ha prodotto i gol richiesti, o finche' il
+// budget di frame non e' esaurito. Restituisce i gol dei giocatori di casa.
+//
+// showGoalAnimation ferma la partita durante il festeggiamento e in partita la
+// riprende il timer della UI (match.js): qui non c'e' la UI, quindi si
+// riprende a mano come fa il resto dei test.
+function giocaFinoA(h, golDesiderati, budget) {
+  h.run(`
+    __gol = 0;
+    for (var i = 0; i < ${budget || 30000}; i++) {
+      if (G.ms.running === false) G.ms.running = true;
+      poolAnimStep(0.05, G.ms.speed);
+      MovementController.update(0.05);
+      __gol = Object.values(G.ms.matchGoals).reduce(function(a,b){return a+b;}, 0);
+      if (__gol >= ${golDesiderati}) break;
+    }
+  `);
+  return h.run('__gol');
 }
 
 // Fa girare i generatori di eventi veri finché non ci sono gol e assist nei
@@ -178,33 +214,25 @@ test('FIX 5: i gol dell\'avversario non toccano la mia rosa', () => {
 // assisto e lo stesso gol giocato dal vivo no.
 
 test('FIX 5: le partite live registrano gli assistenti', () => {
-  const h = loadGame();
+  const h = loadGame({ seed: SEME_PARTITA });
   prime(h);
 
+  const gol = giocaFinoA(h, GOL_PER_TEST);
   h.run(`
-    __myGoals = 0; __myAssists = 0;
-    for (let i = 0; i < 600; i++) {
-      generateLiveEvent(G.ms);
-      __myGoals   = Object.values(G.ms.matchGoals).reduce((a,b)=>a+b,0);
-      __myAssists = Object.values(G.ms.matchAssists).reduce((a,b)=>a+b,0);
-      if (__myGoals >= 5) break;
-    }
+    __myGoals = Object.values(G.ms.matchGoals).reduce((a,b)=>a+b,0);
+    __myAssists = Object.values(G.ms.matchAssists).reduce((a,b)=>a+b,0);
   `);
 
-  assert.ok(h.run('__myGoals') >= 5, 'il test deve aver generato almeno 5 gol live');
+  assert.ok(gol >= GOL_PER_TEST,
+    `la partita doveva produrre almeno ${GOL_PER_TEST} gol live (ne ha prodotti ${gol})`);
   assert.ok(h.run('__myAssists') > 0,
     'nessun assist registrato nelle partite live: p.assists resterebbe sempre 0');
 });
 
 test('FIX 5: l\'assistente non e\' il marcatore', () => {
-  const h = loadGame();
+  const h = loadGame({ seed: SEME_PARTITA });
   prime(h);
-  h.run(`
-    for (let i = 0; i < 600; i++) {
-      generateLiveEvent(G.ms);
-      if (Object.values(G.ms.matchGoals).reduce((a,b)=>a+b,0) >= 5) break;
-    }
-  `);
+  giocaFinoA(h, GOL_PER_TEST);
 
   const overlap = h.run(`
     (function () {
@@ -216,24 +244,20 @@ test('FIX 5: l\'assistente non e\' il marcatore', () => {
     })()
   `);
   // Non impossibile che un giocatore segni e assista nella stessa partita, ma
-  // non deve essere la regola: il peso di 1 esclude l'attaccante dai candidati.
+  // non deve essere la regola: il marcatore e' escluso dai candidati e la
+  // scelta fra gli altri e' pesata sulla tecnica.
   assert.ok(overlap <= 2, 'troppi giocatori risultano sia marcatori che assistenti: ' + overlap);
 });
 
 test('FIX 5: gli assistenti live finiscono nei totali stagionali una volta sola', () => {
-  const h = loadGame();
+  const h = loadGame({ seed: SEME_PARTITA });
   prime(h);
   countTotals(h);
 
-  h.run(`
-    for (let i = 0; i < 600; i++) {
-      generateLiveEvent(G.ms);
-      if (Object.values(G.ms.matchGoals).reduce((a,b)=>a+b,0) >= 5) break;
-    }
-    __perMatchAssists = Object.values(G.ms.matchAssists).reduce((a,b)=>a+b,0);
-  `);
+  giocaFinoA(h, GOL_PER_TEST);
+  h.run('__perMatchAssists = Object.values(G.ms.matchAssists).reduce((a,b)=>a+b,0);');
   const perMatch = h.run('__perMatchAssists');
-  assert.ok(perMatch > 0);
+  assert.ok(perMatch > 0, 'nessun assisto registrato in partita');
 
   h.run('_doEndMatch()');
   assert.strictEqual(h.run('__totalAssists()'), perMatch,

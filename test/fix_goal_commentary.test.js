@@ -109,6 +109,11 @@ test('i gol prodotti dal canvas contano quanto vengono annunciati', () => {
   const r = h.run(`
     __announced = 0; __scored = 0;
     for (var i = 0; i < 400; i++) {
+      // Se entra un gol, showGoalAnimation ferma la partita e in partita la
+      // riprende il timer della UI (match.js, 1800ms). Nei test non c'e' la
+      // UI: senza questo, dal primo gol in poi non succede piu' nulla e il
+      // test non osserva nessun gol.
+      if (G.ms.running === false) G.ms.running = true;
       var b = G.ms.myScore + G.ms.oppScore;
       var g = __goalMy + __goalOpp;
       for (var k = 0; k < 40; k++) { poolAnimStep(0.05); MovementController.update(0.05); }
@@ -154,14 +159,38 @@ test('nessun ramo annuncia un gol senza passare da onGoalEvent', () => {
     'il ramo del tiro CB annuncia ancora un gol senza chiamare onGoalEvent');
 });
 
-test('il ramo del tiro CB registra il gol e poi lo fa animare', () => {
+// Il tiro del centrocampo una volta decideva l'esito con un dado e metteva a
+// segno il punto PRIMA che la palla arrivasse in porta. Ora il ramo non puo'
+// piu' fare ne' una cosa ne' l'altra: lancia la palla, la marca come tiro e
+// lascia che siano la geometria e il portiere a dire se entra.
+//
+// Il test non puo' piu' asserire "incrementa e poi anima": deve asserire il
+// contrario, cioe' che il ramo non tocchi il punteggio e non annunci il gol.
+test('il ramo del tiro CB lancia il tiro e non decide il gol', () => {
   const fs = require('node:fs');
   const src = fs.readFileSync('js/canvas/movement.js', 'utf8');
   const cbBlock = src.slice(src.indexOf('Trigger tiro CB'), src.indexOf('function _tickMicro'));
-  assert.match(cbBlock, /if\(cbIsGoal\)[\s\S]*myScore\+\+[\s\S]*onGoalEvent\(/,
-    'il gol del CB deve incrementare il punteggio e poi passare da onGoalEvent');
-  assert.match(cbBlock, /if\(cbIsGoal\)[\s\S]*oppScore\+\+[\s\S]*onGoalEvent\(/,
-    'il gol del CB avversario deve incrementare oppScore e poi passare da onGoalEvent');
+
+  // Lancia la palla e la marca come tiro: e' la condizione perche' pool.js
+  // possa riconoscere un gol invece di un semplice "fuori".
+  assert.match(cbBlock, /poolMoveBallDirect\(/,
+    'il ramo del tiro CB deve lanciare la palla');
+  assert.match(cbBlock, /poolMarkShot\(/,
+    'il ramo del tiro CB deve marcare il volo come tiro, altrimenti il gol non puo\' essere riconosciuto');
+
+  // Nessuna decisione a dado e nessun punto assegnato in anticipo.
+  assert.doesNotMatch(cbBlock, /cbIsGoal/,
+    'il tiro del CB non deve piu\' decidere l\'esito con una variabile booleana');
+  assert.doesNotMatch(cbBlock, /Math\.random\(\)\s*<\s*0\.\d+/,
+    'il tiro del CB non deve piu\' decidere l\'esito con un dado');
+  assert.doesNotMatch(cbBlock, /myScore\+\+|oppScore\+\+/,
+    'il tiro del CB non deve mettere a segno il punto: lo fa il gol geometrico');
+  assert.doesNotMatch(cbBlock, /goal_my|goal_opp/,
+    'il tiro del CB non deve annunciare il gol: lo annuncia la palla entrata in porta');
+
+  // E il ramo deve contare il tiro una volta sola.
+  const shots = (cbBlock.match(/myShots\s*=[^=]/g) || []).length;
+  assert.strictEqual(shots, 1, `il tiro del CB viene contato ${shots} volte invece di una`);
 });
 
 // ── Il conteggio dei tiri ────────────────────────────────────────────────────

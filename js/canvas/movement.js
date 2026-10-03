@@ -230,6 +230,227 @@ var MovementController = (function() {
   }
   function _ballFree(tx,ty){if(typeof poolReleaseBall==='function')poolReleaseBall();_ballOwnerKey=null;if(tx!==undefined&&typeof poolMoveBallDirect==='function')poolMoveBallDirect(tx,ty);}
 
+  // ── Eventi di palla: GOL e FUORI, decisi dalla geometria ───────────
+  // Chiamato da pool.js quando la palla ha davvero superato una linea.
+  // Qui non si guarda "dove doveva andare": si registra quello che e' successo.
+  var _shotShooterKey = null;   // chi ha tirato (per la telecronaca)
+  var _shotShooterName = '';
+  var _outPending     = null;   // rimessa in corso dopo un "fuori"
+
+  function _onBallEvent(ev) {
+    if(!ev) return;
+    if(ev.type === 'goal') _onScoredGoal(ev);
+    else if(ev.type === 'out') _onBallOut(ev);
+    else if(ev.type === 'save') _onKeeperSave(ev);
+  }
+
+// ── PARATA: il portiere ha intercettato il tiro davvero ────────────
+  // La geometria ha stabilito che il tiro e' passato dove il portiere
+  // poteva arrivare. Da qui si usa ilGestioneParata gia' esistente, che
+  // distingue i due casi che l'utente ha descritto: il portiere arriva in
+  // tempo e blocca tenendo la palla, oppure non arriva e la palla resta nei
+  // dintorni della porta, dove se la contendono i due piu' vicini per
+  // squadra (la corsa alla palla libera gia' esistente).
+  function _onKeeperSave(ev) {
+    onSave({
+      shotTeam: ev.team,
+      ballTarget: { x: ev.x, y: ev.y },
+    });
+  }
+
+  // ── GOL: la palla e' dentro la porta. Qui si segna e si festeggia ─────
+  function _onScoredGoal(ev) {
+    var team  = ev.team;                       // squadra che segna
+    var other = team==='my' ? 'opp' : 'my';
+    var shooterName = _shotShooterName || '';
+
+    // Il tiro non e' piu' un tiro: niente intercettazioni in corso.
+    _pendingReceiver = null;
+    _ballOwnerKey = null;
+
+    if(_ms) {
+      if(team==='my'){
+        _ms.myScore++;
+        if(_ms.periodScores&&_ms.period>=1&&_ms.period<=4) _ms.periodScores[_ms.period-1].my++;
+        var sc = _shotShooterKey ? _tok(_shotShooterKey) : null;
+        var spi = sc ? sc.pi : undefined;
+        if(spi===undefined){
+          // Il tiro e' entrato in porta senza un tirante registrato: per
+          // esempio un tiro lanciato mentre la palla viaggiava verso un altro
+          // giocatore, cosi' il nome si era gia' perso. Il gol e' reale e non
+          // puo' sparire dai tabelloni, quindi si attribuisce al giocatore in
+          // campo piu' vicino alla palla, che e' l'autore piu' probabile.
+          var bp = (typeof poolGetBallPos==='function') ? poolGetBallPos() : {x:CX, y:CY};
+          var bd = 1e9;
+          for(var pk0 in _ms.onField){
+            var aPi0 = _ms.onField[pk0];
+            if(aPi0===undefined) continue;
+            if(_ms.myRoster && _ms.myRoster[aPi0] && _ms.myRoster[aPi0].role==='POR') continue;
+            var t0 = _tok('my_'+pk0);
+            if(!t0) continue;
+            var d0 = (t0.x-bp.x)*(t0.x-bp.x) + (t0.y-bp.y)*(t0.y-bp.y);
+            if(d0<bd){ bd=d0; spi=aPi0; }
+          }
+        }
+        if(spi!==undefined) {
+          if(_ms.matchGoals) _ms.matchGoals[spi] = (_ms.matchGoals[spi]||0)+1;
+          // Assistente: il compagno piu' probabile, pesato sulla tecnica. Va
+          // contato qui perche' il gol ora nasce dalla geometria e non da un
+          // evento che portava gia' dentro l'assistenza.
+          if(_ms.matchAssists && _ms.myRoster && _ms.onField){
+            var best=null, bw=-1;
+            for(var pk in _ms.onField){
+              var aPi=_ms.onField[pk];
+              if(aPi===spi || aPi===undefined) continue;
+              var p=_ms.myRoster[aPi];
+              if(!p || p.role==='POR') continue;
+              var w=0.5+((p.stats&&p.stats.tec)||50)/200;
+              if(w>bw){ bw=w; best=aPi; }
+            }
+            if(best!==null) _ms.matchAssists[best]=(_ms.matchAssists[best]||0)+1;
+          }
+        }
+      } else {
+        _ms.oppScore++;
+        if(_ms.periodScores&&_ms.period>=1&&_ms.period<=4) _ms.periodScores[_ms.period-1].opp++;
+      }
+    }
+
+    _phase = 'goal_cel';
+    _seq=[]; _seqActive=false;
+    var tn = team==='my' ? ((_ms&&_ms.myTeam&&_ms.myTeam.name)||'')
+                         : ((_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'');
+
+    // Punto e telecronaca nello stesso istante. Prima il punto veniva
+    // segnato qui e l'annuncio arrivava mezzo secondo dopo, dentro la coda:
+    // per qualche frame la telecronaca diceva gol mentre il punteggio era
+    // ancora quello di prima.
+    _emitComment(team==='my'?'goal_my':'goal_opp', { scorer:shooterName, team:tn });
+
+    // Festeggiamento e rimessa: la stessa sequenza che c'era prima, ma
+    // adesso parte quando la palla entra davvero in rete.
+    _qA(0.5, function(){
+      if(typeof poolTriggerGoalAnim==='function') poolTriggerGoalAnim(shooterName, team, tn);
+      if(typeof showGoalAnimation==='function') showGoalAnimation(shooterName, team, _ms);
+      var st = _shotShooterKey ? _tok(_shotShooterKey) : null;
+      var sx = st ? st.tx : CX, sy = st ? st.ty : CY;
+      ['1','2','3','4','5','6'].forEach(function(pk){
+        var k = team+'_'+pk;
+        if(k === _shotShooterKey) return;
+        var t2 = _tok(k); if(!t2 || t2.expelled) return;
+        _mv(k, sx+_rnd(-0.07,0.07), sy+_rnd(-0.06,0.06));
+      });
+    });
+
+    _qA(3.0, function(){
+      var batter = team==='my' ? 'opp' : 'my';
+      var myL = batter==='my' ? RESET_MY_ATK : RESET_MY_DEF;
+      var opL = batter==='my' ? RESET_OPP_DEF : RESET_OPP_ATK;
+      ['GK','1','2','3','4','5','6'].forEach(function(pk){
+        if(myL[pk]) _mv('my_'+pk, myL[pk].x, myL[pk].y, 0.01);
+        if(opL[pk]) _mv('opp_'+pk, opL[pk].x, opL[pk].y, 0.01);
+      });
+      if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(CX,CY);
+      _phase='kickoff_after';
+    });
+
+    _qA(3.8, function(){
+      var batter = team==='my' ? 'opp' : 'my';
+      _ballOn(batter+'_6');
+    });
+
+    _qA(4.55, function(){
+      var batter = team==='my' ? 'opp' : 'my';
+      if(typeof poolReleaseBall==='function') poolReleaseBall();
+      var tar3 = batter==='my' ? ATK_MY['3'] : ATK_OPP['3'];
+      if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(tar3.x+_rnd(-0.02,0.02), tar3.y+_rnd(-0.02,0.02));
+      _ballOn(batter+'_3');
+      _attack=batter;
+      _repositionAll(0.022);
+      _phase='play'; _tacticalT=0; _microPhase={};
+      _shotShooterKey=null; _shotShooterName='';
+    });
+
+    _startSeq();
+  }
+
+  // ── FUORI: la palla ha superato la linea rossa ─────────────────────
+  // La palla e' gia' ferma sul punto in cui e' uscita (pool.js l'ha fermata
+  // li'). La pedina piu' vicina della squadra che NON ha tirato fuori va a
+  // prenderla e la rimette in gioco: e' la battuta.
+  function _onBallOut(ev) {
+    _pendingReceiver = null;
+    _ballOwnerKey = null;
+    _outPending = null;
+    // La battuta si fa solo se la partita sta giocando. Durante un
+    // festeggiamento o un rigore la palla fuori la rimette chi gestisce la
+    // cinetica, non questo ramo: altrimenti due rimesse si sovrapponono.
+    if(_phase !== 'play' && _phase !== 'kickoff_after' && _phase !== 'sprint') return;
+
+    var shooter = ev.team || null;             // squadra che ha causato l'uscita
+    var inerte = shooter || 'my';              // se non si sa, resta con una
+    var other  = inerte==='my' ? 'opp' : 'my';
+    var bx = ev.x, by = ev.y;
+
+    // Il giocatore piu' vicino alla palla fra le due squadre, escluso chi ha
+    // tirato fuori: e' lui che va a battere.
+    var best=null, bestD=999;
+    Object.keys(_tokens).forEach(function(k){
+      var t=_tokens[k];
+      if(!t || t.expelled || t.tempAbsent || t.isGK) return;
+      if(k.indexOf(inerte+'_')===0) return;    // non chi ha tirato fuori
+      var d=_dist(t.x,t.y,bx,by);
+      if(d<bestD){bestD=d;best=t;}
+    });
+
+    _emitComment('ball_out', { team: other==='my'
+      ? ((_ms&&_ms.myTeam&&_ms.myTeam.name)||'')
+      : ((_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'') });
+
+    if(!best) { _ballOwnerKey=null; return; }
+
+    // Va sul punto d'uscita e rimette in gioco da li'.
+    var bkey = best.team+'_'+best.pk;
+    poolMoveToken(bkey, bx, by);
+    _outPending = { key:bkey, x:bx, y:by, t:0 };
+  }
+
+  // ── Battuta dopo un "fuori": la rimessa in gioco ────────────────────
+  function _updateThrowIn(dt) {
+    if(!_outPending) return;
+    var tok = _tok(_outPending.key);
+    if(!tok || tok.expelled || tok.tempAbsent){ _outPending=null; return; }
+    // Finche' non arriva sul punto, la palla resta ferma li'.
+    if(_dist(tok.x,tok.y,_outPending.x,_outPending.y) > 0.06){
+      poolMoveToken(_outPending.key, _outPending.x, _outPending.y);
+      return;
+    }
+    // Arrivato: prende la palla e la rimette in gioco verso un compagno.
+    var k=_outPending.key, team=k.split('_')[0];
+    _ballOn(k);
+    var mate=null, mD=999;
+    ['1','2','3','4','5','6'].forEach(function(pk){
+      if(k===team+'_'+pk) return;
+      var t=_tok(team+'_'+pk);
+      if(!t||t.expelled||t.tempAbsent) return;
+      var d=_dist(t.x,t.y,tok.x,tok.y);
+      if(d<mD){mD=d;mate=team+'_'+pk;}
+    });
+    if(!mate) mate = team+'_3';
+    if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(mate ? 0.5 : 0.5, _rnd(0.42,0.58));
+    _pendingReceiver = {
+      key: mate, team: team,
+      startX: tok.x, startY: tok.y,
+      totalDist: Math.max(0.02, _dist(tok.x,tok.y,0.5,_ball.y)),
+      ready: true, _landed:false, _landedGrace:0,
+      _meetX: 0.5, _meetY: _rnd(0.42,0.58),
+      _aimX: 0.5, _aimY: _ball.y, _intercettore: null,
+    };
+    poolMoveToken(mate, 0.5, _rnd(0.42,0.58));
+    _attack = team;
+    _outPending = null;
+  }
+
   // ── Punto di arrivo di un passaggio ────────────────────────────
   // Un passaggio va "sulla nuotata": il ricevitore si muove mentre la palla
   // viaggia, quindi mirare dove si trova ORA fa arrivare la palla a vuoto.
@@ -475,77 +696,34 @@ var MovementController = (function() {
             var cbGkName = '';
             if(_attack==='my' && _ms && _ms.oppRoster)
               cbGkName = ((_ms.oppRoster.find(function(p){return p&&p.role==='POR';})||{}).name)||'';
-            // Calcola outcome (20% goal, 80% parata)
-            var cbIsGoal = Math.random() < 0.20;
+            // Anche il tiro del centrocampo e' un tiro vero: si mira a un
+            // punto e poi decidono portiere e geometria. Prima decideva un
+            // dado e il gol veniva registrato PRIMA che la palla arrivasse.
             var cbTeamN = _attack==='my'?(_ms&&_ms.myTeam&&_ms.myTeam.name)||'':(_ms&&_ms.oppTeam&&_ms.oppTeam.name)||'';
-            // Crea evento tiro sintetico verso la porta
-            var shotY = _rnd(0.40, 0.60);
-            var shotX = (_attack === 'my') ? 0.93 : 0.07;  // dentro la rete ma non oltre il fondo
+            var shotX = (_attack === 'my') ? 0.93 : 0.07;  // dentro la rete, non oltre il fondo
+            var shotY = _shotAimY(cbTok3, _attack);
             // Cooldown 3s per evitare tiri continui
             setTimeout(function(){ _cbShotCooldown = false; }, 3000);
 
-            if(cbIsGoal) {
-              // Registra il gol nello stato. Prima questo ramo annunciava
-              // il gol con _emitComment e basta: la palla finiva in rete,
-              // i token riprendevano a giocare e il punteggio restava a
-              // zero. Telecronaca e stato erano scollegati.
-              if(_ms) {
-                if(_attack==='my'){
-                  _ms.myScore++;
-                  if(_ms.periodScores&&_ms.period>=1&&_ms.period<=4) _ms.periodScores[_ms.period-1].my++;
-                } else {
-                  _ms.oppScore++;
-                  if(_ms.periodScores&&_ms.period>=1&&_ms.period<=4) _ms.periodScores[_ms.period-1].opp++;
-                }
-              }
-              // La sequenza di gol (animazione + rimessa) la gestisce
-              // onGoalEvent, che e' il ramo gemello di _autoShot.
-              onGoalEvent({
-                goalScored: true,
-                goalTeam: _attack,
-                goalScorer: cbShooterName,
-                moverKey: atkCBKey,
-                ballTarget: { x: shotX, y: shotY },
-              });
-            } else {
-              _emitComment('shot_saved',
-                { shooter:cbShooterName, gk:cbGkName, team:cbTeamN });
-              if(typeof poolReleaseBall==='function') poolReleaseBall();
-              _ballOwnerKey = null;
-              if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(shotX, shotY);
-              // Riposiziona dopo il tiro
-              setTimeout(function(){
-                if(_phase==='play'){_repositionAll(0.025);_passT=0;_passNext=_rnd(1.5,2.5);}
-              }, 600);
+            _shotShooterKey = atkCBKey;
+            _shotShooterName = cbShooterName;
+            if(_ms) {
+              if(_attack==='my') _ms.myShots=(_ms.myShots||0)+1;
+              else                 _ms.oppShots=(_ms.oppShots||0)+1;
             }
+            if(typeof poolReleaseBall==='function') poolReleaseBall();
+            _ballOwnerKey = null;
+            _pendingReceiver = null;
+            if(typeof poolMarkShot==='function') poolMarkShot(_attack);
+            if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(shotX, shotY);
           }
         }
       }
     }
-
-    // ── pos6 in difesa marca il pos3 avversario (centrovasca) ───────────────
-    var atkTeam6  = _attack;
-    var defCB6Key = (atkTeam6 === 'my') ? 'opp_6' : 'my_6';   // CB della squadra in difesa
-    // atkC3Key: pos3 (centrovasca) della squadra IN ATTACCO — quello da marcare
-    // Era invertito: 'opp_3' quando attack='my' e 'my_3' quando attack='opp'
-    var atkC3Key  = (atkTeam6 === 'my') ? 'my_3' : 'opp_3';   // C della squadra attaccante
-    var cb6Tok    = _tok(defCB6Key);
-    var c3Tok     = _tok(atkC3Key);
-    if(cb6Tok && c3Tok && !cb6Tok.expelled && !cb6Tok.tempAbsent && _ballOwnerKey !== defCB6Key) {
-      // Sta tra il C avversario e la propria porta, al 30% → vicino al C
-      var cb6GoalX = (atkTeam6 === 'my') ? 0.91 : 0.09;
-      var cb6MarkX = _clamp(c3Tok.x + (cb6GoalX - c3Tok.x) * 0.30, 0.13, 0.87);
-      var cb6MarkY = _clamp(c3Tok.y + _rnd(-0.018, 0.018), 0.14, 0.86);
-      poolMoveToken(defCB6Key, cb6MarkX, cb6MarkY);
-    }
   }
 
-  // Il ricevitore di un passaggio in volo NON va riposizionato tatticamente.
-  //
-  // _updateAllTargets() riscrive il target di tutti i token ogni 0.8s di
-  // gioco, quindi il ricevitore veniva rispedito in formazione mentre la
-  // palla era ancora in aria: la palla arrivava dove lui non c'era piu' e il
-  // passaggio finiva sempre in acqua. Per questo il punto d'incontro viene
+  // ── Il ricevitore tiene il punto d'incontro ──────────────────────────
+  // Il passaggio finiva sempre in acqua. Per questo il punto d'incontro viene
   // reimposto qui, DOPO il ciclo tattico.
   function _holdReceiverTarget() {
     if(!_pendingReceiver || _pendingReceiver._meetX === undefined) return;
@@ -555,7 +733,7 @@ var MovementController = (function() {
     poolMoveToken(_pendingReceiver.key, _pendingReceiver._meetX, _pendingReceiver._meetY);
   }
 
-  // Avanza le fasi dell'oscillazione ogni frame
+// Avanza le fasi dell'oscillazione ogni frame
   function _tickMicro(dt) {
     var OMEGA=0.8; // velocità oscillazione (rad/s)
     Object.keys(_microPhase).forEach(function(k){
@@ -681,6 +859,58 @@ var MovementController = (function() {
 
 
   // ── Tiro automatico (giocatore libero arriva in zona) ─────────────────
+  // ── Dove si tira ─────────────────────────────────────────────────────
+  // Prima il tiro andava a un punto fisso e l'esito era un dado. Ora il
+  // tiratore sceglie davvero dove mandare la palla: un angolo o il
+  // centro-basso, sbagliando in proporzione inversa alla sua tecnica e in
+  // proporzione diretta alla qualita' del portiere che lo aspetta.
+  // Il tiro puo' cosi' finire in gol, essere parato o uscire dai pali, ma e'
+  // sempre una conseguenza di dove e' andata la palla.
+  var SHOT_AIM_CORNERS = [0.428, 0.572];   // angoli basso-alto (poco sotto il palo)
+
+  function _shooterSkill(tok, team) {
+    var tec = null;
+    if(_ms && team==='my' && _ms.myRoster && _ms.onField && tok){
+      var pi = _ms.onField[tok.pk];
+      if(pi!==undefined) tec = (_ms.myRoster[pi]||{}).stats;
+    } else if(_ms && team==='opp' && _ms.oppRoster){
+      // La CPU non espone una formazione: si usa la media della rosa, cosi'
+      // l'avversario tira con una qualita' plausibile e non casuale.
+      var sum=0, n=0;
+      _ms.oppRoster.forEach(function(r){
+        if(r && r.role!=='POR' && r.stats && r.stats.tec!==undefined){ sum+=r.stats.tec; n++; }
+      });
+      if(n) tec = {tec: sum/n};
+    }
+    var v = (tec && tec.tec!==undefined) ? tec.tec : 50;
+    return Math.max(0, Math.min(100, v)) / 100;
+  }
+
+  function _keeperSkill(gkTeam) {
+    if(!_ms) return 0.5;
+    var p = null;
+    if(gkTeam==='my' && _ms.myRoster && _ms.onField)
+      p = (_ms.myRoster[_ms.onField['GK']]||{});
+    else if(gkTeam==='opp' && _ms.oppRoster)
+      p = (_ms.oppRoster.find(function(r){return r&&r.role==='POR';})||null);
+    var v = (p && p.stats && p.stats.tec!==undefined) ? p.stats.tec : 50;
+    return Math.max(0, Math.min(100, v)) / 100;
+  }
+
+  function _shotAimY(tok, team) {
+    var defTeam = team==='my' ? 'opp' : 'my';
+    var skill   = _shooterSkill(tok, team);
+    var gkSkill = _keeperSkill(defTeam);
+    // Sceglie un angolo o il centro-basso
+    var r = Math.random();
+    var aim = (r < 0.32) ? SHOT_AIM_CORNERS[0]
+            : (r < 0.64) ? SHOT_AIM_CORNERS[1]
+            : (r < 0.82) ? 0.470 : 0.530;
+    // Errore: un bravo sbaglia poco, un portiere bravo stringe le finestre.
+    var err = (1 - skill*0.55) * (0.030 + gkSkill*0.055);
+    return Math.max(0.06, Math.min(0.94, aim + (Math.random()*2-1)*err));
+  }
+
   function _autoShot() {
     if(!_ballOwnerKey) return;
     var ownerTeam = _ballOwnerKey.split('_')[0];
@@ -692,8 +922,12 @@ var MovementController = (function() {
     // La rete avversaria (opp): oppNetX0=0.91, oppNetX1=0.98 → shot a 0.93 ok
     // La rete nostra (my):    myNetX0=0.02,  myNetX1=0.09  → shot a 0.07 ok
     // IMPORTANTE: per una PARATA il ball non deve superare le linee di porta (myNetX1=0.09 / oppNetX0=0.91)
+    // Bersaglio: un angolo o il centro-basso, con errore legato alla tecnica.
+    // Prima l'esito era un dado (20% gol) e la mira era fissa: la palla e il
+    // punteggio non avevano nessun rapporto. Ora si sceglie DOVE si tira e
+    // l'esito lo decide portiere e geometria.
     var shotX = ownerTeam==='my' ? 0.93 : 0.07;
-    var shotY  = 0.42 + Math.random() * 0.16;
+    var shotY = _shotAimY(ownerTok, ownerTeam);
 
     // Nomi per telecronaca
     var shooterName = '';
@@ -712,136 +946,30 @@ var MovementController = (function() {
     // Ripristina timer
     _passT=0; _passNext=_rnd(1.5,2.5);
 
-    // Lancia la palla verso la porta avversaria
+    // Chi ha tirato e come si chiama: serve alla telecronaca quando la palla
+    // arriva davvero (gol, parata o fuori), non prima.
+    _shotShooterKey = _ballOwnerKey;
+    _shotShooterName = shooterName;
+
+    // Lancia la palla verso la porta avversaria. poolMarkShot dice a pool.js
+    // che questo volo e' un TIRO: solo cosi puo' finire in gol, mentre un
+    // passaggio che esce dal campo e' solo "fuori".
     _ballOwnerKey=null;
     _pendingReceiver=null;
     if(typeof poolReleaseBall==='function') poolReleaseBall();
+    if(typeof poolMarkShot==='function') poolMarkShot(ownerTeam);
     if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(shotX, shotY);
 
-    // Esito: 20% goal, 80% parata
-    var isGoal = Math.random() < 0.20;
-    // Conta sempre il tiro indipendentemente dall'esito
+    // Conta il tiro: e' avvenuto qualunque cosa succeda dopo.
     if(_ms) {
       if(ownerTeam==='my') _ms.myShots=(_ms.myShots||0)+1;
       else                  _ms.oppShots=(_ms.oppShots||0)+1;
     }
-    _emitComment(isGoal?(ownerTeam==='my'?'goal_my':'goal_opp'):'shot_saved',
-      { shooter:shooterName, scorer:shooterName, gk:gkName, team:teamName });
 
+    // Niente coda e niente messaggio qui: gol, parata e fuori vengono decisi
+    // quando la palla arriva, e ognuno dirà la sua telecronaca al momento
+    // giusto. _seq=[] evita che una sequenza precedente fermi il tiro.
     _seq=[];_seqActive=false;
-
-    if(isGoal) {
-      // ── GOAL: stessa sequenza di onGoalEvent ─────────────────────────
-      // CRITICO: impostare goal_cel PRIMA di startSeq
-      // così canRun=true anche quando showGoalAnimation setta ms.running=false
-      _phase = 'goal_cel';
-      var scorerTeam = ownerTeam;
-      var tn = teamName;
-
-      // Aggiorna punteggio
-      if(_ms) {
-        if(scorerTeam==='my'){
-          _ms.myScore++;
-          if(_ms.periodScores&&_ms.period>=1&&_ms.period<=4) _ms.periodScores[_ms.period-1].my++;
-        } else {
-          _ms.oppScore++;
-          if(_ms.periodScores&&_ms.period>=1&&_ms.period<=4) _ms.periodScores[_ms.period-1].opp++;
-        }
-        // Il tiro e' gia' stato contato sopra, indipendentemente dall'esito:
-        // qui non si riconta, altrimenti un gol pesa doppio nelle statistiche
-        // di tiro e nella percentuale di parate.
-      }
-
-      // Step 1 (0.5s): animazione goal + festeggiamento
-      _qA(0.5, function(){
-        if(typeof poolTriggerGoalAnim==='function') poolTriggerGoalAnim(shooterName, scorerTeam, tn);
-        if(typeof showGoalAnimation==='function') showGoalAnimation(shooterName, scorerTeam, _ms);
-        // Compagni corrono verso il marcatore
-        var st=ownerTok;
-        var sx=st?st.tx:CX, sy=st?st.ty:CY;
-        ['1','2','3','4','5','6'].forEach(function(pk){
-          var k=scorerTeam+'_'+pk;
-          var t2=_tok(k); if(!t2||t2.expelled) return;
-          _mv(k, sx+_rnd(-0.07,0.07), sy+_rnd(-0.06,0.06));
-        });
-      });
-
-      // Step 2 (3.5s): rimessa — squadra che ha subito il goal batte da centrocampo
-      // In pallanuoto: chi ha subito il goal prende possesso e si schiera nella propria metà
-      _qA(5.0, function(){  // squadre verso le rispettive metà
-        var batter = scorerTeam==='my' ? 'opp' : 'my';  // chi ha subito batte
-        // Formazioni rimessa: attaccante in metà campo, difensore arretra
-        var myL = batter==='my' ? RESET_MY_ATK : RESET_MY_DEF;
-        var opL = batter==='my' ? RESET_OPP_DEF : RESET_OPP_ATK;
-        ['GK','1','2','3','4','5','6'].forEach(function(pk){
-          if(myL[pk]) _mv('my_'+pk, myL[pk].x, myL[pk].y, 0.012);
-          if(opL[pk]) _mv('opp_'+pk, opL[pk].x, opL[pk].y, 0.012);
-        });
-        // Palla al centro
-        if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(CX, CY);
-        if(typeof poolSetBallOn==='function') poolSetBallOn(batter+'_6');  // CB della sqd che batte
-        _ballOwnerKey = batter+'_6';
-        _pendingReceiver = null;
-        _phase = 'kickoff_after';
-        _attack = batter;
-      });
-
-      // Step 3 (4.3s): il CB di chi ha subito passa subito al proprio C → gioco riprende
-      _qA(7.5, function(){ // aspetta che tutti raggiungano le posizioni prima del calcio d'inizio
-        // Lancia visivamente verso il pos3 del battitore (no pendingReceiver)
-        var batter = scorerTeam==='my' ? 'opp' : 'my';
-        if(typeof poolReleaseBall==='function') poolReleaseBall();
-        _ballOwnerKey=null; _pendingReceiver=null;
-        var c3Tok=_tok(batter+'_3');
-        var lX=c3Tok?c3Tok.x+_rnd(-0.03,0.03):CX;
-        var lY=c3Tok?c3Tok.y+_rnd(-0.025,0.025):CY;
-        if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(lX, lY);
-        _attack=batter;
-        _phase='play'; _tacticalT=0; _microPhase={};
-      });
-      // Step separato: assegna possesso direttamente dopo il volo visivo
-      _qA(8.0, function(){
-        var batter = scorerTeam==='my' ? 'opp' : 'my';
-        _ballOn(batter+'_3');
-        _attack=batter;
-        _passT=0; _passNext=_rnd(1.8,2.5);
-        _repositionAll(0.022);
-      });
-
-    } else {
-      // ── PARATA: portiere avversario prende e rilancia ─────────────────
-      // USA _ballOn direttamente (non _pendingReceiver) perché siamo in _seq
-      // e _seqActive=true fa uscire update() prima del check _pendingReceiver
-      var gkTeamP = ownerTeam==='my' ? 'opp' : 'my';
-      var gkXP = gkTeamP==='my' ? 0.115 : 0.885;
-      // Aggiorna stats parate
-      if(_ms) {
-        if(gkTeamP==='my') _ms.mySaves=(_ms.mySaves||0)+1;
-        else               _ms.oppSaves=(_ms.oppSaves||0)+1;
-      }
-
-      _qA(0.5, function(){
-        if(typeof poolMoveToken==='function') poolMoveToken(gkTeamP+'_GK', gkXP, shotY);
-        _ballOn(gkTeamP+'_GK');  // assegna direttamente, no pendingReceiver
-      });
-
-      _qA(1.2, function(){
-        if(typeof poolReleaseBall==='function') poolReleaseBall();
-        _ballOwnerKey=null; _pendingReceiver=null;
-        var c3T=_tok(gkTeamP+'_3');
-        var lX=c3T ? c3T.x+_rnd(-0.03,0.03) : (gkTeamP==='my'?0.55:0.45);
-        var lY=c3T ? c3T.y+_rnd(-0.025,0.025) : 0.50;
-        if(typeof poolMoveBallDirect==='function') poolMoveBallDirect(lX, lY);
-      });
-      // Step 3 separato (no nesting): assegna palla a pos3 dopo il volo
-      _qA(1.6, function(){
-        _ballOn(gkTeamP+'_3');
-        _attack=gkTeamP;
-        _repositionAll(0.022);
-      });
-    }
-
-    _startSeq();
   }
 
   // ── Pressione sul possessore avversario ───────────────────────
@@ -901,6 +1029,11 @@ var MovementController = (function() {
       _freeAdvanceCooldown=0;
       _seq=[];_seqActive=false;
       _dropDeferred();
+      // pool.js ora guarda dove arriva davvero la palla e segnala qui gol e
+      // fuori. Senza questo collegamento nessuno dei due eventi esisteva: il
+      // punteggio veniva deciso a dado e la palla non poteva ne' entrare in
+      // porta ne' uscire dal campo.
+      if(typeof poolSetBallEventHandler==='function') poolSetBallEventHandler(_onBallEvent);
     }
 
   function stop(){_active=false;_ms=null;_seq=[];_seqActive=false;_dropDeferred();}
@@ -924,6 +1057,11 @@ var MovementController = (function() {
     // fermo in acqua per sempre dopo un passaggio perso, e il possesso
     // tornava solo per il safety che assegnava la palla a una pedina a caso.
     if(typeof poolSetPhaseFromMC==='function') poolSetPhaseFromMC(_phase, _attack);
+
+    // Battuta dopo un "fuori": la pedina avversaria piu' vicina va sul punto
+    // d'uscita e rimette la palla in gioco. Finche' non arriva la palla resta
+    // ferma sul punto in cui e' uscita.
+    _updateThrowIn(dt);
 
     // Una coda di azioni non deve immobilizzare il campo. I suoi passi sono
     // eventi da eseguire alle loro scadenze, non un motivo per sospendere il
@@ -1404,10 +1542,21 @@ var MovementController = (function() {
       if(event.moverKey)_ballOn(event.moverKey);
     _pendingReceiver=null;
     var shotX=event.ballTarget.x, shotY=event.ballTarget.y;
+    // È un TIRO: pool.js deve poterlo distinguere da un passaggio, altrimenti
+    // una palla che entra in porta viene letta come un semplice "fuori".
+    var shooterTeam = event.shotTeam || (event.moverKey ? event.moverKey.split('_')[0] : _attack);
+    _shotShooterKey = event.moverKey || null;
+    var st = event.moverKey ? _tok(event.moverKey) : null;
+    _shotShooterName = (_ms && shooterTeam==='my' && _ms.myRoster && st && st.pi!==undefined)
+      ? ((_ms.myRoster[st.pi]||{}).name||'')
+      : (_ms && shooterTeam==='opp' && _ms.oppRoster && st)
+        ? (((_ms.oppRoster.filter(function(p){return p&&p.role!=='POR';})[0]||{}).name)||'')
+        : '';
     _seq=[];_seqActive=false;
     _qA(0.25, function(){
       if(typeof poolReleaseBall==='function')poolReleaseBall();
       _ballOwnerKey=null;
+      if(typeof poolMarkShot==='function')poolMarkShot(shooterTeam);
       if(typeof poolMoveBallDirect==='function')poolMoveBallDirect(shotX,shotY);
       if(event.moverKey&&event.moverTarget)
         _mv(event.moverKey,event.moverTarget.x,event.moverTarget.y,0.015);
@@ -1770,6 +1919,9 @@ function onPenaltyKick(shooterTeam,isGoal,shooterPk) {
     onPossessChange:     onPossessChange,
     onNumericalChange:   onNumericalChange,
 _hasPendingReceiver: function(){ return !!_pendingReceiver; },
+      // Fase corrente: i test devono poter verificare che un evento capitato
+      // durante una cinetica non lasci la partita incastata in 'goal_cel'.
+      phase:  function(){ return _phase; },
       clearPendingReceiver: function(){ _pendingReceiver=null; _passT=0; _passNext=_rnd(1.5,2.5); },
     // Ricevitore in attesa: serve ai test e alla diagnostica per capire
     // dove il passatore ha mirato e cosa sta facendo il ricevitore.

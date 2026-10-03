@@ -41,6 +41,16 @@ const COMMENTARY_IT = {
     'Contropiede — {player} scatta verso la porta avversaria.',
   ],
 
+  // ── Tiro (senza esito) ───────────────────────────────────────────────────
+  // Annuncia il TIRO, non il suo esito: se entra è gol, se il portiere
+  // copre è parata, se esce è fuori. L'esito lo dice la palla quando arriva.
+  shot: [
+    'Tiro di {shooter}!',
+    '{shooter} si tira addosso.',
+    'Prova di {shooter} dalla distanza.',
+    '{shooter} spara, si vede la scia.',
+  ],
+
   // ── Tiro (senza goal) ────────────────────────────────────────────────────
   shot_saved: [
     'Tiro di {shooter} — parata di {gk}!',
@@ -107,6 +117,16 @@ const COMMENTARY_IT = {
     '⏱ 30 secondi scaduti — rimessa a {team}.',
     '⏱ Tempo d\'attacco esaurito — palla a {team}.',
     '⏱ Shot clock — cambio possesso per {team}.',
+  ],
+
+  // ── Palla fuori dal campo ─────────────────────────────────────────────────
+  // La palla ha superato la linea rossa: si ferma li' e la squadra che non ha
+  // tirato fuori va a batterla per rimetterla in gioco.
+  ball_out: [
+    'Palla fuori! {team} rimette in gioco.',
+    'La palla esce dalla vasca — {team} alla battuta.',
+    'Fuori! {team} si avvicina per la rimessa.',
+    'Tiro perso: palla fuori, {team} rimette.',
   ],
 
   // ── Intercettazione ──────────────────────────────────────────────────────
