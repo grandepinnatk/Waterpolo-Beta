@@ -753,7 +753,16 @@ var MovementController = (function() {
 
     var gameSpeed = _ms.speed || 1;
 
-    if(_seqActive){_tickSeq(dt);return;}
+    // Una coda di azioni non deve immobilizzare il campo. I suoi passi sono
+    // eventi da eseguire alle loro scadenze, non un motivo per sospendere il
+    // gioco: il ramo 'play' qui sotto resta l'unico arbitro di cosa si muove.
+    // Prima, con il return, ogni tiro e ogni parata congelava TUTTO il campo
+    // per i 2.25s di attesa del difensore, e a velocita' 10 i tiri arrivano
+    // ogni 2-4s: il campo passava la partita immobile.
+    // Le cinetiche (gol, rimessa, rigore) restano congelate senza bisogno di
+    // questo guard, perche' durante _phase='goal_cel'|'kickoff_after'|'penalty'
+    // e il ramo 'play' non viene raggiunto.
+    if(_seqActive)_tickSeq(dt);
 
     // La cinetica e' finita e la fase e' tornata 'play': riproduci gli eventi
     // arrivati nel frattempo. Se uno di loro riapre una cinetica, il frame

@@ -16,7 +16,8 @@ const ROOT = path.join(__dirname, '..');
 
 // Ordine di caricamento: deve rispecchiare i <script> di index.html
 const LOAD_ORDER = [
-  'js/i18n/i18n.js',
+'js/i18n/i18n.js',   // installa window.t: senza, ogni render UI che chiama
+                      // t() solleva "t is not a function" e non si puo' testare
   'js/i18n/it.js',
   'js/i18n/en.js',
   'BOOTSTRAP_LANG', // script inline in index.html: deve precedere i data file,
@@ -117,8 +118,20 @@ function makeElement(tag = 'div') {
 
 function makeCtx2d() {
   const noop = () => {};
+  // Oggetti che il codice di disegno si aspetta di ricevere indietro. Un Proxy
+  // che risponde 'noop' a tutto non basta: measureText() deve tornare un
+  // oggetto con .width e i gradienti devono avere addColorStop(), altrimenti
+  // drawPool() solleva TypeError e il loop di animazione non gira in test.
+  const gradient = { addColorStop() {} };
+  const real = {
+    measureText: (t) => ({ width: String(t == null ? '' : t).length * 8 }),
+    createLinearGradient: () => gradient,
+    createRadialGradient: () => gradient,
+    createPattern: () => ({ setTransform() {} }),
+    getImageData: (x, y, w, h) => ({ data: new Uint8ClampedArray(Math.max(1, w * h * 4)) }),
+  };
   return new Proxy({}, {
-    get: (t, k) => (k in t ? t[k] : noop),
+    get: (t, k) => (k in t ? t[k] : (k in real ? real[k] : noop)),
     set: (t, k, v) => { t[k] = v; return true; },
   });
 }

@@ -79,6 +79,7 @@ var _tokenSpd   = {};       // key → unità/s
 var _ball       = {x:0.5, y:0.5, tx:0.5, ty:0.5};
 var _ballOwner  = null;     // chiave token possessore
 var _ballFly    = null;     // {x0,y0,x1,y1,dist} — traiettoria del volo corrente (parabola)
+var _ballAttach = false;    // la palla sta viaggiando verso il possessore: non e' ancora agganciata
 var _phase      = 'idle';   // 'idle'|'play'
 var _attack     = 'my';     // chi ha il possesso
 var _pressKey   = null;     // chiave del token sotto pressione (per visual)
@@ -120,7 +121,7 @@ function _ballOffsetForToken(tok) {
 // ── Inizializzazione ───────────────────────────────────────────────
 function poolInitTokens(ms) {
   _tokens={};_ball={x:PLAY.cx,y:PLAY.cy,tx:PLAY.cx,ty:PLAY.cy};
-  _ballOwner=null;_ballFreeTimer=0;_ballInFlight=false;_ballStuckTimer=0;_phase='idle';_attack='my';_goalAnim=null;_pendingGoal=null;_pressKey=null;_ballFly=null;
+  _ballOwner=null;_ballFreeTimer=0;_ballInFlight=false;_ballStuckTimer=0;_phase='idle';_attack='my';_goalAnim=null;_pendingGoal=null;_pressKey=null;_ballFly=null;_ballAttach=false;
 
   Object.entries(ms.onField).forEach(function(e){
     var pk=e[0],pi=e[1],p=ms.myRoster[pi];
@@ -224,7 +225,15 @@ function poolMoveBallDirect(tx,ty) {
   _ballInFlight=true;
 }
 function poolSetBallOn(key) {
-  if(_tokens[key]){_ballOwner=key; _ballFly=null; _ballInFlight=false;}
+  if(_tokens[key]){
+    _ballOwner=key; _ballFly=null; _ballInFlight=false;
+    // Se la palla e' lontana dal nuovo possessore non gli compare addosso:
+    // la fa' viaggiare. Altrimenti al cambio di possesso spariva e
+    // ri compariva dall'altra parte del campo.
+    var tok=_tokens[key];
+    var ddx=tok.x-_ball.x, ddy=tok.y-_ball.y;
+    _ballAttach=(Math.sqrt(ddx*ddx+ddy*ddy)>0.03);
+  }
 }
 function poolReleaseBall() {
   _ballInFlight=false;  // il lancio avviene subito dopo con poolMoveBallDirect
@@ -316,7 +325,10 @@ function poolAnimStep(dt, gameSpeed) {
   }
 
   // Goal pendente: controlla entrata in rete
-  if(_pendingGoal&&!_goalAnim){
+  // _ballAttach escluso: mentre la palla viaggia verso un possessore non e'
+  // un tiro, e il suo tragitto attraversa il campo. Leggerla come gol
+  // produrrebbe gol fantasma.
+  if(_pendingGoal&&!_goalAnim&&!_ballAttach){
     var bx=_ball.x,by=_ball.y;
     if((bx>=PLAY.myNetX0&&bx<=PLAY.myNetX1&&by>=PLAY.myNetY0&&by<=PLAY.myNetY1)||
        (bx>=PLAY.oppNetX0&&bx<=PLAY.oppNetX1&&by>=PLAY.oppNetY0&&by<=PLAY.oppNetY1)){
@@ -406,7 +418,7 @@ function poolAnimStep(dt, gameSpeed) {
       var off=_ballOffsetForToken(ow);
       _ball.tx=_clamp(ow.x+off.dx,PLAY.x0,PLAY.x1);
       _ball.ty=_clamp(ow.y+off.dy,PLAY.y0,PLAY.y1);
-    } else { _ballOwner=null; }
+    } else { _ballOwner=null; _ballAttach=false; }
   }
 
   // ── Movimento token — velocità scalata con gameSpeed ──────────
@@ -443,13 +455,30 @@ function poolAnimStep(dt, gameSpeed) {
 
   // ── Movimento palla — anche scalato con gameSpeed ──────────────
   if(!_ballOwner){
-    var bspd=_BASE_SPD*15.0*gameSpeed;  // palla molto veloce: ~1m/s reale = percorre campo in ~0.8s
+    // La palla viaggia piu' veloce di un nuotatore (un passaggio e' lanciato,
+    // non nuotato) ma non cosi' veloce da spostarsi di un terzo di campo per
+    // frame. Con il fattore 15 e gameSpeed la palla attraversava l'intero
+    // bacino in 2-3 frame: da qui i "teletrasporti" fra un pezzo e l'altro.
+    // 4x la velocita' base di un nuotatore: un passaggio da 10m dura circa
+    // un secondo di gioco, che a velocita' 10 resta visibile (~9 frame).
+    var bspd=_BASE_SPD*4.0*gameSpeed;
     var bdx=_ball.tx-_ball.x, bdy=_ball.ty-_ball.y;
     var bd=Math.sqrt(bdx*bdx+bdy*bdy);
-    if(bd<0.002){ _ball.x=_ball.tx; _ball.y=_ball.ty; _ballFly=null; _ballInFlight=false; }
-    else{ var bs=bspd*f; if(bs>=bd){_ball.x=_ball.tx;_ball.y=_ball.ty;_ballFly=null;_ballInFlight=false;}else{_ball.x+=bdx/bd*bs;_ball.y+=bdy/bd*bs;} }
+    if(bd<0.002){ _ball.x=_ball.tx; _ball.y=_ball.ty; _ballFly=null; _ballInFlight=false; _ballAttach=false; }
+    else{ var bs=bspd*f; if(bs>=bd){_ball.x=_ball.tx;_ball.y=_ball.ty;_ballFly=null;_ballInFlight=false;_ballAttach=false;}else{_ball.x+=bdx/bd*bs;_ball.y+=bdy/bd*bs;} }
   } else {
-    _ball.x=_ball.tx; _ball.y=_ball.ty;
+    // Possesso piu' la palla viaggia verso il nuovo possessore invece di
+    // comparirgli addosso: al cambio di possesso la palla attraversava il
+    // campo di colpo. _ballAttach resta true finche' non arriva.
+    if(_ballAttach){
+      var adx=_ball.tx-_ball.x, ady=_ball.ty-_ball.y;
+      var ad=Math.sqrt(adx*adx+ady*ady);
+      var aspd=(_BASE_SPD*4.0*gameSpeed)*f;
+      if(aspd>=ad){ _ball.x=_ball.tx; _ball.y=_ball.ty; _ballAttach=false; }
+      else { _ball.x+=adx/ad*aspd; _ball.y+=ady/ad*aspd; }
+    } else {
+      _ball.x=_ball.tx; _ball.y=_ball.ty;
+    }
   }
 }
 
