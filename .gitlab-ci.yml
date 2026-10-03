@@ -25,6 +25,19 @@ sast:
   stage: test
 include:
 - template: Auto-DevOps.gitlab-ci.yml
+
+# Verifica automatica dei test a ogni push.
+# Il progetto non ha dipendenze: "npm test" e' il runner integrato di Node
+# (node --test), quindi serve solo l'immagine con Node e non occorre alcun
+# npm install. I test controllano che i passaggi arrivino al ricevitore, che
+# la palla non si teletrasporti e che il campo non si blocchi.
+# Il nome e' "unit_tests" e non "test" per non collidere con il job "test"
+# del template Auto-DevOps incluso qui sopra.
+unit_tests:
+  stage: test
+  image: node:24
+  script:
+  - npm test
 variables:
   SECRET_DETECTION_ENABLED: 'true'
 secret_detection:
