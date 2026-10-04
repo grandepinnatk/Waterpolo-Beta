@@ -146,7 +146,13 @@ var MovementController = (function() {
 
   // true se una cinetica e' in corso: la fase non e' 'play' e nessun
   // passaggio automatico deve partire.
-  function _inCinematic(){ return _phase!=='play' && _phase!=='sprint' && _phase!=='idle'; }
+  // 'sprint' e' una cinetica come le altre: durante il rimpetto agli occhi un
+  // evento che azzera la coda (onShot, onSave, ...) cancella il passo che
+  // riporta la fase a 'play'. Il campo resterebbe fermo per tutta la partita
+  // mentre gli eventi continuano ad essere elencati. Quindi si differisce
+  // anche durante il rimpetto. 'idle' resta fuori: e' l'intervallo, e la coda
+  // di eventi viene comunque svuotata a inizio tempo.
+  function _inCinematic(){ return _phase!=='play' && _phase!=='idle'; }
 
   function _deferEvent(fn,args){
     // Non accumulare senza limite: se la partita resta ferma a lungo
@@ -1073,6 +1079,14 @@ var MovementController = (function() {
     // questo guard, perche' durante _phase='goal_cel'|'kickoff_after'|'penalty'
     // e il ramo 'play' non viene raggiunto.
     if(_seqActive)_tickSeq(dt);
+    else if(_phase==='sprint'||_phase==='goal_cel'||_phase==='kickoff_after'){
+      // La fase dice "sto mostrando una cinetica" ma la coda e' finita: e'
+      // successo solo se un evento ha azzerato la coda togliendo il passo che
+      // riportava il campo a play. Senza questo il campo resta immobile per
+      // sempre, con la partita in corso e gli eventi che si accumulano nel log.
+      _phase='play'; _microPhase={}; _tacticalT=0;
+      _passT=0; _passNext=_rnd(1.8,2.5);
+    }
 
     // La cinetica e' finita e la fase e' tornata 'play': riproduci gli eventi
     // arrivati nel frattempo. Se uno di loro riapre una cinetica, il frame

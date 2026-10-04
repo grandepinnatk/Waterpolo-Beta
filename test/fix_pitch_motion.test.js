@@ -261,3 +261,87 @@ test('la palla viaggia verso il nuovo possessore invece di comparirgli addosso',
     `la palla si e' spostata di ${out.peggiore.toFixed(3)} in un frame su una distanza `
     + `di ${out.distanzaAlToken.toFixed(3)}: compare addosso al possessore invece di viaggiare`);
 });
+// ── Causa 4: il rimpetto poteva restare appeso per tutta la partita ────────
+//
+// Sintomo segnalato: "nel secondo tempo le pedine non si muovono piu', ma le
+// azioni di gioco continuano ad essere elencate", giocando a 10x e 20x.
+//
+// Il rimpetto è una cinetica come le altre: la sua coda finisce con il passo
+// che riporta la fase a 'play'. Ma _inCinematic() escludeva 'sprint', quindi
+// un evento che arrivava durante il rimpetto non veniva differito: entrava
+// subito e faceva _seq=[], cancellando proprio quel passo. La fase restava
+// 'sprint' indefinitamente, il ramo if(_phase==='play') non veniva piu'
+// raggiunto e nessuna pedina si muoveva. Il log invece si riempiva, perche'
+// _animLoop genera eventi guardando solo che la partita sia in corso: da li'
+// l'impressione che il gioco prosegua mentre il campo e' fermo.
+//
+// A 10x e oltre la coda eventi viene svuotata tutta in un solo frame
+// (ANIM_SKIP_SPEED in match.js), quindi l'evento arrivava durante il rimpetto
+// con molta piu' probabilita' che alle velocita' normali.
+test('un evento durante il rimpetto non lascia il campo fermo', () => {
+  const h = loadGame();
+  h.run(PRIME);
+  h.run('poolInitTokens(G.ms); MovementController.init(G.ms);');
+  h.seed(4242);
+
+  const r = JSON.parse(h.run(`
+    G.ms.speed = 10;
+    G.ms.running = true;
+    MovementController.onPeriodStart();          // come a inizio tempo
+    MovementController.onSprintStart(G.ms.speed); // come quando si preme play
+
+    __frame = 0;
+    while (MovementController.phase() !== 'play' && __frame < 600) {
+      // Un'azione di gioco arriva un frame dopo il rimpetto: a questa
+      // velocita' e' sufficiente per azzerarne la coda.
+      if (__frame === 1) {
+        MovementController.onShot({ moverKey: 'my_3', ballTarget: { x: 0.93, y: 0.50 } });
+      }
+      G.ms.running = true;
+      poolAnimStep(0.05, G.ms.speed);
+      MovementController.update(0.05);
+      __frame++;
+    }
+    JSON.stringify({ frame: __frame, fase: MovementController.phase() })
+  `));
+
+  assert.strictEqual(r.fase, 'play',
+    `il campo e' rimasto in fase '${r.fase}' per ${r.frame} frame: non ripartira' piu'`);
+  // Il rimpetto, da solo, a 10x dura una-ventina frame. Oltre, il campo e'
+  // fermo per un motivo che non e' il rimpetto.
+  assert.ok(r.frame < 200,
+    `il campo e' restato fermo ${r.frame} frame prima di tornare a play`);
+});
+
+// La rete di sicurezza: una fase che dipende solo da una coda, se la coda
+// sparisce, non può tenere il campo fermo per sempre.
+test('il campo torna a giocare anche se una cinetica perde la coda', () => {
+  const h = loadGame();
+  h.run(PRIME);
+  h.run('poolInitTokens(G.ms); MovementController.init(G.ms);');
+  h.seed(4242);
+
+  const r = JSON.parse(h.run(`
+    G.ms.speed = 10;
+    G.ms.running = true;
+    MovementController.onPeriodStart();
+    MovementController.onSprintStart(G.ms.speed);
+    MovementController.update(0.05);
+    MovementController.onShot({ moverKey: 'my_3', ballTarget: { x: 0.93, y: 0.50 } });
+
+    __frame = 0;
+    while (MovementController.phase() !== 'play' && __frame < 600) {
+      G.ms.running = true;
+      poolAnimStep(0.05, G.ms.speed);
+      MovementController.update(0.05);
+      __frame++;
+      // Nessun evento deve arrivare: a questo punto la partita dipende solo
+      // dalla coda, e se la coda e' finita deve tornare a giocare.
+    }
+    JSON.stringify({ frame: __frame, fase: MovementController.phase() })
+  `));
+
+  assert.strictEqual(r.fase, 'play',
+    `il campo e' rimasto in fase '${r.fase}' senza piu' coda da eseguire`);
+  assert.ok(r.frame < 200, `rientro al gioco troppo lento: ${r.frame} frame`);
+});
